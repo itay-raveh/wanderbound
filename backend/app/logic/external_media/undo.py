@@ -26,6 +26,8 @@ from app.logic.external_media.files import (
     CleanupAction,
     MediaAssetTransition,
     finalize_workspace,
+    rebase_workspace_path,
+    register_workspace,
     run_best_effort_cleanup,
     sweep_pending_workspaces,
 )
@@ -135,6 +137,24 @@ class UndoSnapshotUpdate:
             for name, value in self.previous_values.items():
                 setattr(self.snapshot, name, value)
         self.discard()
+
+    def register_cleanup(self) -> None:
+        previous_workspace = self.workspace
+        self.workspace = register_workspace(self.album_dir, self.workspace)
+        self.activated = [
+            (
+                destination,
+                rebase_workspace_path(staged, previous_workspace, self.workspace),
+            )
+            for destination, staged in self.activated
+        ]
+        self.previous = [
+            (
+                rebase_workspace_path(backup, previous_workspace, self.workspace),
+                original,
+            )
+            for backup, original in self.previous
+        ]
 
     def finish(self) -> None:
         finalize_workspace(self.album_dir, self.workspace)
@@ -438,6 +458,7 @@ async def create_undo_snapshot(
         snap.created_at = now
         snap.expires_at = now + UNDO_TTL
         session.add(snap)
+        await run_sync(update.register_cleanup)
         await session.flush()
     except BaseException:
         await run_sync(update.rollback)
@@ -485,6 +506,7 @@ async def restore_undo_snapshot(
         await run_sync(delete_thumbnails, target)
         _restore_row_values(row, prepared, snap, target)
         session.add(row)
+        await run_sync(transition.register_cleanup)
         await session.delete(snap)
         await session.flush()
     except BaseException:

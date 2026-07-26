@@ -44,9 +44,9 @@ async def run_best_effort_cleanup(
             logger.warning(event, action=action_name, exc_info=True)
 
 
-def finalize_workspace(album_dir: Path, workspace: Path) -> None:
+def register_workspace(album_dir: Path, workspace: Path) -> Path:
     if not workspace.exists():
-        return
+        return workspace
     resolved_album = album_dir.resolve()
     resolved_workspace = workspace.resolve()
     try:
@@ -56,11 +56,32 @@ def finalize_workspace(album_dir: Path, workspace: Path) -> None:
 
     pending_root = _pending_cleanup_root(resolved_album)
     pending_root.mkdir(parents=True, exist_ok=True)
-    pending = resolved_workspace.replace(pending_root / uuid.uuid4().hex)
-    (pending / ".registered").touch()
-    shutil.rmtree(pending)
+    return resolved_workspace.replace(pending_root / uuid.uuid4().hex)
+
+
+def finalize_workspace(album_dir: Path, workspace: Path) -> None:
+    if not workspace.exists():
+        return
+    pending_root = _pending_cleanup_root(album_dir)
+    resolved_workspace = workspace.resolve()
+    try:
+        resolved_workspace.relative_to(pending_root)
+    except ValueError as error:
+        raise ValueError(
+            "Cleanup workspace must be registered before removal"
+        ) from error
+
+    shutil.rmtree(resolved_workspace)
     with suppress(OSError):
         pending_root.rmdir()
+
+
+def rebase_workspace_path(path: Path, source: Path, destination: Path) -> Path:
+    try:
+        relative = path.relative_to(source)
+    except ValueError:
+        return path
+    return destination / relative
 
 
 def sweep_pending_workspaces(album_dir: Path, cutoff: datetime) -> int:
@@ -170,6 +191,24 @@ class MediaAssetTransition:
                 backup.replace(original)
         self._previous.clear()
         self.discard()
+
+    def register_cleanup(self) -> None:
+        previous_workspace = self.workspace
+        self.workspace = register_workspace(self.album_dir, self.workspace)
+        self._previous = [
+            (
+                rebase_workspace_path(backup, previous_workspace, self.workspace),
+                original,
+            )
+            for backup, original in self._previous
+        ]
+        self._activated = [
+            (
+                active,
+                rebase_workspace_path(staged, previous_workspace, self.workspace),
+            )
+            for active, staged in self._activated
+        ]
 
     def finish(self) -> None:
         finalize_workspace(self.album_dir, self.workspace)

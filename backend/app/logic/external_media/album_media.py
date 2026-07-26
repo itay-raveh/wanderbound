@@ -170,6 +170,7 @@ async def replace_album_media_from_saved(
         row.upgrade_candidate = False
         row.updated_at = datetime.now(UTC)
         session.add(row)
+        await run_sync(transition.register_cleanup)
         await session.flush()
     except BaseException:
         compensations: tuple[CleanupAction, ...] = (

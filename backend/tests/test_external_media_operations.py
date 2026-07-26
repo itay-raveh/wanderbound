@@ -474,6 +474,44 @@ async def test_replace_snapshot_finalizer_failure_keeps_successful_replacement(
     assert (tmp_path / ".undo" / VALID_NAME).exists()
 
 
+async def test_replace_pending_root_creation_failure_restores_previous_state(
+    session: AsyncSession,
+    tmp_path: Path,
+) -> None:
+    album, media = await _album_with_photo(session, tmp_path)
+    target = tmp_path / VALID_NAME
+    original_bytes = target.read_bytes()
+    replacement = create_test_jpeg(tmp_path / "replacement.jpg", 1600, 1200)
+    await session.commit()
+    real_mkdir = Path.mkdir
+
+    def fail_pending_root(
+        path: Path,
+        *args: object,
+        **kwargs: object,
+    ) -> None:
+        if path == tmp_path / ".media-cleanup-pending":
+            raise OSError("pending root creation failed")
+        real_mkdir(path, *args, **kwargs)
+
+    with (
+        patch.object(Path, "mkdir", autospec=True, side_effect=fail_pending_root),
+        pytest.raises(OSError, match="pending root creation failed"),
+    ):
+        await replace_album_media_from_saved(
+            session,
+            album=album,
+            album_dir=tmp_path,
+            media_name=VALID_NAME,
+            saved=_saved_input(replacement),
+        )
+
+    assert target.read_bytes() == original_bytes
+    assert media.width == 640
+    assert media.height == 480
+    assert not (tmp_path / ".undo" / VALID_NAME).exists()
+
+
 async def test_failed_finalizer_is_retried_by_album_prune(
     session: AsyncSession,
     tmp_path: Path,
@@ -758,6 +796,45 @@ async def test_undo_finalizer_failure_keeps_successful_restore(
     assert result.height == 900
     assert target.read_bytes() == snapshot_bytes
     assert not snapshot.exists()
+
+
+async def test_undo_cleanup_registration_failure_restores_previous_state(
+    session: AsyncSession,
+    tmp_path: Path,
+) -> None:
+    album, media = await _album_with_photo(session, tmp_path)
+    target = tmp_path / VALID_NAME
+    current_bytes = target.read_bytes()
+    snapshot = create_test_jpeg(tmp_path / ".undo" / VALID_NAME, 1200, 900)
+    snapshot_bytes = snapshot.read_bytes()
+    _add_undo_snapshot(session, media_name=VALID_NAME)
+    await session.commit()
+    real_replace = Path.replace
+
+    def fail_registration(path: Path, target_path: Path) -> Path:
+        target_path = Path(target_path)
+        if (
+            ".media-transitions" in path.parts
+            and ".media-cleanup-pending" in target_path.parts
+        ):
+            raise OSError("cleanup registration failed")
+        return real_replace(path, target_path)
+
+    with (
+        patch.object(Path, "replace", autospec=True, side_effect=fail_registration),
+        pytest.raises(OSError, match="cleanup registration failed"),
+    ):
+        await restore_undo_snapshot(
+            session,
+            album=album,
+            album_dir=tmp_path,
+            media_name=VALID_NAME,
+        )
+
+    assert target.read_bytes() == current_bytes
+    assert snapshot.read_bytes() == snapshot_bytes
+    assert media.width == 640
+    assert media.height == 480
 
 
 async def test_undo_rollback_failure_still_restores_row_and_original_error(
