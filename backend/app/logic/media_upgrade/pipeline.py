@@ -35,7 +35,7 @@ from app.core.observability import set_span_data, start_span
 from app.core.resources import detect_cpu_count, detect_memory_mb
 from app.core.worker_threads import run_sync
 from app.logic.layout.media import Media, MediaName, is_video, media_limiter
-from app.models.album_media import AlbumMedia
+from app.models.album_media import AlbumMedia, is_panorama_size
 from app.models.google_photos import (
     GoogleMediaBaseUrl,
     GoogleMediaId,
@@ -634,6 +634,8 @@ async def _persist_upgrade_in_session(  # noqa: PLR0913
             continue
         row.width = updated.width
         row.height = updated.height
+        if not is_panorama_size(updated.width, updated.height):
+            row.panorama = None
         row.byte_size = target.stat().st_size
         row.perceptual_hashes = None
         row.upgrade_candidate = False

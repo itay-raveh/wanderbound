@@ -2,8 +2,8 @@ import asyncio
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
-from app.api.v1.routes.assets import _gen_lock, get_media, update_video_frame
-from app.logic.layout.media import THUMB_WIDTHS, generate_thumbnail
+from app.api.v1.routes.assets import get_media, update_video_frame
+from app.logic.layout.media import THUMB_WIDTHS, generate_thumbnail, generation_lock
 from tests.factories import create_test_jpeg
 
 _AID = "test-album-id"
@@ -128,7 +128,7 @@ class TestGenLockConcurrency:
         gate = asyncio.Event()
 
         async def worker(n: int) -> None:
-            async with _gen_lock(path):
+            async with generation_lock(path):
                 order.append(n)
                 if n == 1:
                     # Hold the lock until we've verified #2 and #3 are queued.

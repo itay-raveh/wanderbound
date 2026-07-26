@@ -22,6 +22,8 @@ from app.logic.layout.media import (
     media_limiter,
     open_oriented,
 )
+from app.logic.panorama import MAX_PANORAMA_DIMENSION, remove_panorama_derivatives
+from app.models.album_media import is_panorama_size
 
 logger = structlog.get_logger(__name__)
 
@@ -44,8 +46,11 @@ def process_photo_sync(raw_path: Path, tmp_path: Path) -> tuple[int, int]:
         img = raw.convert("RGB")
 
         long_edge = max(img.size)
-        if long_edge > _MAX_LONG_EDGE:
-            scale = _MAX_LONG_EDGE / long_edge
+        limit = (
+            MAX_PANORAMA_DIMENSION if is_panorama_size(*img.size) else _MAX_LONG_EDGE
+        )
+        if long_edge > limit:
+            scale = limit / long_edge
             w, h = img.size
             img = img.resize(
                 (round(w * scale), round(h * scale)),
@@ -221,4 +226,5 @@ async def replace_photo(
         await run_sync(shutil.move, tmp, target)
 
     await run_sync(delete_thumbnails, target)
+    await run_sync(remove_panorama_derivatives, target.parent, name)
     return True

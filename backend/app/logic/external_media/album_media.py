@@ -22,8 +22,9 @@ from app.logic.media_import import (
     process_saved_media,
 )
 from app.logic.media_upgrade.hashes import try_compute_serialized_media_hash
+from app.logic.panorama import remove_panorama_derivatives
 from app.models.album import Album
-from app.models.album_media import AlbumMedia
+from app.models.album_media import AlbumMedia, is_panorama_size
 
 from .undo import create_undo_snapshot
 
@@ -96,6 +97,9 @@ async def replace_album_media_from_saved(
             target,
             limiter=media_limiter,
         )
+        if not is_panorama_size(replacement.width, replacement.height):
+            row.panorama = None
+        await run_sync(remove_panorama_derivatives, album_dir, media_name)
         row.upgrade_candidate = False
         row.updated_at = datetime.now(UTC)
         session.add(row)

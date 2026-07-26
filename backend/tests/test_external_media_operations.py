@@ -19,7 +19,7 @@ from app.logic.external_media.undo import (
 from app.logic.layout.media import Media
 from app.logic.media_import import SavedInput
 from app.models.album import Album
-from app.models.album_media import AlbumMedia, AlbumMediaUndoSnapshot
+from app.models.album_media import AlbumMedia, AlbumMediaUndoSnapshot, PanoramaConfig
 
 from .factories import (
     AID,
@@ -218,9 +218,12 @@ async def test_replace_preserves_media_name_and_creates_undo(
     uid = 1
     album_dir = tmp_path
     album, media = await _album_with_photo(session, album_dir, uid=uid)
+    media.width = 4000
+    media.height = 1000
+    media.panorama = PanoramaConfig(aspect_ratio=2)
     media.perceptual_hashes = ["0000000000000000"]
     session.add(media)
-    replacement = create_test_jpeg(tmp_path / "replacement.jpg", 1600, 1200)
+    replacement = create_test_jpeg(tmp_path / "replacement.jpg", 3200, 1000)
     await session.commit()
 
     result = await replace_album_media_from_saved(
@@ -233,8 +236,9 @@ async def test_replace_preserves_media_name_and_creates_undo(
 
     assert result.name == VALID_NAME
     row = await session.get_one(AlbumMedia, (uid, AID, VALID_NAME))
-    assert row.width == 1600
-    assert row.height == 1200
+    assert row.width == 3200
+    assert row.height == 1000
+    assert row.panorama == PanoramaConfig(aspect_ratio=2)
     assert row.upgrade_candidate is False
     assert row.perceptual_hashes not in (None, ["0000000000000000"])
     snap = await session.get_one(AlbumMediaUndoSnapshot, (uid, AID, VALID_NAME))
