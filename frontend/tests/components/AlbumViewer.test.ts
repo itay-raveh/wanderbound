@@ -280,10 +280,8 @@ describe("AlbumViewer", () => {
     });
 
     await wrapper.get(".panorama-frame-action").trigger("click");
-    await flushPromises();
-    await vi.waitFor(() =>
-      expect(document.body.querySelector(".panorama-dialog")).not.toBeNull(),
-    );
+    await vi.dynamicImportSettled();
+    expect(document.body.querySelector(".panorama-dialog")).not.toBeNull();
 
     virtualItems.value = [];
     await nextTick();

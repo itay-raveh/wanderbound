@@ -164,7 +164,7 @@ def _filter_graph(
         "v360=input=cylindrical:output=flat:"
         f"ih_fov={_number(captured_fov)}:"
         f"iv_fov={_number(vertical_fov)}:"
-        f"yaw={_number(config.yaw)}:"
+        f"yaw={_number(-config.yaw)}:"
         f"pitch={_number(config.pitch)}:"
         f"h_fov={_number(config.perspective_fov)}:"
         f"v_fov={_number(_output_vertical_fov(config))}:"

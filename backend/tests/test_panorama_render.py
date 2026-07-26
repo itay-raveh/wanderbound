@@ -76,6 +76,25 @@ async def test_source_and_poster_render_with_ffmpeg(tmp_path: Path) -> None:
         assert image.size == (400, 200)
 
 
+async def test_poster_yaw_matches_the_interactive_viewer(tmp_path: Path) -> None:
+    source = tmp_path / "source.png"
+    output = tmp_path / "frame.jpg"
+    image = Image.new("RGB", (400, 200), "red")
+    image.paste("blue", (200, 0, 400, 200))
+    image.save(source)
+
+    await render_panorama(
+        source,
+        _config(yaw=30, perspective_fov=20),
+        output,
+        (400, 200),
+    )
+
+    with Image.open(output) as poster:
+        center = poster.convert("RGB").crop((200, 100, 201, 101)).tobytes()
+    assert center[0] > center[2]
+
+
 def test_cached_files_track_source_and_frame(tmp_path: Path) -> None:
     source = tmp_path / "source.jpg"
     _source(source)
