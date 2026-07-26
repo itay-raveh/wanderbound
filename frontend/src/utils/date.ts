@@ -2,7 +2,7 @@
 export const isoDate = (datetime: string) => datetime.slice(0, 10);
 
 /** ISO date string -> { year, month, day } components. */
-export function parseYMD(iso: string): {
+function parseYMD(iso: string): {
   year: number;
   month: number;
   day: number;
@@ -32,37 +32,7 @@ export function daysBetween(a: Date, b: Date): number {
 export const inDateRange = (d: string, [from, to]: [string, string]) =>
   d >= from && d <= to;
 
-/** ISO "YYYY-MM-DD" -> QDate "YYYY/MM/DD" */
-export const toQDate = (iso: string) => iso.replace(/-/g, "/");
-/** QDate "YYYY/MM/DD" -> ISO "YYYY-MM-DD" */
-export const toIso = (qd: string) => qd.replace(/\//g, "-");
-
 export const SHORT_DATE: Intl.DateTimeFormatOptions = {
   month: "short",
   day: "numeric",
 };
-
-/** Quasar range-end YMD object -> ISO "YYYY-MM-DD". */
-export function ymdToIso({
-  year,
-  month,
-  day,
-}: {
-  year: number;
-  month: number;
-  day: number;
-}): string {
-  return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
-}
-
-/** QDate navigation bounds (YYYY/MM) from a sorted step list. */
-export function qDateNavBounds(steps: { datetime: string }[]): {
-  min?: string;
-  max?: string;
-} {
-  if (!steps.length) return {};
-  return {
-    min: toQDate(steps[0].datetime.slice(0, 7)),
-    max: toQDate(steps[steps.length - 1].datetime.slice(0, 7)),
-  };
-}

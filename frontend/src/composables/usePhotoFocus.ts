@@ -1,5 +1,6 @@
 import type { StepRead as Step } from "@/client";
 import type { StepMutationUpdate } from "@/queries/useStepMutation";
+import type { StepIndex } from "@/utils/steps";
 import { ref, type InjectionKey, readonly } from "vue";
 import { coverUpdatePayload, unusedUpdatePayload } from "./useStepLayout";
 
@@ -12,8 +13,13 @@ export interface PhotoFocusSnapshot {
 
 const focusedStepId = ref<number | null>(null);
 const focusedPhotoId = ref<string | null>(null);
+const emptyStepIndex: StepIndex = {
+  byId: new Map(),
+  positionById: new Map(),
+};
 
 let getSteps: () => Step[] = () => [];
+let getStepIndex: () => StepIndex = () => emptyStepIndex;
 let mutateFn:
   | ((
       sid: number,
@@ -32,7 +38,7 @@ function pagedPhotos(step: Step): string[] {
 }
 
 function getStep(stepId: number): Step | undefined {
-  return getSteps().find((s) => s.id === stepId);
+  return getStepIndex().byId.get(stepId);
 }
 
 function advanceFocus(photos: string[], removedIdx: number) {
@@ -49,6 +55,7 @@ function advanceFocus(photos: string[], removedIdx: number) {
 
 function init(config: {
   steps: () => Step[];
+  stepIndex: () => StepIndex;
   mutate: (
     sid: number,
     update: StepMutationUpdate,
@@ -57,6 +64,7 @@ function init(config: {
   scrollToPhoto: (stepId: number, photoId: string) => void;
 }) {
   getSteps = config.steps;
+  getStepIndex = config.stepIndex;
   mutateFn = config.mutate;
   scrollToPhotoFn = config.scrollToPhoto;
 }
@@ -68,6 +76,7 @@ function dispose() {
   focusedStepId.value = null;
   focusedPhotoId.value = null;
   getSteps = () => [];
+  getStepIndex = () => emptyStepIndex;
   mutateFn = null;
   scrollToPhotoFn = null;
 }
@@ -138,8 +147,8 @@ function moveToAdjacentStep(direction: "prev" | "next"): boolean {
   if (currentStepId == null) return false;
 
   const steps = getSteps();
-  const orderIdx = steps.findIndex((s) => s.id === currentStepId);
-  if (orderIdx < 0) return false;
+  const orderIdx = getStepIndex().positionById.get(currentStepId);
+  if (orderIdx == null) return false;
 
   const delta = direction === "next" ? 1 : -1;
   for (let i = orderIdx + delta; i >= 0 && i < steps.length; i += delta) {

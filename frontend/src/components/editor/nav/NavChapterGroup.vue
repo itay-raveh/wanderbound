@@ -1,6 +1,6 @@
 <script lang="ts" setup>
-import type { DateRange, StepRead as Step } from "@/client";
-import type { ChapterStartOption, ChapterVisit } from "./types";
+import type { DateRange } from "@/client";
+import type { ChapterVisit, StepSelectOption } from "./types";
 import type { HeaderKey } from "@/components/album/albumSections";
 import { useI18n } from "vue-i18n";
 import { ref } from "vue";
@@ -22,14 +22,12 @@ defineProps<{
   activeSectionKey: string | null;
   hiddenSet: ReadonlySet<number>;
   hiddenHeaderSet: ReadonlySet<string>;
-  steps: Step[];
-  colors: Record<string, string>;
   formatMapRange: (dr: DateRange) => string;
   lazyRoot?: HTMLElement | null;
   canDelete?: boolean;
   canSplit?: boolean;
   mergeTarget?: "previous" | "next";
-  startOptions?: ChapterStartOption[];
+  startOptions?: StepSelectOption[];
   startStepId?: number | null;
 }>();
 
@@ -44,7 +42,7 @@ const emit = defineEmits<{
   toggleStep: [id: number];
   toggleHeader: [headerKey: HeaderKey];
   deleteMap: [rangeIdx: number];
-  mapDateChange: [rangeIdx: number, range: DateRange];
+  editMap: [rangeIdx: number, range: DateRange];
 }>();
 </script>
 
@@ -107,12 +105,10 @@ const emit = defineEmits<{
       :active-step-id="activeStepId"
       :active-section-key="activeSectionKey"
       :hidden-set="hiddenSet"
-      :steps="steps"
-      :colors="colors"
       :format-map-range="formatMapRange"
       :lazy-root="lazyRoot"
       @delete-map="emit('deleteMap', $event)"
-      @map-date-change="(idx, range) => emit('mapDateChange', idx, range)"
+      @edit-map="(idx, range) => emit('editMap', idx, range)"
       @scroll-to-map="emit('scrollToMap', $event)"
       @scroll-to-step="emit('scrollToStep', $event)"
       @toggle-step="emit('toggleStep', $event)"

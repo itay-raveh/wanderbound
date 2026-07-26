@@ -1,4 +1,5 @@
 import type { AlbumChapter, StepRead as Step } from "@/client";
+import { indexSteps } from "@/utils/steps";
 
 function cloneChapter(chapter: AlbumChapter): AlbumChapter {
   return {
@@ -46,9 +47,9 @@ export function splitChapter(
   const splitAt = Math.ceil(sourceStepIds.length / 2);
   const firstStepIds = sourceStepIds.slice(0, splitAt);
   const nextStepIds = sourceStepIds.slice(splitAt);
-  const stepsById = new Map(steps.map((step) => [step.id, step]));
+  const { byId } = indexSteps(steps);
   const nextSteps = nextStepIds
-    .map((stepId) => stepsById.get(stepId))
+    .map((stepId) => byId.get(stepId))
     .filter((step): step is Step => Boolean(step));
   const fallbackCover = source.front_cover_photo || source.back_cover_photo || "";
   const cover = coverFromSteps(nextSteps, fallbackCover);

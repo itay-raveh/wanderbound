@@ -5,6 +5,7 @@ import { useUndoStack, pickSnapshot } from "@/composables/useUndoStack";
 import type { PhotoFocusSnapshot } from "@/composables/usePhotoFocus";
 import { Notify } from "quasar";
 import { t } from "@/i18n";
+import { indexSteps } from "@/utils/steps";
 import { queryKeys } from "./keys";
 
 export type StepMutationUpdate = Partial<StepUpdate & StepMediaLayout>;
@@ -34,9 +35,8 @@ export function useStepMutation(aid: () => string) {
   return useMutation({
     mutation: async (payload: StepMutationPayload) => {
       if (isLayoutUpdate(payload.update)) {
-        const step = cache
-          .getQueryData<Array<Step>>(queryKeys.steps(aid()))
-          ?.find((s) => s.id === payload.sid);
+        const steps = cache.getQueryData<Array<Step>>(queryKeys.steps(aid()));
+        const step = steps ? indexSteps(steps).byId.get(payload.sid) : undefined;
         if (!step) throw new Error("Step not found in cache");
         const { data } = await updateStepMediaLayout({
           path: { aid: aid(), sid: payload.sid },

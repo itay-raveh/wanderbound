@@ -27,6 +27,7 @@ const { t } = useI18n();
 useMeta({ title: "Editor" });
 
 import { LAST_ALBUM_KEY } from "@/utils/storage-keys";
+import { indexSteps } from "@/utils/steps";
 const DRAWER_WIDTH = 280;
 const NAVIGATION_BREAKPOINT = 1199;
 const INSPECTOR_BREAKPOINT = 1439;
@@ -124,9 +125,10 @@ const { activeStepId, activeSectionKey, resetActiveSection } =
   useActiveSection();
 onBeforeUnmount(resetActiveSection);
 const displayedSteps = computed(() => steps.value);
+const displayedStepIndex = computed(() => indexSteps(displayedSteps.value ?? []));
 const activeStep = computed(() =>
   activeStepId.value != null
-    ? displayedSteps.value?.find((s) => s.id === activeStepId.value)
+    ? displayedStepIndex.value.byId.get(activeStepId.value)
     : undefined,
 );
 </script>

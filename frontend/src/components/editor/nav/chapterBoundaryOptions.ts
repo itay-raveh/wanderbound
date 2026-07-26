@@ -1,5 +1,6 @@
 import type { AlbumChapter, StepRead as Step } from "@/client";
-import type { ChapterStartOption } from "./types";
+import { indexSteps } from "@/utils/steps";
+import type { StepSelectOption } from "./types";
 
 type ChapterBoundaryOptionsInput = {
   left: AlbumChapter;
@@ -17,11 +18,11 @@ export function chapterBoundaryOptions({
   right,
   steps,
   countryName,
-}: ChapterBoundaryOptionsInput): ChapterStartOption[] {
-  const stepsById = new Map(steps.map((step) => [step.id, step]));
+}: ChapterBoundaryOptionsInput): StepSelectOption[] {
+  const { byId } = indexSteps(steps);
   const combined = [...(left.step_ids ?? []), ...(right.step_ids ?? [])];
   return combined.slice(1).map((stepId) => {
-    const step = stepsById.get(stepId);
+    const step = byId.get(stepId);
     const countryCode = step?.location.country_code ?? "";
     return {
       label: stepLabel(step, stepId),

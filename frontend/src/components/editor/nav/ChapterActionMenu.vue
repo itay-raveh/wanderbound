@@ -1,7 +1,7 @@
 <script lang="ts" setup>
-import type { ChapterStartOption } from "./types";
+import type { StepSelectOption } from "./types";
 import { useI18n } from "vue-i18n";
-import ChapterStartSelect from "./ChapterStartSelect.vue";
+import StepSelect from "./StepSelect.vue";
 import {
   symOutlinedCallMerge,
   symOutlinedCallSplit,
@@ -13,7 +13,7 @@ const props = defineProps<{
   canDelete?: boolean;
   canSplit?: boolean;
   mergeTarget?: "previous" | "next";
-  startOptions?: ChapterStartOption[];
+  startOptions?: StepSelectOption[];
   startStepId?: number | null;
 }>();
 
@@ -26,15 +26,12 @@ defineEmits<{
 
 <template>
   <q-list dense class="chapter-action-menu">
-    <q-item v-if="startOptions?.length" class="chapter-start-item">
-      <q-item-section>
-        <ChapterStartSelect
-          :model-value="props.startStepId"
-          :options="startOptions"
-          @update:model-value="$emit('adjustBoundary', $event)"
-        />
-      </q-item-section>
-    </q-item>
+    <StepSelect
+      v-if="startOptions?.length"
+      :model-value="props.startStepId"
+      :options="startOptions"
+      @update:model-value="$emit('adjustBoundary', $event)"
+    />
     <q-separator v-if="startOptions?.length" class="chapter-menu-separator" />
     <q-item
       clickable
@@ -77,12 +74,6 @@ defineEmits<{
   min-width: 13.5rem;
   padding: var(--gap-xs);
   color: var(--text-bright);
-}
-
-.chapter-start-item {
-  min-height: 3.25rem;
-  padding: 0 var(--gap-sm);
-  border-radius: var(--radius-sm);
 }
 
 .chapter-menu-separator {

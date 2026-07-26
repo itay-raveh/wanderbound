@@ -1,116 +1,84 @@
 <script lang="ts" setup>
-import type { DateRange, StepRead as Step } from "@/client";
-import { toQDate, parseYMD, ymdToIso } from "@/utils/date";
-import StepDatePicker from "@/components/editor/StepDatePicker.vue";
+import type { DateRange } from "@/client";
 import { useI18n } from "vue-i18n";
-import { ref, computed, nextTick } from "vue";
 import {
   symOutlinedMap,
   symOutlinedClose,
-  symOutlinedCalendarMonth,
+  symOutlinedEdit,
 } from "@quasar/extras/material-symbols-outlined";
 
 const { t } = useI18n();
 
-type YMD = ReturnType<typeof parseYMD>;
-type DatePickerExpose = { setEditingRange: (r: YMD) => void };
-type PopupExpose = { hide: () => void };
-
-const props = defineProps<{
+defineProps<{
   dateRange: DateRange;
   rangeIdx: number;
   active: boolean;
   color: string;
-  steps: Step[];
-  colors: Record<string, string>;
   formatMapRange: (dr: DateRange) => string;
 }>();
 
 const emit = defineEmits<{
   click: [];
   delete: [];
-  dateChange: [rangeIdx: number, range: DateRange];
+  edit: [rangeIdx: number, range: DateRange];
 }>();
-
-const datePickerRef = ref<DatePickerExpose | null>(null);
-const popupRef = ref<PopupExpose | null>(null);
-
-const endDateOption = computed(() => {
-  const min = toQDate(props.dateRange[0]);
-  return (qdate: string) => qdate >= min;
-});
-
-async function onDateShow() {
-  await nextTick();
-  datePickerRef.value?.setEditingRange(parseYMD(props.dateRange[0]));
-}
-
-function onDateEnd(range: { from: YMD; to: YMD }) {
-  emit("dateChange", props.rangeIdx, [props.dateRange[0], ymdToIso(range.to)]);
-  popupRef.value?.hide();
-}
 </script>
 
 <template>
   <div
-    role="button"
-    tabindex="0"
-    :class="['nav-item', 'map-item', { visible: active }]"
+    :class="['map-item', { visible: active }]"
     :style="{ '--country-color': color }"
-    :aria-label="`${t('nav.map')}: ${formatMapRange(dateRange)}`"
-    @click="$emit('click')"
-    @keydown.enter="$emit('click')"
   >
-    <div class="item-thumb map-thumb">
-      <q-icon :name="symOutlinedMap" size="var(--type-md)" />
-    </div>
-    <div class="item-info">
-      <span class="item-name">{{ t("nav.map") }}</span>
-      <button
-        type="button"
-        class="map-dates"
-        aria-haspopup="dialog"
-        @click.stop
-      >
-        <q-icon :name="symOutlinedCalendarMonth" size="var(--type-xs)" />
-        {{ formatMapRange(dateRange) }}
-        <q-popup-proxy
-          ref="popupRef"
-          transition-show="scale"
-          transition-hide="scale"
-          @before-show="onDateShow"
-        >
-          <StepDatePicker
-            ref="datePickerRef"
-            :model-value="{
-              from: toQDate(dateRange[0]),
-              to: toQDate(dateRange[1]),
-            }"
-            :steps="steps"
-            :colors="colors"
-            range
-            :options="endDateOption"
-            @range-end="(range: { from: YMD; to: YMD }) => onDateEnd(range)"
-          />
-        </q-popup-proxy>
-      </button>
-    </div>
     <button
       type="button"
-      class="map-delete"
-      :aria-label="t('album.removeMap')"
-      @click.stop="$emit('delete')"
+      :class="['nav-item', 'map-target', { visible: active }]"
+      :aria-current="active ? 'page' : undefined"
+      :aria-label="`${t('nav.map')}: ${formatMapRange(dateRange)}`"
+      @click="$emit('click')"
     >
-      <q-icon :name="symOutlinedClose" size="var(--type-xs)" />
-      <q-tooltip>{{ t("album.removeMap") }}</q-tooltip>
+      <div class="item-thumb map-thumb">
+        <q-icon :name="symOutlinedMap" size="var(--type-md)" />
+      </div>
+      <div class="item-info">
+        <span class="item-name">{{ t("nav.map") }}</span>
+        <span class="map-dates">{{ formatMapRange(dateRange) }}</span>
+      </div>
     </button>
+    <div class="map-actions">
+      <button
+        type="button"
+        class="map-action"
+        :aria-label="t('nav.editMap')"
+        @click="emit('edit', rangeIdx, dateRange)"
+      >
+        <q-icon :name="symOutlinedEdit" size="var(--type-xs)" />
+        <q-tooltip>{{ t("nav.editMap") }}</q-tooltip>
+      </button>
+      <button
+        type="button"
+        class="map-action"
+        :aria-label="t('album.removeMap')"
+        @click="$emit('delete')"
+      >
+        <q-icon :name="symOutlinedClose" size="var(--type-xs)" />
+        <q-tooltip>{{ t("album.removeMap") }}</q-tooltip>
+      </button>
+    </div>
   </div>
 </template>
 
 <style lang="scss" scoped>
 @use "nav-item";
 
-.map-item .item-name {
+.map-item {
+  position: relative;
+}
+
+.map-target {
+  padding-inline-end: 4.75rem;
+}
+
+.map-target .item-name {
   color: var(--q-primary);
 }
 
@@ -123,30 +91,42 @@ function onDateEnd(range: { from: YMD; to: YMD }) {
 }
 
 .map-dates {
+  font-size: var(--type-xs);
+  color: var(--text-muted);
+}
+
+.map-actions {
+  position: absolute;
+  inset-inline-end: var(--gap-sm);
+  top: 50%;
+  display: flex;
+  opacity: 0;
+  transform: translateY(-50%);
+  transition: opacity var(--duration-fast);
+
+  .map-item:hover &,
+  .map-item.visible &,
+  .map-item:focus-within & {
+    opacity: 1;
+  }
+}
+
+.map-action {
   appearance: none;
   background: none;
   border: none;
-  font: inherit;
-  display: inline-flex;
-  align-items: center;
-  gap: var(--gap-xs);
-  font-size: var(--type-xs);
-  color: var(--text-muted);
   cursor: pointer;
-  padding: var(--gap-xs);
-  border-radius: var(--radius-xs);
-  border-bottom: 1px dashed
-    color-mix(in srgb, var(--text-muted) 50%, transparent);
+  flex-shrink: 0;
+  padding: var(--gap-sm);
+  border-radius: var(--radius-sm);
+  color: var(--text-faint);
   transition:
-    background var(--duration-fast),
     color var(--duration-fast),
-    border-color var(--duration-fast);
+    background var(--duration-fast);
 
   &:hover {
     color: var(--q-primary);
     background: color-mix(in srgb, var(--q-primary) 10%, transparent);
-    border-bottom-color: var(--q-primary);
-    border-bottom-style: solid;
   }
 
   &:active {
@@ -159,53 +139,18 @@ function onDateEnd(range: { from: YMD; to: YMD }) {
   }
 }
 
-.map-delete {
-  appearance: none;
-  background: none;
-  border: none;
-  cursor: pointer;
-  flex-shrink: 0;
-  padding: var(--gap-sm);
-  border-radius: var(--radius-sm);
-  color: var(--text-faint);
-  opacity: 0;
-  transition:
-    opacity var(--duration-fast),
-    color var(--duration-fast),
-    background var(--duration-fast);
-
-  .nav-item:hover & {
-    opacity: 1;
-  }
-
-  .nav-item &:hover {
-    color: var(--q-primary);
-    background: color-mix(in srgb, var(--q-primary) 10%, transparent);
-  }
-
-  .nav-item &:active {
-    background: color-mix(in srgb, var(--q-primary) 16%, transparent);
-  }
-
-  &:focus-visible {
-    opacity: 1;
-    outline: 0.125rem solid var(--q-primary);
-    outline-offset: 1px;
-  }
-}
-
 @media (hover: none) {
-  .map-delete {
+  .map-actions {
     opacity: 1;
   }
 }
 
 @media (pointer: coarse) {
-  .map-dates {
-    padding: var(--gap-sm-md) var(--gap-md);
+  .map-target {
+    padding-inline-end: 6.25rem;
   }
 
-  .map-delete {
+  .map-action {
     min-width: 2.75rem;
     min-height: 2.75rem;
     display: flex;
@@ -216,8 +161,8 @@ function onDateEnd(range: { from: YMD; to: YMD }) {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .map-dates,
-  .map-delete {
+  .map-actions,
+  .map-action {
     transition: none;
   }
 }
