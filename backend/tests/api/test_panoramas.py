@@ -261,6 +261,31 @@ async def test_put_rejects_frame_outside_captured_bounds(
     render.assert_not_awaited()
 
 
+async def test_put_rejects_fractional_captured_coverage(
+    client: AsyncClient,
+    session: AsyncSession,
+) -> None:
+    row, _album_dir = await _scenario(client, session)
+    assert row.panorama is not None
+    row.panorama = row.panorama.model_copy(update={"detection": "dimensions"})
+    session.add(row)
+    await session.commit()
+    body = _body()
+    body["frame"]["captured_fov"] = 180.5
+
+    with patch("app.api.v1.routes.panoramas.render_panorama") as render:
+        response = await client.put(
+            f"/api/v1/albums/{AID}/media/{row.name}/panorama",
+            json=body,
+        )
+
+    assert response.status_code == 422
+    render.assert_not_awaited()
+    await session.refresh(row)
+    assert row.panorama is not None
+    assert row.panorama.captured_fov == 180
+
+
 async def test_delete_disables_projection_without_removing_source(
     client: AsyncClient,
     session: AsyncSession,

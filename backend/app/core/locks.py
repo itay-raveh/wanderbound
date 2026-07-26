@@ -1,17 +1,33 @@
-"""Postgres advisory locks for cross-request (and cross-worker) mutual exclusion.
+"""Mutual exclusion helpers for shared application resources.
 
-Session-scoped: held until the dedicated connection closes, so safe to wrap
-long-running SSE streams. Auto-released if the process dies - no TTL sweep,
-no stale entries. Use for "only one of this operation per resource at a time"
-semantics. For in-process concurrency caps, reach for asyncio primitives.
+Postgres advisory locks provide cross-request and cross-worker exclusion.
+File generation locks coalesce duplicate work within one process.
 """
 
+import asyncio
+import weakref
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 from sqlalchemy_dlock import create_async_sadlock
 
 from app.core.db import get_engine
+
+# Weak values keep waiter-held locks alive while collecting unused path entries.
+_file_generation_locks: weakref.WeakValueDictionary[Path, asyncio.Lock] = (
+    weakref.WeakValueDictionary()
+)
+
+
+@asynccontextmanager
+async def file_generation_lock(path: Path) -> AsyncIterator[None]:
+    lock = _file_generation_locks.get(path)
+    if lock is None:
+        lock = asyncio.Lock()
+        _file_generation_locks[path] = lock
+    async with lock:
+        yield
 
 
 @asynccontextmanager

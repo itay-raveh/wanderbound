@@ -7,11 +7,9 @@ from pathlib import Path
 
 from PIL import Image, ImageOps, UnidentifiedImageError
 
-from app.models.album_media import PanoramaConfig
+from app.models.album_media import PanoramaConfig, canonical_captured_fov
 
 _MIN_PANORAMA_ASPECT_RATIO = 2
-_MIN_CAPTURED_FOV = 1.0
-_MAX_CAPTURED_FOV = 359.0
 _DEFAULT_PERSPECTIVE_FOV = 70.0
 
 
@@ -35,7 +33,7 @@ def inspect_panorama(path: Path) -> PanoramaConfig | None:
         detection="dimensions",
         source_width=source_width,
         source_height=source_height,
-        captured_fov=_clamp_captured_fov(
+        captured_fov=canonical_captured_fov(
             90 * source_width / source_height,
         ),
     )
@@ -101,7 +99,7 @@ def _gpano_config(
         cropped_area_top=cropped_top,
         full_pano_width=full_width,
         full_pano_height=full_height,
-        captured_fov=_clamp_captured_fov(360 * cropped_width / full_width),
+        captured_fov=canonical_captured_fov(360 * cropped_width / full_width),
         yaw=_number(values["InitialViewHeadingDegrees"], default=0),
         pitch=_number(values["InitialViewPitchDegrees"], default=0),
         perspective_fov=_number(
@@ -161,7 +159,3 @@ def _number(value: str | None, *, default: float) -> float:
         return float(value)
     except ValueError:
         return default
-
-
-def _clamp_captured_fov(value: float) -> float:
-    return min(_MAX_CAPTURED_FOV, max(_MIN_CAPTURED_FOV, value))

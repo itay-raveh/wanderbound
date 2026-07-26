@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import cast
 from unittest.mock import AsyncMock, patch
 
+import anyio
 import pytest
 from PIL import Image, ImageChops, ImageDraw, ImageStat
 from pydantic import ValidationError
@@ -154,6 +155,98 @@ async def test_preview_reprojects_to_the_same_allowed_frame_as_source(
             actual.convert("RGB"),
         )
         assert max(ImageStat.Stat(difference).mean) < 8
+
+
+async def test_preview_ffmpeg_processes_obey_media_concurrency_limit(
+    tmp_path: Path,
+) -> None:
+    source = create_test_jpeg(tmp_path / "source.jpg", 400, 200)
+    release = asyncio.Event()
+    first_started = asyncio.Event()
+    commands: list[tuple[object, ...]] = []
+
+    class Process:
+        returncode = 0
+
+        def __init__(self, output: Path) -> None:
+            self.output = output
+
+        async def communicate(self) -> tuple[bytes, bytes]:
+            first_started.set()
+            await release.wait()
+            await run_sync(self.output.write_bytes, b"preview")
+            return b"", b""
+
+    async def create_process(*args: object, **_kwargs: object) -> Process:
+        commands.append(args)
+        return Process(Path(cast("str", args[-1])))
+
+    with (
+        patch(
+            "app.logic.panorama.render.asyncio.create_subprocess_exec",
+            side_effect=create_process,
+        ),
+        patch(
+            "app.logic.panorama.render.media_limiter",
+            anyio.CapacityLimiter(1),
+            create=True,
+        ),
+    ):
+        tasks = [
+            asyncio.create_task(
+                create_panorama_preview(
+                    source,
+                    _config(source_width=400, source_height=200),
+                    tmp_path / f"preview-{index}.jpg",
+                )
+            )
+            for index in range(2)
+        ]
+        try:
+            await first_started.wait()
+            await asyncio.sleep(0)
+            assert len(commands) == 1
+        finally:
+            release.set()
+            await asyncio.gather(*tasks)
+
+    assert len(commands) == 2
+
+
+async def test_duplicate_preview_misses_share_one_render(tmp_path: Path) -> None:
+    source = create_test_jpeg(tmp_path / "source.jpg", 400, 200)
+    output = tmp_path / "preview.jpg"
+    started = asyncio.Event()
+    release = asyncio.Event()
+    renders = 0
+
+    async def render(_source: Path, _filter: str, target: Path) -> None:
+        nonlocal renders
+        renders += 1
+        started.set()
+        await release.wait()
+        await run_sync(target.write_bytes, b"preview")
+
+    with patch("app.logic.panorama.render._render_image", side_effect=render):
+        tasks = [
+            asyncio.create_task(
+                create_panorama_preview(
+                    source,
+                    _config(source_width=400, source_height=200),
+                    output,
+                )
+            )
+            for _index in range(2)
+        ]
+        try:
+            await started.wait()
+            await asyncio.sleep(0)
+        finally:
+            release.set()
+            await asyncio.gather(*tasks)
+
+    assert renders == 1
+    assert output.read_bytes() == b"preview"
 
 
 async def test_preview_places_gpano_horizon_at_canvas_center(tmp_path: Path) -> None:
@@ -520,6 +613,24 @@ def test_frame_rejects_zoom_above_finite_limit() -> None:
             perspective_fov=60,
             zoom=8193,
         )
+
+
+def test_frame_rejects_fractional_captured_fov() -> None:
+    with pytest.raises(ValidationError):
+        PanoramaFrameUpdate(
+            yaw=0,
+            pitch=0,
+            perspective_fov=60,
+            zoom=1,
+            captured_fov=180.5,
+        )
+
+
+def test_persisted_config_canonicalizes_fractional_captured_fov() -> None:
+    config = _config(captured_fov=180.5)
+
+    assert config.captured_fov == 181
+    assert isinstance(config.captured_fov, int)
 
 
 async def test_zoom_rejects_non_positive_crop_before_subprocess(

@@ -3960,9 +3960,9 @@
             "title": "Full Pano Height"
           },
           "captured_fov": {
-            "type": "number",
-            "exclusiveMaximum": 360.0,
-            "exclusiveMinimum": 0.0,
+            "type": "integer",
+            "maximum": 359.0,
+            "minimum": 1.0,
             "title": "Captured Fov"
           },
           "yaw": {
@@ -4092,9 +4092,9 @@
           "captured_fov": {
             "anyOf": [
               {
-                "type": "number",
-                "exclusiveMaximum": 360.0,
-                "exclusiveMinimum": 0.0
+                "type": "integer",
+                "maximum": 359.0,
+                "minimum": 1.0
               },
               {
                 "type": "null"

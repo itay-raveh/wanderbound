@@ -10,8 +10,10 @@ from pathlib import Path
 
 from pydantic import BaseModel, Field, model_validator
 
+from app.core.locks import file_generation_lock
 from app.core.worker_threads import run_sync
-from app.models.album_media import PanoramaConfig
+from app.logic.layout.media import media_limiter
+from app.models.album_media import MAX_CAPTURED_FOV, MIN_CAPTURED_FOV, PanoramaConfig
 
 _MAX_OUTPUT_DIMENSION = 8192
 _MAX_OUTPUT_PIXELS = 8192 * 4096
@@ -33,7 +35,11 @@ class PanoramaFrameUpdate(BaseModel):
     pitch: float = Field(ge=-90, le=90)
     perspective_fov: float = Field(gt=0, lt=180)
     zoom: float = Field(ge=1, le=_MAX_OUTPUT_DIMENSION)
-    captured_fov: float | None = Field(default=None, gt=0, lt=360)
+    captured_fov: int | None = Field(
+        default=None,
+        ge=MIN_CAPTURED_FOV,
+        le=MAX_CAPTURED_FOV,
+    )
 
 
 class PanoramaDestination(BaseModel):
@@ -162,6 +168,11 @@ async def render_panorama(
 
 
 async def _render_image(source: Path, filter_graph: str, output: Path) -> None:
+    async with media_limiter:
+        await _run_ffmpeg_image(source, filter_graph, output)
+
+
+async def _run_ffmpeg_image(source: Path, filter_graph: str, output: Path) -> None:
     await run_sync(output.parent.mkdir, parents=True, exist_ok=True)
     temporary = output.parent / f".{output.stem}.{secrets.token_hex(8)}.jpg"
     process: asyncio.subprocess.Process | None = None
@@ -333,4 +344,7 @@ async def create_panorama_preview(
     config: PanoramaConfig,
     output: Path,
 ) -> None:
-    await _render_image(source, _preview_filter_graph(config), output)
+    async with file_generation_lock(output):
+        if await run_sync(output.is_file):
+            return
+        await _render_image(source, _preview_filter_graph(config), output)

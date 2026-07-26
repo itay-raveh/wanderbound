@@ -22,7 +22,12 @@ from app.logic.panorama.render import (
     resolve_panorama_source,
     validate_panorama_frame,
 )
-from app.models.album_media import AlbumMedia, PanoramaConfig
+from app.models.album_media import (
+    MAX_CAPTURED_FOV,
+    MIN_CAPTURED_FOV,
+    AlbumMedia,
+    PanoramaConfig,
+)
 
 from ..deps import SessionDep, UserDep, album_dir as _album_dir
 
@@ -202,7 +207,10 @@ async def get_panorama_source(
     name: MediaName,
     user: UserDep,
     session: SessionDep,
-    captured_fov: Annotated[int | None, Query(ge=1, le=359)] = None,
+    captured_fov: Annotated[
+        int | None,
+        Query(ge=MIN_CAPTURED_FOV, le=MAX_CAPTURED_FOV),
+    ] = None,
 ) -> FileResponse:
     media = await session.get(AlbumMedia, (user.id, aid, name))
     if media is None or media.panorama is None:

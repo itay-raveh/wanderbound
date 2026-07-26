@@ -8,10 +8,10 @@ from fastapi import HTTPException
 from app.api.v1.routes.assets import (
     _CACHE_IMMUTABLE,
     AssetQuery,
-    _gen_lock,
     get_media,
     update_video_frame,
 )
+from app.core.locks import file_generation_lock
 from app.core.worker_threads import run_sync
 from app.logic.layout.media import THUMB_WIDTHS, generate_thumbnail
 from app.models.album_media import AlbumMedia, PanoramaConfig
@@ -128,7 +128,7 @@ class TestUpdateVideoFrame:
 
 
 class TestGenLockConcurrency:
-    """Regression for _gen_lock race condition.
+    """Regression for the keyed generation lock race condition.
 
     Old _gen_lock deleted the dict entry after the first holder released, so a
     third coroutine could create a new Lock and bypass serialization while a
@@ -141,7 +141,7 @@ class TestGenLockConcurrency:
         gate = asyncio.Event()
 
         async def worker(n: int) -> None:
-            async with _gen_lock(path):
+            async with file_generation_lock(path):
                 order.append(n)
                 if n == 1:
                     # Hold the lock until we've verified #2 and #3 are queued.

@@ -1,12 +1,13 @@
 from __future__ import annotations
 
+import math
 from datetime import UTC, datetime
 from typing import Literal
 
 import sqlalchemy as sa
 
 # Pydantic resolves this annotation while constructing the SQLModel.
-from pydantic import BaseModel, Field as PydanticField, model_validator
+from pydantic import BaseModel, Field as PydanticField, field_validator, model_validator
 from pydantic.json_schema import SkipJsonSchema  # noqa: TC002
 from sqlmodel import Field, SQLModel
 
@@ -15,6 +16,14 @@ from app.core.db import PydanticJSON
 type StepPageKind = Literal["grid", "panorama_spread"]
 type PanoramaStatus = Literal["active", "suggested", "disabled"]
 type PanoramaDetection = Literal["gpano", "dimensions"]
+
+MIN_CAPTURED_FOV = 1
+MAX_CAPTURED_FOV = 359
+
+
+def canonical_captured_fov(value: float) -> int:
+    rounded = math.floor(value + 0.5)
+    return min(MAX_CAPTURED_FOV, max(MIN_CAPTURED_FOV, rounded))
 
 
 class PanoramaConfig(BaseModel):
@@ -28,13 +37,24 @@ class PanoramaConfig(BaseModel):
     cropped_area_top: int | None = None
     full_pano_width: int | None = PydanticField(default=None, gt=0)
     full_pano_height: int | None = PydanticField(default=None, gt=0)
-    captured_fov: float = PydanticField(gt=0, lt=360)
+    captured_fov: int = PydanticField(ge=MIN_CAPTURED_FOV, le=MAX_CAPTURED_FOV)
     yaw: float = PydanticField(default=0, ge=-360, le=360)
     pitch: float = PydanticField(default=0, ge=-90, le=90)
     perspective_fov: float = PydanticField(default=70, gt=0, lt=180)
     zoom: float = PydanticField(default=1, ge=1)
     original_path: str | None = None
     revision: int = PydanticField(default=1, gt=0)
+
+    @field_validator("captured_fov", mode="before")
+    @classmethod
+    def canonicalize_captured_fov(cls, value: object) -> object:
+        if (
+            isinstance(value, int | float)
+            and not isinstance(value, bool)
+            and 0 < value < 360
+        ):
+            return canonical_captured_fov(value)
+        return value
 
     @model_validator(mode="after")
     def validate_cropped_area(self) -> PanoramaConfig:

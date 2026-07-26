@@ -94,6 +94,21 @@ def test_oriented_two_to_one_image_is_suggested(tmp_path: Path) -> None:
     assert panorama.captured_fov == 180
 
 
+def test_dimension_inference_canonicalizes_fractional_coverage(tmp_path: Path) -> None:
+    source = _jpeg_with_xmp(
+        tmp_path / "fractional.jpg",
+        1001,
+        500,
+        "<x:xmpmeta />",
+    )
+
+    panorama = inspect_panorama(source)
+
+    assert panorama is not None
+    assert panorama.captured_fov == 180
+    assert isinstance(panorama.captured_fov, int)
+
+
 def test_narrow_image_is_not_a_panorama(tmp_path: Path) -> None:
     source = _jpeg_with_xmp(tmp_path / "narrow.jpg", 199, 100, "<x:xmpmeta />")
 

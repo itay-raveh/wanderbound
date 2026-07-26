@@ -1,7 +1,3 @@
-import asyncio
-import weakref
-from collections.abc import AsyncIterator
-from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Annotated
 
@@ -10,6 +6,7 @@ from fastapi import APIRouter, HTTPException, Query, status
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
+from app.core.locks import file_generation_lock
 from app.core.worker_threads import run_sync
 from app.logic.layout.media import (
     THUMB_WIDTHS,
@@ -41,13 +38,6 @@ _CACHE_IMMUTABLE = "public, max-age=31536000, immutable"
 # picks a new frame, so the browser must revalidate on each load.
 _CACHE_REVALIDATE = "public, no-cache"
 
-# Deduplicates concurrent lazy generation of the same file (poster or thumbnail).
-# WeakValueDictionary auto-collects locks when no coroutine holds a reference,
-# avoiding the race where manual cleanup deletes a lock while a waiter exists.
-_gen_locks: weakref.WeakValueDictionary[Path, asyncio.Lock] = (
-    weakref.WeakValueDictionary()
-)
-
 
 class AssetQuery(BaseModel):
     w: int | None = None
@@ -55,21 +45,11 @@ class AssetQuery(BaseModel):
     panorama_revision: int | None = None
 
 
-@asynccontextmanager
-async def _gen_lock(path: Path) -> AsyncIterator[None]:
-    lock = _gen_locks.get(path)
-    if lock is None:
-        lock = asyncio.Lock()
-        _gen_locks[path] = lock
-    async with lock:
-        yield
-
-
 async def _ensure_media_source(source: Path, video: Path, name: str) -> str:
     is_poster = name.endswith(".jpg") and await run_sync(video.is_file)
     cache = _CACHE_REVALIDATE if is_poster else _CACHE_IMMUTABLE
     if not await run_sync(source.is_file) and is_poster:
-        async with _gen_lock(source):
+        async with file_generation_lock(source):
             if not await run_sync(source.is_file):
                 await extract_frame(video)
                 logger.debug("asset.poster_extracted", media_name=name)
@@ -86,7 +66,7 @@ async def _render_rendition(
 ) -> None:
     if await run_sync(rendition.is_file):
         return
-    async with _gen_lock(rendition):
+    async with file_generation_lock(rendition):
         if await run_sync(rendition.is_file):
             return
         try:
@@ -179,7 +159,7 @@ async def get_media(
     if query.w is not None and query.w in THUMB_WIDTHS:
         thumb = album_dir / ".thumbs" / str(query.w) / f"{Path(name).stem}.webp"
         if not thumb.is_file():
-            async with _gen_lock(thumb):
+            async with file_generation_lock(thumb):
                 if not thumb.is_file():
                     await generate_thumbnail(source, query.w)
         if thumb.is_file():
