@@ -101,6 +101,30 @@ class TestRunEviction:
         assert not (users_dir / "1" / "trip" / "old").exists()
         assert (users_dir / "1" / "trip" / "recent" / "data.bin").exists()
 
+    async def test_evicts_nested_panorama_assets_with_the_album(
+        self, tmp_path: Path, users_dir: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        _configure_storage(tmp_path, monkeypatch, 50)
+        panorama_asset = _make_file(
+            users_dir
+            / "1"
+            / "trip"
+            / "old"
+            / ".panoramas"
+            / "rendered"
+            / "photo"
+            / "3"
+            / "800x400.jpg",
+            80,
+        )
+        old_album = _make_album(1, "old", hours_ago=48)
+
+        with _mock_eviction_albums(old_album):
+            await run_eviction(skip_uid=999)
+
+        assert not panorama_asset.exists()
+        assert not (users_dir / "1" / "trip" / "old").exists()
+
     async def test_evicts_entire_demo_user(
         self, tmp_path: Path, users_dir: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:

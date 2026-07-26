@@ -20,6 +20,7 @@ if TYPE_CHECKING:
 from app.core.db import get_engine
 from app.core.worker_threads import run_sync
 from app.logic.layout.media import Media, delete_thumbnails, extract_frame, is_video
+from app.logic.panorama.storage import panorama_original_path, remove_panorama_assets
 from app.models.album import Album
 from app.models.album_media import AlbumMedia, AlbumMediaUndoSnapshot
 from app.models.user import User
@@ -52,10 +53,14 @@ def _video_poster(path: Path) -> Path:
     return path.with_suffix(".jpg")
 
 
-async def _unlink_snapshot(path: Path) -> None:
+async def _unlink_snapshot(
+    path: Path, original_snapshot_path: Path | None = None
+) -> None:
     await run_sync(path.unlink, missing_ok=True)
     if is_video(path.name):
         await run_sync(_video_poster(path).unlink, missing_ok=True)
+    if original_snapshot_path is not None:
+        await run_sync(original_snapshot_path.unlink, missing_ok=True)
 
 
 def enqueue_undo_snapshot_prune(
@@ -143,19 +148,35 @@ async def create_undo_snapshot(
     row = await session.get(AlbumMedia, (uid, aid, media_name))
     existing = await session.get(AlbumMediaUndoSnapshot, (uid, aid, media_name))
     if existing is not None:
-        await _unlink_snapshot(album_dir / existing.snapshot_path)
+        await _unlink_snapshot(
+            album_dir / existing.snapshot_path,
+            album_dir / existing.original_snapshot_path
+            if existing.original_snapshot_path
+            else None,
+        )
         await session.delete(existing)
         await session.flush()
     await run_sync(shutil.copy2, source, snapshot_path)
     source_poster = _video_poster(source)
     if is_video(media_name) and source_poster.exists():
         await run_sync(shutil.copy2, source_poster, _video_poster(snapshot_path))
+    original_snapshot_path: str | None = None
+    original = panorama_original_path(
+        album_dir, row.panorama.original_path if row and row.panorama else None
+    )
+    if original is not None and original.exists():
+        snapshot_original = undo_dir / "panorama-originals" / original.name
+        await run_sync(snapshot_original.parent.mkdir, parents=True, exist_ok=True)
+        await run_sync(shutil.copy2, original, snapshot_original)
+        original_snapshot_path = str(snapshot_original.relative_to(album_dir))
     snap = AlbumMediaUndoSnapshot(
         uid=uid,
         aid=aid,
         media_name=media_name,
         snapshot_path=str(Path(UNDO_DIR) / media_name),
         perceptual_hashes=row.perceptual_hashes if row else None,
+        panorama=row.panorama if row else None,
+        original_snapshot_path=original_snapshot_path,
         upgrade_candidate=row.upgrade_candidate if row else True,
         created_at=now,
         expires_at=now + UNDO_TTL,
@@ -188,6 +209,7 @@ async def restore_undo_snapshot(
         raise ValueError("Undo snapshot missing")
 
     target = album_dir / media_name
+    await run_sync(remove_panorama_assets, album_dir, media_name, row.panorama)
     await run_sync(shutil.move, snapshot_path, target)
     await run_sync(delete_thumbnails, target)
     if is_video(media_name):
@@ -206,6 +228,15 @@ async def restore_undo_snapshot(
     row.height = restored.height
     row.byte_size = target.stat().st_size
     row.perceptual_hashes = snap.perceptual_hashes
+    if snap.original_snapshot_path is not None:
+        original = panorama_original_path(
+            album_dir, snap.panorama.original_path if snap.panorama else None
+        )
+        if original is None:
+            raise ValueError("Panorama original snapshot is invalid")
+        original.parent.mkdir(parents=True, exist_ok=True)
+        await run_sync(shutil.move, album_dir / snap.original_snapshot_path, original)
+    row.panorama = snap.panorama
     row.upgrade_candidate = snap.upgrade_candidate
     row.updated_at = datetime.now(UTC)
     session.add(row)
@@ -233,7 +264,12 @@ async def prune_expired_undo_snapshots(
         )
     ).all()
     for row in rows:
-        await _unlink_snapshot(album_dir / row.snapshot_path)
+        await _unlink_snapshot(
+            album_dir / row.snapshot_path,
+            album_dir / row.original_snapshot_path
+            if row.original_snapshot_path
+            else None,
+        )
         await session.delete(row)
     await session.flush()
     return len(rows)
@@ -256,7 +292,13 @@ async def prune_all_expired_undo_snapshots(
     for row in rows:
         user = await session.get(User, row.uid)
         if user is not None:
-            await _unlink_snapshot(user.trips_folder / row.aid / row.snapshot_path)
+            album_dir = user.trips_folder / row.aid
+            await _unlink_snapshot(
+                album_dir / row.snapshot_path,
+                album_dir / row.original_snapshot_path
+                if row.original_snapshot_path
+                else None,
+            )
         await session.delete(row)
         removed += 1
     await session.flush()

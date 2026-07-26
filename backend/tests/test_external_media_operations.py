@@ -13,13 +13,14 @@ from app.logic.external_media.album_media import replace_album_media_from_saved
 from app.logic.external_media.undo import (
     enqueue_undo_snapshot_prune,
     prune_all_expired_undo_snapshots,
+    prune_expired_undo_snapshots,
     restore_undo_snapshot,
     schedule_undo_snapshot_prune,
 )
 from app.logic.layout.media import Media
 from app.logic.media_import import SavedInput
 from app.models.album import Album
-from app.models.album_media import AlbumMedia, AlbumMediaUndoSnapshot
+from app.models.album_media import AlbumMedia, AlbumMediaUndoSnapshot, PanoramaConfig
 
 from .factories import (
     AID,
@@ -101,6 +102,22 @@ def _replacement_video(tmp_path: Path, poster: bytes = b"generated poster") -> P
 
 def _saved_input(path: Path) -> SavedInput:
     return SavedInput(path=path, size=path.stat().st_size)
+
+
+def _active_panorama(original_path: str) -> PanoramaConfig:
+    return PanoramaConfig(
+        status="active",
+        detection="gpano",
+        source_width=4000,
+        source_height=1000,
+        cropped_area_width=4000,
+        cropped_area_height=1000,
+        full_pano_width=6000,
+        captured_fov=240,
+        perspective_fov=60,
+        original_path=original_path,
+        revision=3,
+    )
 
 
 async def _replace_video_with_mocked_processing(
@@ -240,6 +257,137 @@ async def test_replace_preserves_media_name_and_creates_undo(
     snap = await session.get_one(AlbumMediaUndoSnapshot, (uid, AID, VALID_NAME))
     assert snap.expires_at > snap.created_at
     assert snap.perceptual_hashes == ["0000000000000000"]
+
+
+async def test_replace_and_undo_restore_retained_panorama_original(
+    session: AsyncSession,
+    tmp_path: Path,
+) -> None:
+    album, media = await _album_with_photo(session, tmp_path)
+    panorama_original = (
+        tmp_path / ".panoramas" / "originals" / f"{Path(VALID_NAME).stem}.jpg"
+    )
+    panorama_original.parent.mkdir(parents=True)
+    panorama_original.write_bytes(b"retained panorama original")
+    preview = tmp_path / ".panoramas" / "preview" / f"{Path(VALID_NAME).stem}.jpg"
+    preview.parent.mkdir(parents=True)
+    preview.write_bytes(b"preview")
+    rendered = (
+        tmp_path
+        / ".panoramas"
+        / "rendered"
+        / Path(VALID_NAME).stem
+        / "3"
+        / "800x400.jpg"
+    )
+    rendered.parent.mkdir(parents=True)
+    rendered.write_bytes(b"rendered")
+    panorama = _active_panorama(str(panorama_original.relative_to(tmp_path)))
+    media.panorama = panorama
+    session.add(media)
+    replacement = create_test_jpeg(tmp_path / "replacement.jpg", 1600, 1200)
+    await session.commit()
+
+    await replace_album_media_from_saved(
+        session,
+        album=album,
+        album_dir=tmp_path,
+        media_name=VALID_NAME,
+        saved=_saved_input(replacement),
+    )
+
+    snap = await session.get_one(AlbumMediaUndoSnapshot, (album.uid, AID, VALID_NAME))
+    row = await session.get_one(AlbumMedia, (album.uid, AID, VALID_NAME))
+    assert row.panorama is None
+    assert snap.panorama == panorama
+    assert snap.original_snapshot_path is not None
+    assert (
+        tmp_path / snap.original_snapshot_path
+    ).read_bytes() == b"retained panorama original"
+    assert not panorama_original.exists()
+    assert not preview.exists()
+    assert not rendered.exists()
+
+    restored = await restore_undo_snapshot(
+        session,
+        album=album,
+        album_dir=tmp_path,
+        media_name=VALID_NAME,
+    )
+
+    assert restored.panorama == panorama
+    assert panorama_original.read_bytes() == b"retained panorama original"
+    assert (
+        await session.get(AlbumMediaUndoSnapshot, (album.uid, AID, VALID_NAME)) is None
+    )
+
+
+async def test_replace_preserves_the_replacement_panorama_original(
+    session: AsyncSession,
+    tmp_path: Path,
+) -> None:
+    album, _media = await _album_with_photo(session, tmp_path)
+    replacement = create_test_jpeg(tmp_path / "replacement.jpg", 1600, 400)
+    source_bytes = replacement.read_bytes()
+    await session.commit()
+
+    replaced = await replace_album_media_from_saved(
+        session,
+        album=album,
+        album_dir=tmp_path,
+        media_name=VALID_NAME,
+        saved=_saved_input(replacement),
+    )
+
+    assert replaced.panorama is not None
+    assert replaced.panorama.status == "suggested"
+    assert replaced.panorama.original_path is not None
+    assert (tmp_path / replaced.panorama.original_path).read_bytes() == source_bytes
+
+
+async def test_expired_panorama_undo_copy_does_not_delete_active_original(
+    session: AsyncSession,
+    tmp_path: Path,
+) -> None:
+    album, media = await _album_with_photo(session, tmp_path)
+    panorama_original = (
+        tmp_path / ".panoramas" / "originals" / f"{Path(VALID_NAME).stem}.jpg"
+    )
+    panorama_original.parent.mkdir(parents=True)
+    panorama_original.write_bytes(b"old retained original")
+    media.panorama = _active_panorama(str(panorama_original.relative_to(tmp_path)))
+    session.add(media)
+    replacement = create_test_jpeg(tmp_path / "replacement.jpg", 1600, 1200)
+    await session.commit()
+
+    await replace_album_media_from_saved(
+        session,
+        album=album,
+        album_dir=tmp_path,
+        media_name=VALID_NAME,
+        saved=_saved_input(replacement),
+    )
+    snapshot = await session.get_one(
+        AlbumMediaUndoSnapshot, (album.uid, AID, VALID_NAME)
+    )
+    assert snapshot.original_snapshot_path is not None
+    snapshot_original = tmp_path / snapshot.original_snapshot_path
+    active_original = tmp_path / ".panoramas" / "originals" / "active.jpg"
+    active_original.write_bytes(b"active original")
+    snapshot.expires_at = datetime.now(UTC) - timedelta(seconds=1)
+    session.add(snapshot)
+    await session.commit()
+
+    removed = await prune_expired_undo_snapshots(
+        session,
+        uid=album.uid,
+        aid=album.id,
+        album_dir=tmp_path,
+    )
+
+    assert removed == 1
+    assert not snapshot_original.exists()
+    assert active_original.read_bytes() == b"active original"
 
 
 async def test_prune_all_expired_undo_snapshots_uses_shared_user_folder(

@@ -4,10 +4,17 @@ from __future__ import annotations
 
 import shutil
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from PIL import Image, UnidentifiedImageError
 
+if TYPE_CHECKING:
+    from app.models.album_media import PanoramaConfig
+
+_PANORAMAS_DIRECTORY = Path(".panoramas")
 _ORIGINALS_DIRECTORY = Path(".panoramas") / "originals"
+_PREVIEW_DIRECTORY = _PANORAMAS_DIRECTORY / "preview"
+_RENDERED_DIRECTORY = _PANORAMAS_DIRECTORY / "rendered"
 _FORMAT_SUFFIXES = {
     "AVIF": ".avif",
     "HEIF": ".heic",
@@ -32,3 +39,39 @@ def _suffix(raw: Path) -> str:
     except UnidentifiedImageError, OSError, SyntaxError:
         detected = None
     return detected or raw.suffix.lower() or ".jpg"
+
+
+def panorama_original_path(album_dir: Path, original_path: str | None) -> Path | None:
+    if original_path is None:
+        return None
+    candidate = (album_dir / original_path).resolve()
+    panoramas = (album_dir / _PANORAMAS_DIRECTORY).resolve()
+    try:
+        candidate.relative_to(panoramas)
+    except ValueError:
+        return None
+    return candidate
+
+
+def remove_panorama_assets(
+    album_dir: Path,
+    media_name: str,
+    panorama: PanoramaConfig | None,
+) -> None:
+    """Remove only derived assets belonging to one media item."""
+    stem = Path(media_name).stem
+    original = panorama_original_path(
+        album_dir, panorama.original_path if panorama else None
+    )
+    if original is not None:
+        original.unlink(missing_ok=True)
+    originals = album_dir / _ORIGINALS_DIRECTORY
+    if originals.exists():
+        for candidate in originals.glob(f"{stem}.*"):
+            candidate.unlink(missing_ok=True)
+    preview = album_dir / _PREVIEW_DIRECTORY
+    if preview.exists():
+        for candidate in preview.glob(f"{stem}.*"):
+            candidate.unlink(missing_ok=True)
+        shutil.rmtree(preview / stem, ignore_errors=True)
+    shutil.rmtree(album_dir / _RENDERED_DIRECTORY / stem, ignore_errors=True)

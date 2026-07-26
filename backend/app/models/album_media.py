@@ -203,6 +203,11 @@ class AlbumMediaUndoSnapshot(SQLModel, table=True):
         exclude=True,
         sa_column=sa.Column(sa.JSON(none_as_null=True), nullable=True),
     )
+    panorama: PanoramaConfig | None = Field(
+        default=None,
+        sa_column=sa.Column(PydanticJSON(PanoramaConfig), nullable=True),
+    )
+    original_snapshot_path: str | None = Field(default=None, max_length=255)
     upgrade_candidate: bool
     created_at: datetime = Field(
         sa_column=sa.Column(sa.DateTime(timezone=True), nullable=False)

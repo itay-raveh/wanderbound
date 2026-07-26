@@ -17,13 +17,18 @@ from app.logic.layout.media import (
     media_limiter,
 )
 from app.logic.media_import import (
+    ImportedMedia,
     SavedInput,
     cleanup_imported_paths,
     process_saved_media,
 )
 from app.logic.media_upgrade.hashes import try_compute_serialized_media_hash
+from app.logic.panorama.storage import (
+    preserve_panorama_original,
+    remove_panorama_assets,
+)
 from app.models.album import Album
-from app.models.album_media import AlbumMedia
+from app.models.album_media import AlbumMedia, PanoramaConfig
 
 from .undo import create_undo_snapshot
 
@@ -46,6 +51,29 @@ def _validate_replacement_kind(row: AlbumMedia, replacement_name: str) -> None:
         raise ValueError("Cannot replace photo with video")
     if row.kind == "video" and not is_video(replacement_name):
         raise ValueError("Cannot replace video with photo")
+
+
+async def _replacement_panorama(
+    replacement: Media,
+    album_dir: Path,
+    media_name: str,
+) -> PanoramaConfig | None:
+    if (
+        not isinstance(replacement, ImportedMedia)
+        or replacement.panorama is None
+        or replacement.source_path is None
+    ):
+        return None
+    original = await run_sync(
+        preserve_panorama_original,
+        replacement.source_path,
+        album_dir,
+        media_name,
+        limiter=media_limiter,
+    )
+    return replacement.panorama.model_copy(
+        update={"original_path": str(original.relative_to(album_dir))}
+    )
 
 
 async def replace_album_media_from_saved(
@@ -84,6 +112,8 @@ async def replace_album_media_from_saved(
         if replacement_path.suffix == ".mp4":
             await run_sync(replacement_path.with_suffix(".jpg").unlink, missing_ok=True)
         written = []
+        await run_sync(remove_panorama_assets, album_dir, media_name, row.panorama)
+        row.panorama = await _replacement_panorama(replacement, album_dir, media_name)
         await run_sync(delete_thumbnails, target)
         if row.kind == "video":
             await extract_frame(target)

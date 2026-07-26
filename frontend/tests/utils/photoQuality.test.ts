@@ -4,6 +4,7 @@ import { PAGE_WIDTH_MM, PAGE_HEIGHT_MM, MM_PER_INCH } from "@/utils/pageSize";
 import {
   computeDpi,
   dpiTier,
+  mediaQuality,
   summarizeQuality,
 } from "@/utils/photoQuality";
 import {
@@ -223,5 +224,64 @@ describe("summarizeQuality", () => {
       mediaMap(portrait, landscape),
     );
     expect(result).toEqual({ caution: 0, warning: 0 });
+  });
+
+  it("lowers active panorama PPI as ordinary zoom crops its perspective viewport", () => {
+    const wide = media("wide.jpg", 8000, 1000);
+    wide.panorama = {
+      status: "active",
+      detection: "gpano",
+      source_width: 8000,
+      source_height: 1000,
+      cropped_area_width: 8000,
+      cropped_area_height: 1000,
+      cropped_area_left: 0,
+      cropped_area_top: 0,
+      full_pano_width: 12000,
+      full_pano_height: null,
+      captured_fov: 240,
+      yaw: 0,
+      pitch: 0,
+      perspective_fov: 60,
+      zoom: 1,
+      original_path: ".panoramas/originals/wide.jpg",
+      revision: 1,
+    };
+    const cell = { widthFrac: 1, heightFrac: 1 };
+    const unzoomed = mediaQuality(wide.name, cell, "cover", mediaMap(wide));
+    wide.panorama.zoom = 2;
+    const zoomed = mediaQuality(wide.name, cell, "cover", mediaMap(wide));
+
+    expect(zoomed?.dpi).toBeLessThan(unzoomed?.dpi ?? Number.POSITIVE_INFINITY);
+    expect(zoomed?.dpi).toBe(Math.round((unzoomed?.dpi ?? 0) / 2));
+  });
+
+  it("uses two A4 page widths for a panorama spread quality warning", () => {
+    const wide = media("wide.jpg", 8000, 1000);
+    wide.panorama = {
+      status: "active",
+      detection: "gpano",
+      source_width: 8000,
+      source_height: 1000,
+      cropped_area_width: 8000,
+      cropped_area_height: 1000,
+      cropped_area_left: 0,
+      cropped_area_top: 0,
+      full_pano_width: 12000,
+      full_pano_height: null,
+      captured_fov: 240,
+      yaw: 0,
+      pitch: 0,
+      perspective_fov: 60,
+      zoom: 1,
+      original_path: ".panoramas/originals/wide.jpg",
+      revision: 1,
+    };
+    const steps = [
+      makeStep({ id: 1, pages: [{ kind: "panorama_spread", media: [wide.name] }] }),
+    ];
+
+    expect(summarizeQuality(steps, undefined, undefined, mediaMap(wide), "print"))
+      .toEqual({ caution: 0, warning: 1 });
   });
 });

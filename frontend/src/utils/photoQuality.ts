@@ -29,7 +29,19 @@ export interface PhotoQuality {
   dpi: number;
 }
 
-type MediaDimensions = { width: number; height: number };
+type PanoramaDimensions = {
+  status: string;
+  source_width: number;
+  cropped_area_width?: number | null;
+  captured_fov: number;
+  perspective_fov?: number;
+  zoom?: number;
+};
+type MediaDimensions = {
+  width: number;
+  height: number;
+  panorama?: PanoramaDimensions | null;
+};
 
 const DPI_CAUTION_DEFAULT = 100;
 const DPI_WARNING_DEFAULT = 75;
@@ -78,6 +90,30 @@ export function dpiTier(
   return "ok";
 }
 
+function effectivePanoramaDimensions(
+  media: MediaDimensions,
+  cell: PageFraction,
+): MediaDimensions | null {
+  const panorama = media.panorama;
+  if (panorama?.status !== "active") return null;
+
+  const sourceWidth = panorama.cropped_area_width ?? panorama.source_width;
+  const capturedFov = (panorama.captured_fov * Math.PI) / 180;
+  const perspectiveFov = ((panorama.perspective_fov ?? 70) * Math.PI) / 180;
+  const cellAspect =
+    (cell.widthFrac * PAGE_WIDTH_MM) / (cell.heightFrac * PAGE_HEIGHT_MM);
+  const perspectiveVerticalFov =
+    2 * Math.atan(Math.tan(perspectiveFov / 2) / cellAspect);
+  const cylinderFocalLength = sourceWidth / capturedFov;
+  const zoom = panorama.zoom ?? 1;
+
+  return {
+    width: (sourceWidth * perspectiveFov) / capturedFov / zoom,
+    height:
+      (2 * cylinderFocalLength * Math.tan(perspectiveVerticalFov / 2)) / zoom,
+  };
+}
+
 export function mediaQuality(
   name: string,
   cell: PageFraction,
@@ -87,7 +123,8 @@ export function mediaQuality(
 ): PhotoQuality | null {
   const m = mediaByName.get(name);
   if (!m) return null;
-  const dpi = computeDpi(m.width, m.height, cell, fit);
+  const dimensions = effectivePanoramaDimensions(m, cell) ?? m;
+  const dpi = computeDpi(dimensions.width, dimensions.height, cell, fit);
   return { tier: dpiTier(dpi, preset), dpi: Math.round(dpi) };
 }
 
@@ -139,6 +176,19 @@ export function summarizeQuality(
         ? page.media.filter((name) => name !== step.cover)
         : page.media;
       if (filtered.length === 0) continue;
+
+      if (page.kind === "panorama_spread") {
+        count(
+          mediaQuality(
+            filtered[0],
+            { widthFrac: 2, heightFrac: 1 },
+            "cover",
+            mediaByName,
+            preset,
+          )?.tier ?? "ok",
+        );
+        continue;
+      }
 
       const ordered = enforceOrientationOrder(filtered, isP);
       const layoutClass = resolveLayoutClass(ordered, isP);
