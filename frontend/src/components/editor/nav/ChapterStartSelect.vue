@@ -13,7 +13,8 @@ const props = defineProps<{
 }>();
 
 const selected = computed(
-  () => props.options.find((option) => option.value === props.modelValue) ?? null,
+  () =>
+    props.options.find((option) => option.value === props.modelValue) ?? null,
 );
 
 defineEmits<{
@@ -59,6 +60,9 @@ defineEmits<{
         <q-item-section class="chapter-start-option-text">
           <span class="chapter-start-label" dir="auto">
             {{ scope.opt.label }}
+          </span>
+          <span v-if="scope.opt.detail" class="chapter-start-option-detail">
+            {{ scope.opt.detail }}
           </span>
         </q-item-section>
       </q-item>
@@ -133,5 +137,10 @@ defineEmits<{
 
 :global(.chapter-start-option-text) {
   min-width: 0;
+}
+
+:global(.chapter-start-option-detail) {
+  color: var(--text-muted);
+  font-size: var(--type-xs);
 }
 </style>

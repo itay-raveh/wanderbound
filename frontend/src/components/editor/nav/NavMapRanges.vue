@@ -1,9 +1,6 @@
 <script lang="ts" setup>
 import { useI18n } from "vue-i18n";
-import {
-  symOutlinedAdd,
-  symOutlinedMap,
-} from "@quasar/extras/material-symbols-outlined";
+import { symOutlinedAdd } from "@quasar/extras/material-symbols-outlined";
 
 const { t } = useI18n();
 
@@ -14,9 +11,8 @@ defineEmits<{
 
 <template>
   <button type="button" class="nav-chip" @click="$emit('addMap')">
-    <q-icon :name="symOutlinedMap" size="var(--type-xs)" />
-    <span>{{ t("nav.addMap") }}</span>
     <q-icon :name="symOutlinedAdd" size="var(--type-xs)" />
+    <span>{{ t("nav.addMap") }}</span>
   </button>
 </template>
 
@@ -27,10 +23,11 @@ defineEmits<{
   align-items: center;
   gap: var(--gap-xs);
   padding: var(--gap-xs) var(--gap-sm);
-  border: 1px solid color-mix(in srgb, var(--border-color) 70%, transparent);
+  border: 1px solid
+    color-mix(in srgb, var(--q-primary) 35%, var(--border-color));
   border-radius: var(--radius-sm);
-  background: transparent;
-  color: var(--text-muted);
+  background: color-mix(in srgb, var(--q-primary) 4%, transparent);
+  color: var(--q-primary);
   font: inherit;
   font-size: var(--type-xs);
   cursor: pointer;
@@ -40,9 +37,8 @@ defineEmits<{
     border-color var(--duration-fast);
 
   &:hover {
-    color: var(--text);
-    background: color-mix(in srgb, var(--text) 4%, transparent);
-    border-color: var(--border-color);
+    background: color-mix(in srgb, var(--q-primary) 9%, transparent);
+    border-color: color-mix(in srgb, var(--q-primary) 60%, var(--border-color));
   }
 
   &:active {

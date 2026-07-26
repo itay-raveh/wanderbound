@@ -1,4 +1,9 @@
-import type { AlbumChapter, AlbumMeta, DateRange, StepRead as Step } from "@/client";
+import type {
+  AlbumChapter,
+  AlbumMeta,
+  DateRange,
+  StepRead as Step,
+} from "@/client";
 import type { HeaderKey } from "@/components/album/albumSections";
 
 export type AlbumNavProps = {
@@ -27,6 +32,7 @@ export interface ChapterStartOption {
   value: number;
   countryCode: string;
   countryLabel: string;
+  detail?: string;
 }
 
 export type GroupEntry =

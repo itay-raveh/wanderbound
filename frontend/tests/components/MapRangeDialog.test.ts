@@ -2,6 +2,23 @@ import { defineComponent, nextTick } from "vue";
 import { mountWithPlugins, makeStep } from "../helpers";
 import MapRangeDialog from "@/components/editor/nav/MapRangeDialog.vue";
 
+vi.mock("@/queries/useUserQuery", () => ({
+  useUserQuery: () => {
+    const localDate = (date: Date) =>
+      [
+        date.getFullYear(),
+        String(date.getMonth() + 1).padStart(2, "0"),
+        String(date.getDate()).padStart(2, "0"),
+      ].join("-");
+    return {
+      countryName: (code: string, detail: string) => detail || code,
+      formatDate: localDate,
+      formatDateRange: (start: Date, end: Date) =>
+        `${localDate(start)} – ${localDate(end)}`,
+    };
+  },
+}));
+
 const StepSelectStub = defineComponent({
   name: "ChapterStartSelect",
   props: {
@@ -82,5 +99,22 @@ describe("MapRangeDialog", () => {
     expect(wrapper.emitted("save")).toEqual([
       [["2024-01-02", "2024-01-03"]],
     ]);
+  });
+
+  it("shows date context for each option and summarizes the selected range", async () => {
+    const wrapper = mountDialog();
+    await wrapper.setProps({ modelValue: true });
+    await nextTick();
+
+    const selects = wrapper.findAllComponents(StepSelectStub);
+    expect(selects[0].props("options")).toMatchObject([
+      { label: "Buenos Aires", detail: "2024-01-01" },
+      { label: "Ushuaia", detail: "2024-01-02" },
+      { label: "Santiago", detail: "2024-01-03" },
+    ]);
+    expect(wrapper.get(".map-range-summary").text()).toContain(
+      "2024-01-01 – 2024-01-03",
+    );
+    expect(wrapper.get(".map-range-summary").text()).toContain("3 steps");
   });
 });

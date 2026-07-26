@@ -315,6 +315,7 @@ describe("AlbumNav", () => {
     expect(scrollToSection).toHaveBeenCalledWith(
       "chapter-chapter-1-map-2024-01-02-2024-01-03",
     );
+    expect(wrapper.get('[role="status"]').text()).toBe("Map added");
   });
 
   it("replaces an edited map range and scrolls to the replacement", async () => {
@@ -354,5 +355,6 @@ describe("AlbumNav", () => {
     expect(scrollToSection).toHaveBeenCalledWith(
       "chapter-chapter-1-map-2024-01-02-2024-01-03",
     );
+    expect(wrapper.get('[role="status"]').text()).toBe("Map updated");
   });
 });

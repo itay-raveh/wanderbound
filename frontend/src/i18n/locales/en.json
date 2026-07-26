@@ -348,6 +348,8 @@
     "showAll": "Show all",
     "addMap": "Add map",
     "editMap": "Edit map",
+    "mapAdded": "Map added",
+    "mapUpdated": "Map updated",
     "startStep": "Starting step",
     "endStep": "Ending step",
     "album": "Album",

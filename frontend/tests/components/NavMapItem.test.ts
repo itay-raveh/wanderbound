@@ -2,6 +2,25 @@ import { mountWithPlugins } from "../helpers";
 import NavMapItem from "@/components/editor/nav/NavMapItem.vue";
 
 describe("NavMapItem", () => {
+  it("uses separate native buttons for navigation and row actions", async () => {
+    const wrapper = mountWithPlugins(NavMapItem, {
+      props: {
+        dateRange: ["2024-01-01", "2024-01-03"],
+        rangeIdx: 2,
+        active: false,
+        color: "#123456",
+        formatMapRange: () => "Jan 1 - Jan 3",
+      },
+    });
+
+    expect(wrapper.get(".map-target").element.tagName).toBe("BUTTON");
+    expect(wrapper.get(".map-item").attributes("role")).toBeUndefined();
+
+    await wrapper.get(".map-target").trigger("click");
+
+    expect(wrapper.emitted("click")).toHaveLength(1);
+  });
+
   it("opens step-range editing from a dedicated edit action", async () => {
     const dateRange = ["2024-01-01", "2024-01-03"] as const;
     const wrapper = mountWithPlugins(NavMapItem, {

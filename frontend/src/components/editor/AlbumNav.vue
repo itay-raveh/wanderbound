@@ -11,16 +11,13 @@ import MapRangeDialog from "./nav/MapRangeDialog.vue";
 import NavChapterGroup from "./nav/NavChapterGroup.vue";
 import { symOutlinedFlightTakeoff } from "@quasar/extras/material-symbols-outlined";
 
-const props = withDefaults(
-  defineProps<AlbumNavProps>(),
-  {
-    albumIds: () => [],
-    hiddenSteps: () => [],
-    hiddenHeaders: () => [],
-    colors: () => ({}),
-    mapsRanges: () => [],
-  },
-);
+const props = withDefaults(defineProps<AlbumNavProps>(), {
+  albumIds: () => [],
+  hiddenSteps: () => [],
+  hiddenHeaders: () => [],
+  colors: () => ({}),
+  mapsRanges: () => [],
+});
 
 const selectedAlbumId = defineModel<string | null>("albumId");
 
@@ -58,6 +55,7 @@ const {
 
 const mapDialogOpen = ref(false);
 const editingMap = ref<{ rangeIdx: number; dateRange: DateRange } | null>(null);
+const mapStatus = ref("");
 
 function openAddMap() {
   editingMap.value = null;
@@ -70,6 +68,7 @@ function openEditMap(rangeIdx: number, dateRange: DateRange) {
 }
 
 async function saveMap(range: DateRange) {
+  const isEditing = editingMap.value != null;
   if (editingMap.value) replaceMap(editingMap.value.rangeIdx, range);
   else addMap(range);
 
@@ -82,8 +81,10 @@ async function saveMap(range: DateRange) {
       )
     : null;
   if (!group) return;
+  mapStatus.value = "";
   await nextTick();
   scrollToMap(rangeSectionKey("map", range, group.chapter));
+  mapStatus.value = t(isEditing ? "nav.mapUpdated" : "nav.mapAdded");
 }
 </script>
 
@@ -154,6 +155,9 @@ async function saveMap(range: DateRange) {
       :date-range="editingMap?.dateRange"
       @save="saveMap"
     />
+    <span class="sr-only" role="status" aria-live="polite">{{
+      mapStatus
+    }}</span>
   </nav>
 </template>
 
@@ -206,4 +210,15 @@ async function saveMap(range: DateRange) {
   }
 }
 
+.sr-only {
+  position: absolute;
+  width: 0.0625rem;
+  height: 0.0625rem;
+  margin: -0.0625rem;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
 </style>

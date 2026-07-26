@@ -348,6 +348,8 @@
     "showAll": "הצגת הכל",
     "addMap": "הוספת מפה",
     "editMap": "עריכת מפה",
+    "mapAdded": "המפה נוספה",
+    "mapUpdated": "המפה עודכנה",
     "startStep": "צעד התחלה",
     "endStep": "צעד סיום",
     "album": "אלבום",
