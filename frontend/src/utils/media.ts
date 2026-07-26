@@ -6,6 +6,32 @@ export function mediaUrl(name: string, albumId: string): string {
   return `${client.getConfig().baseUrl}/api/v1/albums/${albumId}/media/${name}`;
 }
 
+const MAX_PANORAMA_DIMENSION = 8192;
+const MAX_PANORAMA_PIXELS = 8192 * 4096;
+
+export function panoramaRenditionSize(
+  width: number,
+  height: number,
+  pixelRatio: number,
+): { width: number; height: number } {
+  const ratio =
+    Number.isFinite(pixelRatio) && pixelRatio > 0 ? pixelRatio : 1;
+  const scaledWidth = width * ratio;
+  const scaledHeight = height * ratio;
+  if (scaledWidth <= 0 || scaledHeight <= 0) return { width: 0, height: 0 };
+  const fit = Math.min(
+    1,
+    MAX_PANORAMA_DIMENSION / scaledWidth,
+    MAX_PANORAMA_DIMENSION / scaledHeight,
+    Math.sqrt(MAX_PANORAMA_PIXELS / (scaledWidth * scaledHeight)),
+  );
+  const round = fit < 1 ? Math.floor : Math.round;
+  return {
+    width: Math.max(1, round(scaledWidth * fit)),
+    height: Math.max(1, round(scaledHeight * fit)),
+  };
+}
+
 export function placementMediaUrl(
   name: string,
   albumId: string,

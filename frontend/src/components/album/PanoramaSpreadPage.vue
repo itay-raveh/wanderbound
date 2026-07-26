@@ -10,6 +10,7 @@ import {
 import { useAlbum } from "@/composables/useAlbum";
 import { usePrintMode } from "@/composables/usePrintReady";
 import { t } from "@/i18n";
+import { panoramaRenditionSize } from "@/utils/media";
 import { PAGE_HEIGHT_MM, PAGE_WIDTH_MM } from "@/utils/pageSize";
 
 const PanoramaFrameDialog = defineAsyncComponent(() =>
@@ -36,31 +37,51 @@ const measuredWidth = ref(0);
 const measuredHeight = ref(0);
 let placementObserver: ResizeObserver | null = null;
 
-function updatePlacementSize(): void {
+function updatePlacementSize(entry?: ResizeObserverEntry): void {
+  const contentBox = entry?.contentBoxSize?.[0];
   const bounds = pageRef.value?.getBoundingClientRect();
-  if (!bounds || bounds.width <= 0 || bounds.height <= 0) return;
-  measuredWidth.value = Math.round(bounds.width * 2);
-  measuredHeight.value = Math.round(bounds.height);
+  const contentWidth =
+    contentBox?.inlineSize ||
+    entry?.contentRect.width ||
+    pageRef.value?.clientWidth ||
+    bounds?.width;
+  const contentHeight =
+    contentBox?.blockSize ||
+    entry?.contentRect.height ||
+    pageRef.value?.clientHeight ||
+    bounds?.height;
+  if (!contentWidth || !contentHeight) return;
+  measuredWidth.value = contentWidth * 2;
+  measuredHeight.value = contentHeight;
 }
 
 onMounted(() => {
   updatePlacementSize();
   if (typeof ResizeObserver === "undefined" || !pageRef.value) return;
-  placementObserver = new ResizeObserver(updatePlacementSize);
+  placementObserver = new ResizeObserver(([entry]) =>
+    updatePlacementSize(entry),
+  );
   placementObserver.observe(pageRef.value);
 });
 onBeforeUnmount(() => placementObserver?.disconnect());
 
+const editorRendition = computed(() =>
+  panoramaRenditionSize(
+    measuredWidth.value || EDITOR_RENDER_WIDTH,
+    measuredHeight.value ||
+      Math.round(
+        (EDITOR_RENDER_WIDTH * PAGE_HEIGHT_MM) / (PAGE_WIDTH_MM * 2),
+      ),
+    window.devicePixelRatio,
+  ),
+);
 const width = computed(() =>
-  printMode
-    ? PRINT_RENDER_WIDTH
-    : measuredWidth.value || EDITOR_RENDER_WIDTH,
+  printMode ? PRINT_RENDER_WIDTH : editorRendition.value.width,
 );
 const height = computed(() =>
   printMode
     ? Math.round((width.value * PAGE_HEIGHT_MM) / (PAGE_WIDTH_MM * 2))
-    : measuredHeight.value ||
-      Math.round((width.value * PAGE_HEIGHT_MM) / (PAGE_WIDTH_MM * 2)),
+    : editorRendition.value.height,
 );
 const albumMedia = computed(() => mediaByName.value.get(props.media));
 const src = computed(() => {

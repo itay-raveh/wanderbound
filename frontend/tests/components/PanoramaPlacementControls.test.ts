@@ -188,6 +188,76 @@ describe("panorama placement controls", () => {
     });
   });
 
+  test("a spread excludes its editor border from the full destination", async () => {
+    let resizeCallback: ResizeObserverCallback | undefined;
+    vi.stubGlobal(
+      "ResizeObserver",
+      class {
+        constructor(callback: ResizeObserverCallback) {
+          resizeCallback = callback;
+        }
+        observe() {}
+        disconnect() {}
+      },
+    );
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(
+      function () {
+        if (this.classList.contains("panorama-page")) return rect(897, 636);
+        return rect(600, 300);
+      },
+    );
+    vi.spyOn(HTMLElement.prototype, "clientWidth", "get").mockImplementation(
+      function () {
+        return this.classList.contains("panorama-page") ? 891 : 0;
+      },
+    );
+    vi.spyOn(HTMLElement.prototype, "clientHeight", "get").mockImplementation(
+      function () {
+        return this.classList.contains("panorama-page") ? 630 : 0;
+      },
+    );
+    const Parent = defineComponent({
+      setup() {
+        provideTestAlbum({ media: [activePanorama] });
+        return () =>
+          h(PanoramaSpreadPage, { media: activePanorama.name, side: "left" });
+      },
+    });
+    const wrapper = mountWithPlugins(Parent);
+    await wrapper.vm.$nextTick();
+
+    const initialSrc = new URL(wrapper.get("img").attributes("src"));
+    expect(initialSrc.searchParams.get("w")).toBe("1782");
+    expect(initialSrc.searchParams.get("h")).toBe("630");
+
+    const page = wrapper.get(".panorama-page").element;
+    resizeCallback?.(
+      [
+        {
+          target: page,
+          contentBoxSize: [{ inlineSize: 594, blockSize: 420 }],
+          contentRect: rect(594, 420),
+        } as unknown as ResizeObserverEntry,
+      ],
+      {} as ResizeObserver,
+    );
+    await wrapper.vm.$nextTick();
+
+    const resizedSrc = new URL(wrapper.get("img").attributes("src"));
+    expect(resizedSrc.searchParams.get("w")).toBe("1188");
+    expect(resizedSrc.searchParams.get("h")).toBe("420");
+
+    await wrapper.get(".panorama-frame-action").trigger("click");
+    await flushPromises();
+
+    expect(wrapper.get(".panorama-dialog-stub").attributes()).toMatchObject({
+      "data-kind": "panorama_spread",
+      "data-aspect": String((297 * 2) / 210),
+      "data-width": "1188",
+      "data-height": "420",
+    });
+  });
+
   test("a spread can return to a one-photo full page", async () => {
     const mutate = vi.fn();
     const step = makeStep({

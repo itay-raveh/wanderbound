@@ -12,6 +12,7 @@ import {
   isVideo as checkVideo,
   mediaUrl,
   mediaThumbUrl,
+  panoramaRenditionSize,
   posterPath,
   SIZES_FULL,
   SIZES_HALF,
@@ -80,12 +81,13 @@ const rootRef = ref<HTMLElement | null>(null);
 const placementWidth = ref(0);
 const placementHeight = ref(0);
 let placementObserver: ResizeObserver | null = null;
+const PRINT_PIXEL_RATIO = 300 / 96;
 
 function updatePlacementSize(): void {
   const bounds = rootRef.value?.getBoundingClientRect();
   if (!bounds || bounds.width <= 0 || bounds.height <= 0) return;
-  placementWidth.value = Math.max(1, Math.round(bounds.width));
-  placementHeight.value = Math.max(1, Math.round(bounds.height));
+  placementWidth.value = bounds.width;
+  placementHeight.value = bounds.height;
 }
 
 onMounted(() => {
@@ -166,6 +168,13 @@ const panoramaActionLabel = computed(() =>
     : t("panorama.treat"),
 );
 const panoramaDialogOpen = ref(false);
+const panoramaRendition = computed(() =>
+  panoramaRenditionSize(
+    placementWidth.value,
+    placementHeight.value,
+    printMode ? PRINT_PIXEL_RATIO : window.devicePixelRatio,
+  ),
+);
 const panoramaDestination = computed<PanoramaDestination | null>(() => {
   if (
     !props.panoramaDestinationKind ||
@@ -176,8 +185,8 @@ const panoramaDestination = computed<PanoramaDestination | null>(() => {
   return {
     kind: props.panoramaDestinationKind,
     aspect_ratio: placementWidth.value / placementHeight.value,
-    width_px: placementWidth.value,
-    height_px: placementHeight.value,
+    width_px: panoramaRendition.value.width,
+    height_px: panoramaRendition.value.height,
   };
 });
 
@@ -190,8 +199,8 @@ const src = computed(() => {
   if (activePanorama.value)
     return placementMediaUrl(
       props.media,
-      placementWidth.value,
-      placementHeight.value,
+      panoramaRendition.value.width,
+      panoramaRendition.value.height,
     );
   const base = mediaUrl(props.media, albumId.value);
   return mediaCacheKey.value

@@ -3,6 +3,7 @@ import { makeAlbumMedia, mountWithPlugins, provideTestAlbum } from "../helpers";
 import MediaItem from "@/components/album/MediaItem.vue";
 import { STEP_ID_KEY, usePhotoFocus } from "@/composables/usePhotoFocus";
 import { PROGRAMMATIC_SCROLL_KEY } from "@/composables/useProgrammaticScroll";
+import { providePrintMode } from "@/composables/usePrintReady";
 
 const mutateAsync = vi.fn();
 let playSpy: ReturnType<typeof vi.spyOn>;
@@ -48,10 +49,12 @@ function mountMediaItem(
   media: ReturnType<typeof makeAlbumMedia>,
   props: Record<string, unknown>,
   provide: Record<symbol, unknown>,
+  printMode = false,
 ) {
   const Wrapper = defineComponent({
     setup() {
       provideTestAlbum({ media: [media] });
+      if (printMode) providePrintMode();
       return () => h(MediaItem, props);
     },
   });
@@ -207,7 +210,8 @@ describe("MediaItem video controls", () => {
     expect(wrapper.find(".quality-badge.warning").exists()).toBe(true);
   });
 
-  test("requests an active panorama rendition at the placement dimensions", async () => {
+  test("requests an active panorama rendition at the placement device-pixel dimensions", async () => {
+    vi.stubGlobal("devicePixelRatio", 2);
     vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockReturnValue({
       width: 640,
       height: 320,
@@ -229,9 +233,87 @@ describe("MediaItem video controls", () => {
     await nextTick();
 
     const src = new URL(wrapper.get("img").attributes("src"));
-    expect(src.searchParams.get("w")).toBe("640");
-    expect(src.searchParams.get("h")).toBe("320");
+    expect(src.searchParams.get("w")).toBe("1280");
+    expect(src.searchParams.get("h")).toBe("640");
     expect(src.searchParams.get("panorama_revision")).toBe("9");
+  });
+
+  test("keeps a high-DPI panorama rendition within the backend output limit", async () => {
+    vi.stubGlobal("devicePixelRatio", 2);
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockReturnValue({
+      width: 5000,
+      height: 2500,
+    } as DOMRect);
+    const wrapper = mountPhotoItem(
+      ref(false),
+      { lazy: false, panoramaDestinationKind: "grid" },
+      {
+        panorama: {
+          status: "active",
+          detection: "gpano",
+          source_width: 10_000,
+          source_height: 5000,
+          captured_fov: 180,
+          revision: 9,
+        },
+      },
+    );
+    await nextTick();
+
+    const src = new URL(wrapper.get("img").attributes("src"));
+    expect(src.searchParams.get("w")).toBe("8192");
+    expect(src.searchParams.get("h")).toBe("4096");
+  });
+
+  test("requests a 300-PPI active panorama rendition in print mode", async () => {
+    vi.stubGlobal("devicePixelRatio", 2);
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockReturnValue({
+      width: (297 * 96) / 25.4,
+      height: (210 * 96) / 25.4,
+    } as DOMRect);
+    const media = makeAlbumMedia({
+      panorama: {
+        status: "active",
+        detection: "gpano",
+        source_width: 8000,
+        source_height: 4000,
+        captured_fov: 180,
+        revision: 9,
+      },
+    });
+    const wrapper = mountMediaItem(
+      media,
+      {
+        media: "photo.jpg",
+        lazy: false,
+        panoramaDestinationKind: "full_page",
+      },
+      {},
+      true,
+    );
+    await nextTick();
+
+    const src = new URL(wrapper.get("img").attributes("src"));
+    expect(src.searchParams.get("w")).toBe("3508");
+    expect(src.searchParams.get("h")).toBe("2480");
+    expect(src.searchParams.get("panorama_revision")).toBe("9");
+  });
+
+  test("keeps ordinary media on its existing URL path on high-DPI displays", async () => {
+    vi.stubGlobal("devicePixelRatio", 2);
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockReturnValue({
+      width: 640,
+      height: 320,
+    } as DOMRect);
+    const wrapper = mountPhotoItem(ref(false), { lazy: false });
+    await nextTick();
+
+    const src = new URL(wrapper.get("img").attributes("src"));
+    expect(src.pathname).toBe("/api/v1/albums/album-1/media/photo.jpg");
+    expect(src.searchParams.get("d")).toBe(MEDIA_UPDATED_AT);
+    expect(src.searchParams.get("w")).toBe("800");
+    expect(src.searchParams.has("h")).toBe(false);
+    expect(src.searchParams.has("panorama_revision")).toBe(false);
   });
 
   test("registers multiple resolution badges without recursive updates", async () => {
