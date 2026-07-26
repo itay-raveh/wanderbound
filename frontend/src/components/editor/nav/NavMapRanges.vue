@@ -10,26 +10,29 @@ defineEmits<{
 </script>
 
 <template>
-  <button type="button" class="nav-chip" @click="$emit('addMap')">
-    <q-icon :name="symOutlinedAdd" size="var(--type-xs)" />
+  <button type="button" class="nav-add-map" @click="$emit('addMap')">
+    <q-icon :name="symOutlinedAdd" size="var(--type-sm)" />
     <span>{{ t("nav.addMap") }}</span>
   </button>
 </template>
 
 <style lang="scss" scoped>
-.nav-chip {
+.nav-add-map {
   appearance: none;
   display: flex;
   align-items: center;
-  gap: var(--gap-xs);
-  padding: var(--gap-xs) var(--gap-sm);
-  border: 1px solid
-    color-mix(in srgb, var(--q-primary) 35%, var(--border-color));
+  justify-content: center;
+  gap: var(--gap-sm);
+  width: 100%;
+  min-height: 2.75rem;
+  padding: var(--gap-sm) var(--gap-md-lg);
+  border: 1px solid var(--border-color);
   border-radius: var(--radius-sm);
-  background: color-mix(in srgb, var(--q-primary) 4%, transparent);
-  color: var(--q-primary);
-  font: inherit;
-  font-size: var(--type-xs);
+  background: var(--surface);
+  color: var(--text-bright);
+  font-family: var(--font-ui);
+  font-size: var(--type-sm);
+  font-weight: 600;
   cursor: pointer;
   transition:
     color var(--duration-fast),
@@ -37,13 +40,14 @@ defineEmits<{
     border-color var(--duration-fast);
 
   &:hover {
-    background: color-mix(in srgb, var(--q-primary) 9%, transparent);
-    border-color: color-mix(in srgb, var(--q-primary) 60%, var(--border-color));
+    background: color-mix(in srgb, var(--q-primary) 8%, var(--surface));
+    border-color: color-mix(in srgb, var(--q-primary) 55%, var(--border-color));
+    color: var(--primary-text);
   }
 
   &:active {
-    background: color-mix(in srgb, var(--q-primary) 10%, transparent);
-    border-color: color-mix(in srgb, var(--q-primary) 45%, transparent);
+    background: color-mix(in srgb, var(--q-primary) 13%, var(--surface));
+    border-color: var(--q-primary);
   }
 
   &:focus-visible {
@@ -52,14 +56,8 @@ defineEmits<{
   }
 }
 
-@media (pointer: coarse) {
-  .nav-chip {
-    padding: var(--gap-sm) var(--gap-sm-md);
-  }
-}
-
 @media (prefers-reduced-motion: reduce) {
-  .nav-chip {
+  .nav-add-map {
     transition: none;
   }
 }
