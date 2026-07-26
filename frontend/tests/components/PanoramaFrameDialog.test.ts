@@ -22,6 +22,7 @@ const adapterFake = vi.hoisted(() => {
 });
 
 const panoramaMutation = vi.hoisted(() => ({ mutateAsync: vi.fn() }));
+const disablePanoramaMutation = vi.hoisted(() => ({ mutateAsync: vi.fn() }));
 
 vi.mock("@/panorama/view360Adapter", () => ({
   createPanoramaViewerAdapter: adapterFake.create,
@@ -29,6 +30,7 @@ vi.mock("@/panorama/view360Adapter", () => ({
 
 vi.mock("@/queries/usePanoramaMutation", () => ({
   usePanoramaMutation: () => panoramaMutation,
+  useDisablePanoramaMutation: () => disablePanoramaMutation,
 }));
 
 import PanoramaFrameDialog from "@/components/editor/PanoramaFrameDialog.vue";
@@ -152,9 +154,9 @@ describe("PanoramaFrameDialog", () => {
 
     expect(wrapper.text()).toContain("1.6×");
     expect(adapterFake.adapter.setPerspective).not.toHaveBeenCalled();
-    expect(wrapper.get(".panorama-projection-layer").attributes("style")).toContain(
-      "--panorama-zoom: 1.6",
-    );
+    expect(
+      wrapper.get(".panorama-projection-layer").attributes("style"),
+    ).toContain("--panorama-zoom: 1.6");
 
     const perspective = wrapper.get<HTMLInputElement>(
       'input[name="perspective"]',
@@ -269,7 +271,10 @@ describe("PanoramaFrameDialog", () => {
     const viewport = wrapper.get(".panorama-viewport").element;
     const bubbled = vi.fn();
     wrapper.element.addEventListener("touchend", bubbled);
-    const touchEvent = (type: string, touches: Array<{ clientX: number; clientY: number }>) => {
+    const touchEvent = (
+      type: string,
+      touches: Array<{ clientX: number; clientY: number }>,
+    ) => {
       const event = new Event(type, { bubbles: true, cancelable: true });
       Object.defineProperty(event, "touches", { value: touches });
       return event;
@@ -338,12 +343,32 @@ describe("PanoramaFrameDialog", () => {
       destination,
     });
     expect(wrapper.emitted("applied")).toBeUndefined();
-    expect(wrapper.get(".apply-button").attributes()).toHaveProperty("disabled");
+    expect(wrapper.get(".apply-button").attributes()).toHaveProperty(
+      "disabled",
+    );
 
     pending.resolve(committed);
     await flushPromises();
 
     expect(wrapper.emitted("applied")).toEqual([[committed]]);
+    expect(wrapper.emitted("update:modelValue")?.at(-1)).toEqual([false]);
+  });
+
+  it("lets an active panorama return to normal photo rendering", async () => {
+    const disabled = panoramaMedia();
+    disabled.panorama!.status = "disabled";
+    disablePanoramaMutation.mutateAsync.mockResolvedValueOnce(disabled);
+    const wrapper = mountDialog({ modelValue: true });
+    await flushPromises();
+
+    await wrapper.get(".disable-button").trigger("click");
+    await flushPromises();
+
+    expect(disablePanoramaMutation.mutateAsync).toHaveBeenCalledWith({
+      aid: "a1",
+      name: "wide view.jpg",
+    });
+    expect(wrapper.emitted("applied")?.at(-1)).toEqual([disabled]);
     expect(wrapper.emitted("update:modelValue")?.at(-1)).toEqual([false]);
   });
 });

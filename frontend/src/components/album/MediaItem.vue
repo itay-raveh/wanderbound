@@ -159,8 +159,7 @@ const hasPanoramaAction = computed(
     !printMode &&
     !isVideo.value &&
     props.panoramaDestinationKind != null &&
-    (panorama.value?.status === "active" ||
-      panorama.value?.status === "suggested"),
+    panorama.value != null,
 );
 const panoramaActionLabel = computed(() =>
   panorama.value?.status === "active"
@@ -243,7 +242,8 @@ const imgSrcset = computed(() => {
   const name = isVideo.value ? posterPath(props.media) : props.media;
   const base = mediaUrl(name, albumId.value);
   const extra: string[] = [];
-  if (mediaCacheKey.value) extra.push(`d=${encodeURIComponent(mediaCacheKey.value)}`);
+  if (mediaCacheKey.value)
+    extra.push(`d=${encodeURIComponent(mediaCacheKey.value)}`);
   if (posterCacheBust.value != null) extra.push(`v=${posterCacheBust.value}`);
   const suffix = extra.length ? `&${extra.join("&")}` : "";
   return THUMB_WIDTHS.map((w) => `${base}?w=${w}${suffix} ${w}w`).join(", ");

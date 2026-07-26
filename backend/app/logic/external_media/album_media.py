@@ -24,11 +24,16 @@ from app.logic.media_import import (
 )
 from app.logic.media_upgrade.hashes import try_compute_serialized_media_hash
 from app.logic.panorama.storage import (
+    panorama_original_path,
     preserve_panorama_original,
     remove_panorama_assets,
 )
 from app.models.album import Album
-from app.models.album_media import AlbumMedia, PanoramaConfig
+from app.models.album_media import (
+    AlbumMedia,
+    AlbumMediaUndoSnapshot,
+    PanoramaConfig,
+)
 
 from .undo import create_undo_snapshot
 
@@ -76,6 +81,39 @@ async def _replacement_panorama(
     )
 
 
+async def _restore_failed_replacement(
+    album_dir: Path,
+    media_name: str,
+    snapshot: AlbumMediaUndoSnapshot,
+    previous_panorama: PanoramaConfig | None,
+    replacement_panorama: PanoramaConfig | None,
+) -> None:
+    target = album_dir / media_name
+    await run_sync(
+        remove_panorama_assets,
+        album_dir,
+        media_name,
+        replacement_panorama,
+    )
+    snapshot_path = album_dir / snapshot.snapshot_path
+    if snapshot_path.exists():
+        await run_sync(shutil.copy2, snapshot_path, target)
+    if is_video(media_name):
+        snapshot_poster = snapshot_path.with_suffix(".jpg")
+        if snapshot_poster.exists():
+            await run_sync(shutil.copy2, snapshot_poster, target.with_suffix(".jpg"))
+    if snapshot.original_snapshot_path and previous_panorama:
+        original = panorama_original_path(album_dir, previous_panorama.original_path)
+        if original is not None:
+            original.parent.mkdir(parents=True, exist_ok=True)
+            await run_sync(
+                shutil.copy2,
+                album_dir / snapshot.original_snapshot_path,
+                original,
+            )
+    await run_sync(delete_thumbnails, target)
+
+
 async def replace_album_media_from_saved(
     session: AsyncSession,
     *,
@@ -92,6 +130,9 @@ async def replace_album_media_from_saved(
     if row is None:
         raise MediaNotFoundError("Media not found")
     written: list[Path] = []
+    snapshot: AlbumMediaUndoSnapshot | None = None
+    previous_panorama = row.panorama
+    replacement_panorama: PanoramaConfig | None = None
     try:
         imported, written = await process_saved_media(
             album_dir=album_dir,
@@ -100,7 +141,7 @@ async def replace_album_media_from_saved(
         replacement, replacement_path = _unpack_replacement(imported, written)
         _validate_replacement_kind(row, replacement.name)
 
-        await create_undo_snapshot(
+        snapshot = await create_undo_snapshot(
             session,
             uid=album.uid,
             aid=album.id,
@@ -113,7 +154,10 @@ async def replace_album_media_from_saved(
             await run_sync(replacement_path.with_suffix(".jpg").unlink, missing_ok=True)
         written = []
         await run_sync(remove_panorama_assets, album_dir, media_name, row.panorama)
-        row.panorama = await _replacement_panorama(replacement, album_dir, media_name)
+        replacement_panorama = await _replacement_panorama(
+            replacement, album_dir, media_name
+        )
+        row.panorama = replacement_panorama
         await run_sync(delete_thumbnails, target)
         if row.kind == "video":
             await extract_frame(target)
@@ -130,7 +174,17 @@ async def replace_album_media_from_saved(
         row.updated_at = datetime.now(UTC)
         session.add(row)
         await session.flush()
+        await session.commit()
     except BaseException:
+        await session.rollback()
+        if snapshot is not None:
+            await _restore_failed_replacement(
+                album_dir,
+                media_name,
+                snapshot,
+                previous_panorama,
+                replacement_panorama,
+            )
         await cleanup_imported_paths(written)
         raise
     else:

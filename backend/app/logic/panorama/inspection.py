@@ -11,6 +11,7 @@ from app.models.album_media import PanoramaConfig, canonical_captured_fov
 
 _MIN_PANORAMA_ASPECT_RATIO = 2
 _DEFAULT_PERSPECTIVE_FOV = 70.0
+_MAX_XMP_SCAN_BYTES = 4 * 1024 * 1024
 
 
 def inspect_panorama(path: Path) -> PanoramaConfig | None:
@@ -40,7 +41,8 @@ def inspect_panorama(path: Path) -> PanoramaConfig | None:
 
 
 def _read_xmp(path: Path) -> str:
-    raw = path.read_bytes()
+    with path.open("rb") as source:
+        raw = source.read(_MAX_XMP_SCAN_BYTES)
     start = raw.find(b"<x:xmpmeta")
     if start < 0:
         start = raw.find(b"<xmpmeta")
@@ -89,7 +91,7 @@ def _gpano_config(
     ):
         return None
     return PanoramaConfig(
-        status="active",
+        status="suggested",
         detection="gpano",
         source_width=source_width,
         source_height=source_height,

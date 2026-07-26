@@ -7,7 +7,12 @@ from typing import TYPE_CHECKING
 
 import pytest
 
-from app.logic.media_import import ImportRequest, SavedInput, import_saved_media
+from app.logic.media_import import (
+    MAX_PHOTO_BYTES,
+    ImportRequest,
+    SavedInput,
+    import_saved_media,
+)
 from app.logic.panorama.inspection import inspect_panorama
 from app.models.album_media import AlbumMedia
 from tests.factories import AID, DEFAULT_MEDIA_NAME, create_test_jpeg, insert_album
@@ -75,3 +80,25 @@ async def test_failed_import_removes_preserved_panorama_original(
     assert not (
         album_dir / ".panoramas/originals" / f"{Path(DEFAULT_MEDIA_NAME).stem}.jpg"
     ).exists()
+
+
+async def test_oversized_photo_is_rejected_before_panorama_inspection(
+    session: AsyncSession, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    album = await insert_album(session, 1)
+    raw = create_test_jpeg(tmp_path / "raw.jpg", 200, 100)
+    album_dir = tmp_path / "album"
+    album_dir.mkdir()
+    monkeypatch.setattr(
+        "app.logic.media_import.inspect_panorama",
+        lambda _path: pytest.fail("oversized photo metadata was inspected"),
+    )
+
+    with pytest.raises(OverflowError, match="Photo exceeds maximum size"):
+        await import_saved_media(
+            session,
+            album=album,
+            album_dir=album_dir,
+            request=ImportRequest(context="cover"),
+            saved=[SavedInput(path=raw, size=MAX_PHOTO_BYTES + 1)],
+        )

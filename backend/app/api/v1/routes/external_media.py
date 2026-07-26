@@ -186,7 +186,6 @@ async def replace_device(  # noqa: PLR0913
             raise HTTPException(status.HTTP_413_CONTENT_TOO_LARGE, str(exc)) from None
         except ValueError as exc:
             raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc)) from None
-    await session.commit()
     enqueue_undo_snapshot_prune(background_tasks, user.id, aid, target_album_dir)
     return row
 
@@ -334,6 +333,5 @@ async def replace_google_media(  # noqa: PLR0913
             raise HTTPException(status.HTTP_404_NOT_FOUND, str(exc)) from None
         except ValueError as exc:
             raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc)) from None
-    await session.commit()
     enqueue_undo_snapshot_prune(background_tasks, user.id, aid, target_album_dir)
     return row

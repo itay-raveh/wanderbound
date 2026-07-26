@@ -12,14 +12,11 @@ import {
   type PanoramaSourceGeometry,
 } from "@/panorama/frame";
 import type { PanoramaViewerAdapter } from "@/panorama/view360Adapter";
-import { usePanoramaMutation } from "@/queries/usePanoramaMutation";
 import {
-  computed,
-  nextTick,
-  onBeforeUnmount,
-  ref,
-  watch,
-} from "vue";
+  useDisablePanoramaMutation,
+  usePanoramaMutation,
+} from "@/queries/usePanoramaMutation";
+import { computed, nextTick, onBeforeUnmount, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 
 const props = defineProps<{
@@ -36,6 +33,7 @@ const emit = defineEmits<{
 
 const { t } = useI18n();
 const mutation = usePanoramaMutation();
+const disableMutation = useDisablePanoramaMutation();
 const viewerRoot = ref<HTMLElement | null>(null);
 const draft = ref<PanoramaFrameDraft>({
   yaw: 0,
@@ -46,6 +44,7 @@ const draft = ref<PanoramaFrameDraft>({
 const savedOnOpen = ref<PanoramaFrameDraft>({ ...draft.value });
 const loading = ref(false);
 const applying = ref(false);
+const disabling = ref(false);
 const loadError = ref(false);
 let adapter: PanoramaViewerAdapter | null = null;
 let resizeObserver: ResizeObserver | null = null;
@@ -55,9 +54,7 @@ let pinchStartZoom = 1;
 let pinchOwned = false;
 
 const panorama = computed(() => props.media.panorama);
-const isSpread = computed(
-  () => props.destination.kind === "panorama_spread",
-);
+const isSpread = computed(() => props.destination.kind === "panorama_spread");
 const hasCapturedWidthControl = computed(
   () => panorama.value?.detection !== "gpano",
 );
@@ -161,9 +158,8 @@ async function loadViewer(frame: PanoramaFrameDraft): Promise<void> {
 
   let nextAdapter: PanoramaViewerAdapter | null = null;
   try {
-    const { createPanoramaViewerAdapter } = await import(
-      "@/panorama/view360Adapter"
-    );
+    const { createPanoramaViewerAdapter } =
+      await import("@/panorama/view360Adapter");
     if (generation !== openGeneration || !viewerRoot.value) return;
     const createdAdapter = createPanoramaViewerAdapter(viewerRoot.value);
     nextAdapter = createdAdapter;
@@ -262,6 +258,21 @@ async function apply(): Promise<void> {
   }
 }
 
+async function disablePanorama(): Promise<void> {
+  if (disabling.value) return;
+  disabling.value = true;
+  try {
+    const committed = await disableMutation.mutateAsync({
+      aid: props.albumId,
+      name: props.media.name,
+    });
+    emit("applied", committed);
+    emit("update:modelValue", false);
+  } finally {
+    disabling.value = false;
+  }
+}
+
 function onWheel(event: WheelEvent): void {
   event.preventDefault();
   const step = event.deltaY < 0 ? 0.1 : -0.1;
@@ -338,7 +349,9 @@ onBeforeUnmount(cleanupAdapter);
           </p>
         </div>
         <div class="frame-readout" aria-live="polite">
-          <span>{{ t("panorama.frame.perspective") }} {{ perspectiveLabel }}</span>
+          <span
+            >{{ t("panorama.frame.perspective") }} {{ perspectiveLabel }}</span
+          >
           <span>{{ t("panorama.frame.zoom") }} {{ zoomLabel }}</span>
         </div>
       </q-card-section>
@@ -394,7 +407,9 @@ onBeforeUnmount(cleanupAdapter);
               :value="draft.perspectiveFov"
               @input="setPerspective(numberFromInput($event))"
             />
-            <span class="control-help">{{ t("panorama.frame.perspectiveHelp") }}</span>
+            <span class="control-help">{{
+              t("panorama.frame.perspectiveHelp")
+            }}</span>
           </label>
 
           <label class="control-group">
@@ -430,13 +445,26 @@ onBeforeUnmount(cleanupAdapter);
                 :value="effectiveCapturedFov(draft)"
                 @input="setCapturedWidth(numberFromInput($event))"
               />
-              <span class="control-help">{{ t("panorama.frame.capturedWidthHelp") }}</span>
+              <span class="control-help">{{
+                t("panorama.frame.capturedWidthHelp")
+              }}</span>
             </label>
           </details>
         </div>
       </q-card-section>
 
       <q-card-actions class="panorama-actions" align="right">
+        <q-btn
+          v-if="panorama?.status === 'active'"
+          class="disable-button"
+          flat
+          no-caps
+          color="negative"
+          :disable="applying || disabling"
+          :loading="disabling"
+          :label="t('panorama.frame.disable')"
+          @click="disablePanorama"
+        />
         <q-btn
           class="reset-button"
           flat
@@ -448,7 +476,7 @@ onBeforeUnmount(cleanupAdapter);
           class="cancel-button"
           flat
           no-caps
-          :disable="applying"
+          :disable="applying || disabling"
           :label="t('common.cancel')"
           @click="cancel"
         />
@@ -456,7 +484,7 @@ onBeforeUnmount(cleanupAdapter);
           class="apply-button"
           color="primary"
           no-caps
-          :disable="loading || loadError || applying"
+          :disable="loading || loadError || applying || disabling"
           :loading="applying"
           :label="t('panorama.frame.apply')"
           @click="apply"

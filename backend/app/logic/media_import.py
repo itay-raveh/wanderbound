@@ -112,7 +112,6 @@ def _process_photo(raw: Path, output: Path) -> tuple[int, int]:
 async def _import_one(raw: SavedInput, album_dir: Path) -> tuple[ImportedMedia, Path]:
     name = _generated_name(".jpg")
     output = album_dir / name
-    panorama = await run_sync(inspect_panorama, raw.path, limiter=media_limiter)
     try:
         width, height = await run_sync(
             _process_photo, raw.path, output, limiter=media_limiter
@@ -132,6 +131,7 @@ async def _import_one(raw: SavedInput, album_dir: Path) -> tuple[ImportedMedia, 
         if raw.size > MAX_PHOTO_BYTES:
             output.unlink(missing_ok=True)
             raise OverflowError("Photo exceeds maximum size")
+        panorama = await run_sync(inspect_panorama, raw.path, limiter=media_limiter)
         return ImportedMedia(
             name=name,
             width=width,

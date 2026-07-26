@@ -56,7 +56,7 @@ def _gpano(**attributes: object) -> str:
     )
 
 
-def test_cylindrical_gpano_activates_with_captured_horizontal_fov(
+def test_cylindrical_gpano_is_suggested_with_captured_horizontal_fov(
     tmp_path: Path,
 ) -> None:
     source = _jpeg_with_xmp(tmp_path / "cylindrical.jpg", 300, 100, _gpano())
@@ -64,7 +64,7 @@ def test_cylindrical_gpano_activates_with_captured_horizontal_fov(
     panorama = inspect_panorama(source)
 
     assert panorama is not None
-    assert panorama.status == "active"
+    assert panorama.status == "suggested"
     assert panorama.detection == "gpano"
     assert panorama.source_width == 300
     assert panorama.source_height == 100
@@ -130,7 +130,7 @@ def test_malformed_gpano_falls_back_to_dimension_suggestion(tmp_path: Path) -> N
     assert panorama.detection == "dimensions"
 
 
-def test_cylindrical_gpano_without_full_height_activates(tmp_path: Path) -> None:
+def test_cylindrical_gpano_without_full_height_is_suggested(tmp_path: Path) -> None:
     source = _jpeg_with_xmp(
         tmp_path / "samsung.jpg",
         300,
@@ -141,12 +141,14 @@ def test_cylindrical_gpano_without_full_height_activates(tmp_path: Path) -> None
     panorama = inspect_panorama(source)
 
     assert panorama is not None
-    assert panorama.status == "active"
+    assert panorama.status == "suggested"
     assert panorama.detection == "gpano"
     assert panorama.full_pano_height is None
 
 
-def test_cylindrical_gpano_with_negative_top_offset_activates(tmp_path: Path) -> None:
+def test_cylindrical_gpano_with_negative_top_offset_is_suggested(
+    tmp_path: Path,
+) -> None:
     source = _jpeg_with_xmp(
         tmp_path / "above-horizon.jpg",
         300,
@@ -157,7 +159,7 @@ def test_cylindrical_gpano_with_negative_top_offset_activates(tmp_path: Path) ->
     panorama = inspect_panorama(source)
 
     assert panorama is not None
-    assert panorama.status == "active"
+    assert panorama.status == "suggested"
     assert panorama.cropped_area_top == -25
 
 

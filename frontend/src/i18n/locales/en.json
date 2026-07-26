@@ -146,6 +146,7 @@
       "capturedWidth": "Captured width",
       "capturedWidthHelp": "Adjust the estimated horizontal angle covered by this panorama.",
       "reset": "Reset fit",
+      "disable": "Use as normal photo",
       "apply": "Apply frame"
     }
   },

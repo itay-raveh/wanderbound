@@ -117,6 +117,41 @@ async def test_put_commits_frame_only_after_derivative_exists(
     assert row.panorama == PanoramaConfig.model_validate(panorama)
 
 
+async def test_put_removes_obsolete_render_revisions(
+    client: AsyncClient,
+    session: AsyncSession,
+) -> None:
+    row, album_dir = await _scenario(client, session)
+    obsolete = (
+        album_dir
+        / ".panoramas"
+        / "rendered"
+        / Path(row.name).stem
+        / "3"
+        / "800x400.jpg"
+    )
+    obsolete.parent.mkdir(parents=True)
+    obsolete.write_bytes(b"obsolete")
+
+    async def render(
+        _source: Path,
+        _config: PanoramaConfig,
+        _destination: object,
+        output: Path,
+    ) -> None:
+        await run_sync(output.parent.mkdir, parents=True, exist_ok=True)
+        await run_sync(output.write_bytes, b"current")
+
+    with patch("app.api.v1.routes.panoramas.render_panorama", side_effect=render):
+        response = await client.put(
+            f"/api/v1/albums/{AID}/media/{row.name}/panorama",
+            json=_body(),
+        )
+
+    assert response.status_code == 200
+    assert not obsolete.parent.exists()
+
+
 async def test_failed_put_preserves_configuration_and_derivative(
     client: AsyncClient,
     session: AsyncSession,
@@ -292,6 +327,20 @@ async def test_delete_disables_projection_without_removing_source(
 ) -> None:
     row, album_dir = await _scenario(client, session)
 
+    preview = album_dir / ".panoramas" / "preview" / f"{Path(row.name).stem}.jpg"
+    preview.parent.mkdir(parents=True)
+    preview.write_bytes(b"preview")
+    rendered = (
+        album_dir
+        / ".panoramas"
+        / "rendered"
+        / Path(row.name).stem
+        / "3"
+        / "800x400.jpg"
+    )
+    rendered.parent.mkdir(parents=True)
+    rendered.write_bytes(b"rendered")
+
     response = await client.delete(f"/api/v1/albums/{AID}/media/{row.name}/panorama")
 
     assert response.status_code == 200
@@ -299,6 +348,8 @@ async def test_delete_disables_projection_without_removing_source(
     assert panorama["status"] == "disabled"
     assert panorama["revision"] == 4
     assert (album_dir / row.name).is_file()
+    assert not preview.exists()
+    assert not rendered.exists()
 
 
 async def test_panorama_source_is_normalized_and_cached(

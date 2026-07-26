@@ -22,6 +22,10 @@ from app.logic.panorama.render import (
     resolve_panorama_source,
     validate_panorama_frame,
 )
+from app.logic.panorama.storage import (
+    remove_obsolete_render_revisions,
+    remove_panorama_derivatives,
+)
 from app.models.album_media import (
     MAX_CAPTURED_FOV,
     MIN_CAPTURED_FOV,
@@ -125,6 +129,12 @@ async def update_panorama(
             rollback=configuration_staged,
         )
         raise
+    await run_sync(
+        remove_obsolete_render_revisions,
+        album_dir,
+        name,
+        proposed.revision,
+    )
     await session.refresh(media)
     return media
 
@@ -197,6 +207,7 @@ async def disable_panorama(
     )
     session.add(media)
     await session.commit()
+    await run_sync(remove_panorama_derivatives, _album_dir(user, aid), name)
     await session.refresh(media)
     return media
 

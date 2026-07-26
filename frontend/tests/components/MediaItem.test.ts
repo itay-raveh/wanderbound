@@ -201,6 +201,27 @@ describe("MediaItem video controls", () => {
     expectCacheBustedMediaSource(wrapper.get("img").attributes("src"));
   });
 
+  test("allows a disabled panorama to be enabled again", () => {
+    const wrapper = mountPhotoItem(
+      ref(false),
+      { panoramaDestinationKind: "grid" },
+      {
+        panorama: {
+          status: "disabled",
+          detection: "dimensions",
+          source_width: 1600,
+          source_height: 800,
+          captured_fov: 180,
+          revision: 2,
+        },
+      },
+    );
+
+    expect(wrapper.get(".panorama-frame-action").text()).toBe(
+      "Treat as panorama",
+    );
+  });
+
   test("renders resolution warnings as an icon badge without a tint overlay", () => {
     const wrapper = mountPhotoItem(ref(false), {
       quality: { tier: "warning", dpi: 72 },

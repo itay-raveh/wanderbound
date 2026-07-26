@@ -15,6 +15,7 @@ _PANORAMAS_DIRECTORY = Path(".panoramas")
 _ORIGINALS_DIRECTORY = Path(".panoramas") / "originals"
 _PREVIEW_DIRECTORY = _PANORAMAS_DIRECTORY / "preview"
 _RENDERED_DIRECTORY = _PANORAMAS_DIRECTORY / "rendered"
+MAX_RENDITIONS_PER_REVISION = 8
 _FORMAT_SUFFIXES = {
     "AVIF": ".avif",
     "HEIF": ".heic",
@@ -75,3 +76,36 @@ def remove_panorama_assets(
             candidate.unlink(missing_ok=True)
         shutil.rmtree(preview / stem, ignore_errors=True)
     shutil.rmtree(album_dir / _RENDERED_DIRECTORY / stem, ignore_errors=True)
+
+
+def remove_panorama_derivatives(album_dir: Path, media_name: str) -> None:
+    stem = Path(media_name).stem
+    preview = album_dir / _PREVIEW_DIRECTORY
+    if preview.exists():
+        for candidate in preview.glob(f"{stem}.*"):
+            candidate.unlink(missing_ok=True)
+        shutil.rmtree(preview / stem, ignore_errors=True)
+    shutil.rmtree(album_dir / _RENDERED_DIRECTORY / stem, ignore_errors=True)
+
+
+def remove_obsolete_render_revisions(
+    album_dir: Path,
+    media_name: str,
+    keep_revision: int,
+) -> None:
+    rendered = album_dir / _RENDERED_DIRECTORY / Path(media_name).stem
+    if not rendered.exists():
+        return
+    for revision in rendered.iterdir():
+        if revision.is_dir() and revision.name != str(keep_revision):
+            shutil.rmtree(revision, ignore_errors=True)
+
+
+def prune_panorama_renditions(revision_dir: Path, keep: Path) -> None:
+    renditions = sorted(
+        (path for path in revision_dir.glob("*.jpg") if path != keep),
+        key=lambda path: path.stat().st_mtime_ns,
+        reverse=True,
+    )
+    for rendition in renditions[MAX_RENDITIONS_PER_REVISION - 1 :]:
+        rendition.unlink(missing_ok=True)

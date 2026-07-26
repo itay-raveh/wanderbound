@@ -345,6 +345,42 @@ async def test_replace_preserves_the_replacement_panorama_original(
     assert (tmp_path / replaced.panorama.original_path).read_bytes() == source_bytes
 
 
+async def test_replace_commit_failure_restores_live_media_and_panorama_original(
+    session: AsyncSession,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    album, media = await _album_with_photo(session, tmp_path)
+    target = tmp_path / VALID_NAME
+    original_bytes = target.read_bytes()
+    panorama_original = (
+        tmp_path / ".panoramas" / "originals" / f"{Path(VALID_NAME).stem}.jpg"
+    )
+    panorama_original.parent.mkdir(parents=True)
+    panorama_original.write_bytes(b"original panorama")
+    media.panorama = _active_panorama(str(panorama_original.relative_to(tmp_path)))
+    session.add(media)
+    replacement = create_test_jpeg(tmp_path / "replacement.jpg", 1600, 1200)
+    await session.commit()
+
+    async def fail_commit() -> None:
+        raise RuntimeError("database unavailable")
+
+    monkeypatch.setattr(session, "commit", fail_commit)
+
+    with pytest.raises(RuntimeError, match="database unavailable"):
+        await replace_album_media_from_saved(
+            session,
+            album=album,
+            album_dir=tmp_path,
+            media_name=VALID_NAME,
+            saved=_saved_input(replacement),
+        )
+
+    assert target.read_bytes() == original_bytes
+    assert panorama_original.read_bytes() == b"original panorama"
+
+
 async def test_expired_panorama_undo_copy_does_not_delete_active_original(
     session: AsyncSession,
     tmp_path: Path,

@@ -24,6 +24,7 @@ from app.logic.panorama.render import (
     render_panorama,
     resolve_panorama_source,
 )
+from app.logic.panorama.storage import prune_panorama_renditions
 from app.models.album_media import AlbumMedia, PanoramaConfig
 
 from ..deps import SessionDep, UserDep, album_dir as _album_dir
@@ -126,6 +127,7 @@ async def _panorama_rendition(
         height,
     )
     await _render_rendition(source, media.panorama, destination, rendition)
+    await run_sync(prune_panorama_renditions, rendition.parent, rendition)
     return FileResponse(
         rendition,
         media_type="image/jpeg",

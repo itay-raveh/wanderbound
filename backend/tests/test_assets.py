@@ -263,3 +263,51 @@ class TestPanoramaRendition:
 
         assert error.value.status_code == 400
         render.assert_not_awaited()
+
+    async def test_bounds_cached_renditions_per_revision(self, tmp_path: Path) -> None:
+        album_dir = tmp_path / _AID
+        source = album_dir / _NAME
+        create_test_jpeg(source, 1600, 800)
+        user = _mock_user(tmp_path)
+        media = AlbumMedia(
+            uid=1,
+            aid=_AID,
+            name=_NAME,
+            kind="photo",
+            width=1600,
+            height=800,
+            byte_size=source.stat().st_size,
+            panorama=PanoramaConfig(
+                status="active",
+                detection="gpano",
+                source_width=1600,
+                source_height=800,
+                captured_fov=180,
+                original_path=_NAME,
+                revision=2,
+            ),
+        )
+        session = AsyncMock()
+        session.get.return_value = media
+
+        async def render(
+            _source: Path,
+            _config: PanoramaConfig,
+            _destination: object,
+            output: Path,
+        ) -> None:
+            await run_sync(output.parent.mkdir, parents=True, exist_ok=True)
+            await run_sync(output.write_bytes, b"frame")
+
+        with patch("app.api.v1.routes.assets.render_panorama", side_effect=render):
+            for width in range(800, 890, 10):
+                await get_media(
+                    _AID,
+                    _NAME,
+                    user,
+                    session,
+                    AssetQuery(w=width, h=400, panorama_revision=2),
+                )
+
+        revision_dir = album_dir / ".panoramas" / "rendered" / Path(_NAME).stem / "2"
+        assert len(list(revision_dir.glob("*.jpg"))) == 8
