@@ -474,6 +474,62 @@ async def test_replace_snapshot_finalizer_failure_keeps_successful_replacement(
     assert (tmp_path / ".undo" / VALID_NAME).exists()
 
 
+async def test_failed_finalizer_is_retried_by_album_prune(
+    session: AsyncSession,
+    tmp_path: Path,
+) -> None:
+    album, _media = await _album_with_photo(session, tmp_path)
+    replacement = create_test_jpeg(tmp_path / "replacement.jpg", 1600, 1200)
+    await session.commit()
+    real_rmtree = shutil.rmtree
+
+    def fail_transition_cleanup(path: Path) -> None:
+        if ".media-transitions" in Path(path).parts or (
+            ".media-cleanup-pending" in Path(path).parts
+        ):
+            raise OSError("cleanup failed")
+        real_rmtree(path)
+
+    with patch(
+        "app.logic.external_media.files.shutil.rmtree",
+        side_effect=fail_transition_cleanup,
+    ):
+        await replace_album_media_from_saved(
+            session,
+            album=album,
+            album_dir=tmp_path,
+            media_name=VALID_NAME,
+            saved=_saved_input(replacement),
+        )
+
+    pending_root = tmp_path / ".media-cleanup-pending"
+    pending = list(pending_root.iterdir())
+    assert len(pending) == 2
+
+    future = datetime.now(UTC) + timedelta(minutes=6)
+    with patch(
+        "app.logic.external_media.files.shutil.rmtree",
+        side_effect=fail_transition_cleanup,
+    ):
+        await prune_expired_undo_snapshots(
+            session,
+            uid=album.uid,
+            aid=album.id,
+            album_dir=tmp_path,
+            now=future,
+        )
+    assert all(path.exists() for path in pending)
+
+    await prune_expired_undo_snapshots(
+        session,
+        uid=album.uid,
+        aid=album.id,
+        album_dir=tmp_path,
+        now=future,
+    )
+    assert not pending_root.exists()
+
+
 async def test_replace_rollback_failure_attempts_all_later_compensations(
     session: AsyncSession,
     tmp_path: Path,
@@ -866,6 +922,88 @@ async def test_prune_all_expired_undo_snapshots_uses_shared_user_folder(
     assert removed == 1
     assert not snapshot_path.exists()
     assert await session.get(AlbumMediaUndoSnapshot, (uid, AID, VALID_NAME)) is None
+
+
+async def test_global_prune_discovers_pending_cleanup_without_undo_snapshot(
+    session: AsyncSession,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(get_settings(), "DATA_FOLDER", tmp_path)
+    uid = 9092
+    user = make_user(uid)
+    session.add(user)
+    await insert_album(session, uid)
+    album_dir = user.trips_folder / AID
+    pending = album_dir / ".media-cleanup-pending" / "completed-workspace"
+    pending.mkdir(parents=True)
+    (pending / "prior-media.jpg").write_bytes(b"private media")
+    await session.flush()
+
+    removed = await prune_all_expired_undo_snapshots(
+        session,
+        now=datetime.now(UTC) + timedelta(minutes=6),
+    )
+
+    assert removed == 0
+    assert not (album_dir / ".media-cleanup-pending").exists()
+
+
+async def test_album_prune_removes_stale_marked_and_preserves_other_workspaces(
+    session: AsyncSession,
+    tmp_path: Path,
+) -> None:
+    active = tmp_path / ".media-transitions" / "active-workspace"
+    unmarked = tmp_path / ".undo" / ".staging" / "unmarked-workspace"
+    stale = tmp_path / ".media-cleanup-pending" / "stale-workspace"
+    active.mkdir(parents=True)
+    unmarked.mkdir(parents=True)
+    stale.mkdir(parents=True)
+
+    await prune_expired_undo_snapshots(
+        session,
+        uid=1,
+        aid=AID,
+        album_dir=tmp_path,
+        now=datetime.now(UTC) + timedelta(minutes=6),
+    )
+
+    assert not stale.exists()
+    assert active.exists()
+    assert unmarked.exists()
+
+    fresh = tmp_path / ".media-cleanup-pending" / "fresh-workspace"
+    fresh.mkdir(parents=True)
+    await prune_expired_undo_snapshots(
+        session,
+        uid=1,
+        aid=AID,
+        album_dir=tmp_path,
+    )
+
+    assert fresh.exists()
+
+
+async def test_album_prune_does_not_follow_pending_root_outside_album(
+    session: AsyncSession,
+    tmp_path: Path,
+) -> None:
+    album_dir = tmp_path / "album"
+    album_dir.mkdir()
+    outside = tmp_path / "outside" / "completed-workspace"
+    outside.mkdir(parents=True)
+    (outside / "private-media.jpg").write_bytes(b"private media")
+    (album_dir / ".media-cleanup-pending").symlink_to(outside.parent)
+
+    await prune_expired_undo_snapshots(
+        session,
+        uid=1,
+        aid=AID,
+        album_dir=album_dir,
+        now=datetime.now(UTC) + timedelta(minutes=6),
+    )
+
+    assert outside.exists()
 
 
 async def test_replace_prunes_expired_undo_snapshots(

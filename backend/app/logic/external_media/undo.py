@@ -25,7 +25,9 @@ from app.core.worker_threads import run_sync
 from app.logic.external_media.files import (
     CleanupAction,
     MediaAssetTransition,
+    finalize_workspace,
     run_best_effort_cleanup,
+    sweep_pending_workspaces,
 )
 from app.logic.layout.media import Media, delete_thumbnails, extract_frame, is_video
 from app.logic.panorama.storage import panorama_original_path
@@ -112,6 +114,7 @@ class UndoSnapshotUpdate:
         previous_values: dict[str, object] | None,
     ) -> None:
         self.snapshot = snapshot
+        self.album_dir = workspace.parents[2]
         self.workspace = workspace
         self.activated = activated
         self.previous = previous
@@ -134,8 +137,7 @@ class UndoSnapshotUpdate:
         self.discard()
 
     def finish(self) -> None:
-        if self.workspace.exists():
-            shutil.rmtree(self.workspace)
+        finalize_workspace(self.album_dir, self.workspace)
 
     def discard(self) -> None:
         _discard_tree(self.workspace)
@@ -512,6 +514,7 @@ async def prune_expired_undo_snapshots(
     now: datetime | None = None,
 ) -> int:
     now = now or datetime.now(UTC)
+    await run_sync(sweep_pending_workspaces, album_dir, now - UNDO_TTL)
     rows = (
         await session.exec(
             select(AlbumMediaUndoSnapshot).where(
@@ -549,6 +552,15 @@ async def prune_all_expired_undo_snapshots(
             await _unlink_snapshot(album_dir, row)
         await session.delete(row)
         removed += 1
+    albums = (await session.exec(select(Album))).all()
+    for album in albums:
+        user = await session.get(User, album.uid)
+        if user is not None:
+            await run_sync(
+                sweep_pending_workspaces,
+                user.trips_folder / album.id,
+                now - UNDO_TTL,
+            )
     await session.flush()
     return removed
 

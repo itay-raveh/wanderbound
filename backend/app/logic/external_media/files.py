@@ -4,6 +4,7 @@ import shutil
 import uuid
 from collections.abc import Awaitable, Callable
 from contextlib import suppress
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -17,6 +18,19 @@ if TYPE_CHECKING:
 
 logger = structlog.get_logger(__name__)
 type CleanupAction = tuple[str, Callable[[], Awaitable[object]]]
+PENDING_CLEANUP_DIR = ".media-cleanup-pending"
+
+
+def _pending_cleanup_root(album_dir: Path) -> Path:
+    resolved_album = album_dir.resolve()
+    pending_root = (resolved_album / PENDING_CLEANUP_DIR).resolve()
+    try:
+        pending_root.relative_to(resolved_album)
+    except ValueError as error:
+        raise ValueError(
+            "Pending cleanup root must remain beneath the album"
+        ) from error
+    return pending_root
 
 
 async def run_best_effort_cleanup(
@@ -28,6 +42,59 @@ async def run_best_effort_cleanup(
             await action()
         except BaseException:  # noqa: BLE001
             logger.warning(event, action=action_name, exc_info=True)
+
+
+def finalize_workspace(album_dir: Path, workspace: Path) -> None:
+    if not workspace.exists():
+        return
+    resolved_album = album_dir.resolve()
+    resolved_workspace = workspace.resolve()
+    try:
+        resolved_workspace.relative_to(resolved_album)
+    except ValueError as error:
+        raise ValueError("Cleanup workspace must remain beneath the album") from error
+
+    pending_root = _pending_cleanup_root(resolved_album)
+    pending_root.mkdir(parents=True, exist_ok=True)
+    pending = resolved_workspace.replace(pending_root / uuid.uuid4().hex)
+    (pending / ".registered").touch()
+    shutil.rmtree(pending)
+    with suppress(OSError):
+        pending_root.rmdir()
+
+
+def sweep_pending_workspaces(album_dir: Path, cutoff: datetime) -> int:
+    try:
+        pending_root = _pending_cleanup_root(album_dir)
+    except OSError, ValueError:
+        logger.warning(
+            "external_media.pending_cleanup_root_invalid",
+            album_dir=str(album_dir),
+            exc_info=True,
+        )
+        return 0
+    if not pending_root.exists():
+        return 0
+    removed = 0
+    for workspace in pending_root.iterdir():
+        try:
+            if workspace.is_symlink() or not workspace.is_dir():
+                continue
+            workspace.resolve().relative_to(pending_root)
+            modified = datetime.fromtimestamp(workspace.stat().st_mtime, UTC)
+            if modified > cutoff:
+                continue
+            shutil.rmtree(workspace)
+            removed += 1
+        except OSError, ValueError:
+            logger.warning(
+                "external_media.pending_cleanup_failed",
+                workspace=str(workspace),
+                exc_info=True,
+            )
+    with suppress(OSError):
+        pending_root.rmdir()
+    return removed
 
 
 class MediaAssetTransition:
@@ -105,8 +172,7 @@ class MediaAssetTransition:
         self.discard()
 
     def finish(self) -> None:
-        if self.workspace.exists():
-            shutil.rmtree(self.workspace)
+        finalize_workspace(self.album_dir, self.workspace)
 
     def discard(self) -> None:
         with suppress(FileNotFoundError):
