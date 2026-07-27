@@ -10,6 +10,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from sqlmodel import col, select
 
 from app.core.config import get_settings
+from app.logic.uploads.capacity import upload_capacity_slot
 from app.logic.uploads.progress import (
     UPLOAD_WORKFLOW_EVENT_ADAPTER,
     UploadCompleteEvent,
@@ -240,23 +241,26 @@ async def complete_upload(  # noqa: PLR0913
         await start_upload_workflow(row.upload_id)
         return CompleteUploadResponse(location=row.object_key)
     _ensure_uploading(row)
-    parts = [CompletionPart(**part.model_dump()) for part in payload.parts]
-    try:
-        await asyncio.to_thread(
-            store.complete, row.object_key, row.provider_upload_id, parts
-        )
-        size = await asyncio.to_thread(store.head, row.object_key)
-    except UploadStoreError:
-        raise _error(
-            "upload_store_unavailable", status.HTTP_503_SERVICE_UNAVAILABLE
-        ) from None
-    if size != row.size_bytes:
-        await asyncio.to_thread(store.delete, row.object_key)
-        raise _error("upload_size_mismatch", status.HTTP_409_CONFLICT)
-    row.status = "processing"
-    row.updated_at = datetime.now(UTC)
-    session.add(row)
-    await session.commit()
+    async with upload_capacity_slot(session, row.size_bytes) as admitted:
+        if not admitted:
+            raise _error("upload_capacity_busy", status.HTTP_503_SERVICE_UNAVAILABLE)
+        parts = [CompletionPart(**part.model_dump()) for part in payload.parts]
+        try:
+            await asyncio.to_thread(
+                store.complete, row.object_key, row.provider_upload_id, parts
+            )
+            size = await asyncio.to_thread(store.head, row.object_key)
+        except UploadStoreError:
+            raise _error(
+                "upload_store_unavailable", status.HTTP_503_SERVICE_UNAVAILABLE
+            ) from None
+        if size != row.size_bytes:
+            await asyncio.to_thread(store.delete, row.object_key)
+            raise _error("upload_size_mismatch", status.HTTP_409_CONFLICT)
+        row.status = "processing"
+        row.updated_at = datetime.now(UTC)
+        session.add(row)
+        await session.commit()
     await start_upload_workflow(row.upload_id)
     return CompleteUploadResponse(location=row.object_key)
 

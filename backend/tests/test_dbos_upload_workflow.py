@@ -238,3 +238,26 @@ async def test_upload_workflow_persists_ingestion_progress(*, conflict: bool) ->
         (("progress", {"type": "complete"}),),
     ]
     close.assert_awaited_once_with("progress")
+
+
+async def test_upload_workflow_cleans_up_when_selection_times_out() -> None:
+    with (
+        patch(
+            "app.logic.workflows.uploads.download_upload",
+            new=AsyncMock(return_value="/work/source.zip"),
+        ),
+        patch(
+            "app.logic.workflows.uploads.inspect_upload",
+            new=AsyncMock(return_value=[{"id": "trip-a", "label": "trip-a"}]),
+        ),
+        patch(
+            "app.logic.workflows.uploads.DBOS.recv_async",
+            new=AsyncMock(return_value=None),
+        ),
+        patch("app.logic.workflows.uploads.abort_upload", new=AsyncMock()) as abort,
+        patch("app.logic.workflows.uploads.DBOS.write_stream_async", new=AsyncMock()),
+        patch("app.logic.workflows.uploads.DBOS.close_stream_async", new=AsyncMock()),
+    ):
+        await unwrap(upload_import_workflow)("upload-id")
+
+    abort.assert_awaited_once_with("upload-id")

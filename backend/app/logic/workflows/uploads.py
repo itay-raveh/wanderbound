@@ -254,25 +254,41 @@ async def complete_upload(upload_id: str) -> int:
         return row.result.user.id
 
 
-@DBOS.step()
+@DBOS.step(retries_allowed=True, max_attempts=3)
 async def mark_upload_failed(upload_id: str, error_code: str) -> None:
     async with AsyncSession(get_engine()) as session:
         row = await session.get(UploadSession, upload_id)
         if row is None or row.status != "processing":
             return
-        object_key = row.object_key
+        await asyncio.to_thread(_store().delete, row.object_key)
+        await asyncio.to_thread(
+            remove_tree_if_present,
+            get_settings().DATA_FOLDER / "upload-work" / upload_id,
+        )
         row.status = "failed"
         row.error_code = error_code
         row.completed_at = datetime.now(UTC)
         row.updated_at = row.completed_at
         session.add(row)
         await session.commit()
-    if error_code == "upload_invalid_zip":
-        await asyncio.to_thread(_store().delete, object_key)
+
+
+@DBOS.step(retries_allowed=True, max_attempts=3)
+async def abort_upload(upload_id: str) -> None:
+    async with AsyncSession(get_engine()) as session:
+        row = await session.get(UploadSession, upload_id)
+        if row is None or row.status not in ("processing", "awaiting_selection"):
+            return
+        await asyncio.to_thread(_store().delete, row.object_key)
         await asyncio.to_thread(
             remove_tree_if_present,
             get_settings().DATA_FOLDER / "upload-work" / upload_id,
         )
+        row.status = "aborted"
+        row.completed_at = datetime.now(UTC)
+        row.updated_at = row.completed_at
+        session.add(row)
+        await session.commit()
 
 
 @DBOS.step(retries_allowed=True, max_attempts=3)
@@ -300,6 +316,7 @@ async def upload_import_workflow(upload_id: str) -> None:
         )
         selected_ids = [str(aid) for aid in selection or []]
         if not selected_ids:
+            await abort_upload(upload_id)
             return
         extracted = await extract_upload(upload_id, source, selected_ids)
         await _write_progress(UploadProgressUpdate(phase="importing", done=0, total=1))

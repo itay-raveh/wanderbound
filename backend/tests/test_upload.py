@@ -146,7 +146,7 @@ class TestSafeExtract:
     def test_rejects_exceeding_size_limit(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        monkeypatch.setattr("app.logic.upload._MAX_TOTAL_BYTES", 100)
+        monkeypatch.setattr("app.logic.upload.MAX_ARCHIVE_UNCOMPRESSED_BYTES", 100)
         big_jpeg = _jpeg_bytes(200, 200)
         buf = _make_zip(**{"big.jpg": big_jpeg})
         _assert_bad_zip(buf, tmp_path, "exceeds limit")

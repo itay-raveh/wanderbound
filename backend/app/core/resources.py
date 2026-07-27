@@ -8,6 +8,7 @@ from pathlib import Path
 from joblib import cpu_count as joblib_cpu_count
 
 MiB = 1024 * 1024
+MIN_DISK_FREE_BYTES = 256 * MiB
 
 
 def detect_storage_bytes(path: Path) -> int:
