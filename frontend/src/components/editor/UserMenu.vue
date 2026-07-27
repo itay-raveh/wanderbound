@@ -31,6 +31,9 @@ const { user, isKm, isCelsius, isDemo, exitDemo, clearAllAuthState } =
 const { mutate: patch } = useUserMutation();
 const $q = useQuasar();
 const { t } = useI18n();
+const localLoginEnabled = computed(
+  () => !user.value?.google_sub && !user.value?.microsoft_sub,
+);
 
 const exportStream = useDataExport();
 const menuOpen = ref(false);
@@ -233,7 +236,11 @@ async function handleDelete() {
             <q-icon :name="matLogout" size="1rem" />
             {{ t("demo.bannerCta") }}
           </button>
-          <button v-else class="menu-item-btn" @click="handleSignOut">
+          <button
+            v-else-if="!localLoginEnabled"
+            class="menu-item-btn"
+            @click="handleSignOut"
+          >
             <q-icon :name="matLogout" size="1rem" />
             {{ t("settings.signOut") }}
           </button>

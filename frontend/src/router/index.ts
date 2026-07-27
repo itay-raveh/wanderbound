@@ -1,5 +1,6 @@
 import { authState } from "@/client";
 import type { AuthenticateData, AuthState } from "@/client";
+import { isLocalLoginEnabled } from "@/config";
 import { useQueryCache } from "@pinia/colada";
 import { createRouter, createWebHistory } from "vue-router";
 import { queryKeys } from "@/queries/keys";
@@ -74,6 +75,9 @@ router.beforeEach(async (to, from) => {
   if (state?.user) cache.setQueryData(queryKeys.user(), state.user);
 
   if (state?.state === "anonymous") {
+    const localUpload =
+      to.name === "upload" && isLocalLoginEnabled();
+    if (localUpload) return;
     return to.name === "landing" ? undefined : { name: "landing" };
   }
   const needsUpload =

@@ -59,21 +59,26 @@ async def _resolve_auth(
     request: Request,
     session: SessionDep,
 ) -> tuple[User | None, OAuthIdentity | None]:
-    """Return (existing_user, pending_signup_identity) or raise 401."""
     if existing := await try_load_user(request, session):
         return existing, None
     identity = get_pending_signup(request)
-    if identity is None:
+    if identity is None and not get_settings().local_login_enabled:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED)
     return None, identity
 
 
 def _upload_owner(existing: User | None, identity: OAuthIdentity | None) -> str:
-    """Stable identifier for the auth principal behind an upload session."""
     if existing is not None:
+        if (
+            not existing.is_demo
+            and not existing.google_sub
+            and not existing.microsoft_sub
+        ):
+            return "local"
         return f"uid:{existing.id}"
-    assert identity is not None  # noqa: S101 - _resolve_auth guarantees one is set
-    return f"{identity.provider}:{identity.sub}"
+    if identity is not None:
+        return f"{identity.provider}:{identity.sub}"
+    return "local"
 
 
 @cache

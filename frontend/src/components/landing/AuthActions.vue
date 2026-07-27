@@ -7,6 +7,7 @@ const { t } = useI18n();
 defineProps<{
   authenticated: boolean;
   demoLoading: boolean;
+  localLoginEnabled: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -27,7 +28,18 @@ const emit = defineEmits<{
     :to="{ name: 'editor' }"
   />
   <div v-else class="auth-actions column no-wrap items-center">
+    <q-btn
+      v-if="localLoginEnabled"
+      data-test="local-login"
+      :label="t('login.localZip')"
+      color="primary"
+      unelevated
+      no-caps
+      size="lg"
+      :to="{ name: 'upload' }"
+    />
     <LoginButtons
+      v-else
       @google="(r) => emit('google', r.credential)"
       @microsoft="emit('microsoft')"
     />

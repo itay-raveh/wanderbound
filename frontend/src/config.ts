@@ -21,3 +21,8 @@ export function getSettings(): Settings {
   if (!settings) throw new Error("Public settings are not loaded");
   return settings;
 }
+
+export function isLocalLoginEnabled(): boolean {
+  const settings = getSettings();
+  return !settings.GOOGLE_CLIENT_ID && !settings.MICROSOFT_CLIENT_ID;
+}

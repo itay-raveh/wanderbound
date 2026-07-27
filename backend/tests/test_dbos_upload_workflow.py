@@ -156,7 +156,8 @@ async def test_progress_runner_joins_worker_before_stream_error_escapes() -> Non
     assert finished.is_set()
 
 
-async def test_upload_workflow_persists_ingestion_progress() -> None:
+@pytest.mark.parametrize("conflict", [False, True])
+async def test_upload_workflow_persists_ingestion_progress(*, conflict: bool) -> None:
     choices = [{"id": "trip-a", "label": "trip-a"}]
     processing = {
         "operation_id": "operation-id",
@@ -185,8 +186,11 @@ async def test_upload_workflow_persists_ingestion_progress() -> None:
         ) as extract,
         patch(
             "app.logic.workflows.uploads.finalize_upload",
-            new=AsyncMock(return_value=processing),
+            new=AsyncMock(return_value=None if conflict else processing),
         ),
+        patch(
+            "app.logic.workflows.uploads.mark_upload_failed", new=AsyncMock()
+        ) as mark_failed,
         patch(
             "app.logic.workflows.uploads.complete_upload",
             new=AsyncMock(return_value=42),
@@ -201,6 +205,13 @@ async def test_upload_workflow_persists_ingestion_progress() -> None:
         ) as close,
     ):
         await unwrap(upload_import_workflow)("upload-id")
+
+    if conflict:
+        mark_failed.assert_awaited_once_with("upload-id", "upload_conflict")
+        assert write.await_args_list[-1] == (
+            ("progress", {"type": "error", "error_code": "upload_conflict"}),
+        )
+        return
 
     inspect.assert_awaited_once_with("upload-id", "/work/source.zip")
     receive.assert_awaited_once()

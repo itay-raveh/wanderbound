@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING
 from unittest.mock import AsyncMock, MagicMock, patch
 
 from app.api.v1.deps import _get_upload_store
+from app.core.config import get_settings
 from app.main import app
 from app.models.processing import UploadSession
 from app.models.upload import TripChoice, UploadResult
@@ -13,6 +14,7 @@ from app.models.user import UserPublic
 from tests.factories import make_user, sign_in
 
 if TYPE_CHECKING:
+    import pytest
     from httpx import AsyncClient
     from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -25,17 +27,52 @@ def _payload() -> dict[str, object]:
     }
 
 
-async def test_multipart_routes_require_an_upload_owner(client: AsyncClient) -> None:
+async def test_multipart_routes_require_an_upload_owner(
+    client: AsyncClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(get_settings(), "GOOGLE_CLIENT_ID", "configured")
     store = MagicMock()
-
-    def override_store() -> MagicMock:
-        return store
-
-    app.dependency_overrides[_get_upload_store] = override_store
+    app.dependency_overrides[_get_upload_store] = lambda: store
 
     response = await client.post("/api/v1/users/uploads/s3/multipart", json=_payload())
 
     assert response.status_code == 401
+
+
+async def test_local_upload_logs_in_its_polarsteps_user(
+    client: AsyncClient,
+    session: AsyncSession,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(get_settings(), "GOOGLE_CLIENT_ID", "")
+    monkeypatch.setattr(get_settings(), "MICROSOFT_CLIENT_ID", "")
+    store = MagicMock()
+    store.create.return_value = "provider-id"
+    app.dependency_overrides[_get_upload_store] = lambda: store
+
+    response = await client.post("/api/v1/users/uploads/s3/multipart", json=_payload())
+
+    assert response.status_code == 201
+    row = await session.get_one(UploadSession, response.json()["uploadId"])
+    assert row.owner == "local"
+    user = make_user(uid=42)
+    user.google_sub = None
+    session.add(user)
+    await session.flush()
+    row.status = "succeeded"
+    row.result = UploadResult(user=UserPublic.model_validate(user), trips=[])
+    session.add(row)
+    await session.commit()
+
+    completed = await client.post(f"/api/v1/users/uploads/{row.upload_id}/complete")
+
+    assert completed.status_code == 200
+    auth = await client.get("/api/v1/auth/state")
+    assert auth.json()["user"]["id"] == user.id
+    reupload = await client.post("/api/v1/users/uploads/s3/multipart", json=_payload())
+    row = await session.get_one(UploadSession, reupload.json()["uploadId"])
+    assert row.owner == "local"
 
 
 async def test_uppy_multipart_contract(

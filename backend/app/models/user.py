@@ -66,13 +66,6 @@ class OAuthIdentity(BaseModel):
 
 
 class User(UserBase, table=True):
-    __table_args__ = (
-        sa.CheckConstraint(
-            "is_demo OR google_sub IS NOT NULL OR microsoft_sub IS NOT NULL",
-            name="ck_user_has_provider",
-        ),
-    )
-
     id: int = Field(primary_key=True)
     google_sub: str | None = Field(default=None, unique=True, index=True)
     microsoft_sub: str | None = Field(default=None, unique=True, index=True)

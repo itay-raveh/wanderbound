@@ -9,7 +9,6 @@ from fastapi.sse import EventSourceResponse
 from pydantic import BaseModel, ConfigDict, Field
 from sqlmodel import col, select
 
-from app.api.v1.deps import SessionDep, UploadStoreDep, login_session
 from app.core.config import get_settings
 from app.logic.uploads.progress import (
     UPLOAD_WORKFLOW_EVENT_ADAPTER,
@@ -27,6 +26,7 @@ from app.models.upload import TripChoice, UploadResult
 from app.models.user import User
 from app.services.upload_store import CompletionPart, ProviderPart, UploadStoreError
 
+from ..deps import SessionDep, UploadStoreDep, login_session
 from .auth import clear_pending_signup, get_pending_signup
 from .users import _resolve_auth, _upload_owner
 
@@ -106,10 +106,13 @@ async def _claimable_upload(
     request: Request, session: SessionDep, upload_id: str
 ) -> UploadSession:
     existing, identity = await _resolve_auth(request, session)
+    owner = _upload_owner(existing, identity)
     row = await session.get(UploadSession, upload_id)
     if row is None:
         raise _error("upload_not_found", status.HTTP_404_NOT_FOUND)
-    if row.owner == _upload_owner(existing, identity):
+    if row.owner == owner:
+        return row
+    if row.result is not None and owner == f"uid:{row.result.user.id}":
         return row
     if identity is not None and row.result is not None:
         user = row.result.user
@@ -153,9 +156,8 @@ async def create_upload(
     maximum = get_settings().MAX_UPLOAD_SIZE_BYTES
     if not 0 < payload.metadata.size_bytes <= maximum:
         raise _error("upload_invalid_size", status.HTTP_400_BAD_REQUEST)
-    existing, identity = await _resolve_auth(request, session)
     row = UploadSession.new(
-        owner=_upload_owner(existing, identity),
+        owner=_upload_owner(*await _resolve_auth(request, session)),
         provider_upload_id="pending",
         filename=payload.filename,
         content_type=payload.type,
@@ -285,11 +287,19 @@ async def abort_upload(
 
 
 async def _completed_upload_result(
-    request: Request, session: SessionDep, row: UploadSession
+    request: Request,
+    session: SessionDep,
+    row: UploadSession,
 ) -> UploadResult:
     await session.refresh(row)
     if row.status != "succeeded" or row.result is None:
         raise _error("upload_not_found", status.HTTP_404_NOT_FOUND)
+    if row.owner == "local":
+        db_user = await session.get(User, row.result.user.id)
+        if db_user is None:
+            raise _error("upload_not_found", status.HTTP_404_NOT_FOUND)
+        login_session(request, db_user.id)
+        return row.result
     pending = get_pending_signup(request)
     if pending is not None:
         user = row.result.user
@@ -319,8 +329,7 @@ async def _completed_upload_result(
 
 @router.get("/pending")
 async def pending_upload(request: Request, session: SessionDep) -> PendingUpload | None:
-    existing, identity = await _resolve_auth(request, session)
-    owner = _upload_owner(existing, identity)
+    owner = _upload_owner(*await _resolve_auth(request, session))
     statement = (
         select(UploadSession)
         .where(

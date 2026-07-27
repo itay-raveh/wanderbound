@@ -68,6 +68,10 @@ class PublicSettings(BaseModel):
     PUBLIC_SENTRY_DSN: AnyHttpUrl | None = None
     SENTRY_TRACES_SAMPLE_RATE: float = Field(default=0.1, ge=0, le=1)
 
+    @property
+    def local_login_enabled(self) -> bool:
+        return not self.GOOGLE_CLIENT_ID and not self.MICROSOFT_CLIENT_ID
+
 
 class Settings(PublicSettings, DatabaseSettings):
     API_V1_STR: str = "/api/v1"
@@ -130,8 +134,6 @@ class Settings(PublicSettings, DatabaseSettings):
             missing.append("MAPBOX_TOKEN")
         if "localhost" in str(self.PUBLIC_URL):
             missing.append("PUBLIC_URL")
-        if not self.GOOGLE_CLIENT_ID and not self.MICROSOFT_CLIENT_ID:
-            missing.append("GOOGLE_CLIENT_ID or MICROSOFT_CLIENT_ID")
         if self.GOOGLE_CLIENT_ID and not self.GOOGLE_CLIENT_SECRET:
             missing.append("GOOGLE_CLIENT_SECRET")
         if missing:

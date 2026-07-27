@@ -5,12 +5,13 @@ from typing import TYPE_CHECKING
 from sqlmodel import col, select
 
 from app.api.v1.deps import to_user_public
+from app.core.locks import try_advisory_lock
 from app.logic.processing_operations import mark_user_processing_operations_stale
 from app.logic.session import cancel_session
 from app.logic.upload import scan_user_folder
 from app.logic.uploads.files import remove_tree_if_present
 from app.models.processing import ProcessingOperation, UploadSession
-from app.models.upload import UploadResult
+from app.models.upload import TripMeta, UploadResult
 from app.models.user import PSUser, User
 
 if TYPE_CHECKING:
@@ -54,45 +55,62 @@ def _apply_archive_profile(user: User, ps_user: PSUser, album_ids: list[str]) ->
     user.first_name = user.first_name or ps_user.first_name
 
 
-async def finalize_upload_session(
-    session: AsyncSession, upload: UploadSession, extracted_folder: Path
+async def _resolve_archive_user(
+    session: AsyncSession,
+    upload: UploadSession,
+    ps_user: PSUser,
+    album_ids: list[str],
+) -> User:
+    if upload.owner.startswith("uid:"):
+        user = await session.get(User, int(upload.owner.removeprefix("uid:")))
+        if user is None:
+            raise RuntimeError("upload owner no longer exists")
+        _apply_archive_profile(
+            user, ps_user, list(dict.fromkeys([*user.album_ids, *album_ids]))
+        )
+        return user
+    google_sub = microsoft_sub = None
+    if upload.owner == "local":
+        user = await session.get(User, ps_user.id)
+    else:
+        provider, sub = upload.owner.split(":", 1)
+        provider_column = (
+            User.google_sub if provider == "google" else User.microsoft_sub
+        )
+        user = (await session.exec(select(User).where(provider_column == sub))).first()
+        google_sub = sub if provider == "google" else None
+        microsoft_sub = sub if provider == "microsoft" else None
+    if user is None:
+        return User(
+            id=ps_user.id,
+            first_name=ps_user.first_name or "Anonymous",
+            locale=ps_user.locale,
+            unit_is_km=ps_user.unit_is_km,
+            temperature_is_celsius=ps_user.temperature_is_celsius,
+            google_sub=google_sub,
+            microsoft_sub=microsoft_sub,
+            living_location=ps_user.living_location,
+            album_ids=album_ids,
+        )
+    _apply_archive_profile(
+        user, ps_user, list(dict.fromkeys([*user.album_ids, *album_ids]))
+    )
+    return user
+
+
+async def _finalize_upload_session_locked(
+    session: AsyncSession,
+    upload: UploadSession,
+    source: Path,
+    scanned: tuple[PSUser, list[TripMeta]] | None = None,
 ) -> tuple[UploadResult, ProcessingOperation, User]:
-    source = extracted_folder
     operation_id = finalization_operation_id(upload.upload_id)
     if upload.result is None:
-        ps_user, trips = await asyncio.to_thread(scan_user_folder, source)
+        if scanned is None:
+            raise RuntimeError("unscanned upload cannot be finalized")
+        ps_user, trips = scanned
         album_ids = [trip.id for trip in trips]
-        if upload.owner.startswith("uid:"):
-            user = await session.get(User, int(upload.owner.removeprefix("uid:")))
-            if user is None:
-                raise RuntimeError("upload owner no longer exists")
-            _apply_archive_profile(
-                user, ps_user, list(dict.fromkeys([*user.album_ids, *album_ids]))
-            )
-        else:
-            provider, sub = upload.owner.split(":", 1)
-            provider_column = (
-                User.google_sub if provider == "google" else User.microsoft_sub
-            )
-            user = (
-                await session.exec(select(User).where(provider_column == sub))
-            ).first()
-            if user is None:
-                user = User(
-                    id=ps_user.id,
-                    first_name=ps_user.first_name or "Anonymous",
-                    locale=ps_user.locale,
-                    unit_is_km=ps_user.unit_is_km,
-                    temperature_is_celsius=ps_user.temperature_is_celsius,
-                    google_sub=sub if provider == "google" else None,
-                    microsoft_sub=sub if provider == "microsoft" else None,
-                    living_location=ps_user.living_location,
-                    album_ids=album_ids,
-                )
-            else:
-                _apply_archive_profile(
-                    user, ps_user, list(dict.fromkeys([*user.album_ids, *album_ids]))
-                )
+        user = await _resolve_archive_user(session, upload, ps_user, album_ids)
         cancel_session(user.id)
         await mark_user_processing_operations_stale(session, uid=user.id)
         session.add(user)
@@ -134,3 +152,18 @@ async def finalize_upload_session(
         )
     await asyncio.to_thread(remove_tree_if_present, source)
     return result, operation, user
+
+
+async def finalize_upload_session(
+    session: AsyncSession, upload: UploadSession, extracted_folder: Path
+) -> tuple[UploadResult, ProcessingOperation, User] | None:
+    if upload.result is not None:
+        return await _finalize_upload_session_locked(session, upload, extracted_folder)
+    scanned = await asyncio.to_thread(scan_user_folder, extracted_folder)
+    ps_user, _trips = scanned
+    async with try_advisory_lock(f"upload-finalize:{ps_user.id}") as acquired:
+        if not acquired:
+            return None
+        return await _finalize_upload_session_locked(
+            session, upload, extracted_folder, scanned
+        )
