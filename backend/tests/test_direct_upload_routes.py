@@ -5,7 +5,10 @@ from collections.abc import AsyncIterator
 from typing import TYPE_CHECKING
 from unittest.mock import AsyncMock, MagicMock, patch
 
+from httpx import ASGITransport, AsyncClient
+
 from app.api.v1.deps import _get_upload_store
+from app.core.config import get_settings
 from app.main import app
 from app.models.processing import UploadSession
 from app.models.upload import TripChoice, UploadResult
@@ -13,7 +16,7 @@ from app.models.user import UserPublic
 from tests.factories import make_user, sign_in
 
 if TYPE_CHECKING:
-    from httpx import AsyncClient
+    import pytest
     from sqlmodel.ext.asyncio.session import AsyncSession
 
 
@@ -25,17 +28,62 @@ def _payload() -> dict[str, object]:
     }
 
 
-async def test_multipart_routes_require_an_upload_owner(client: AsyncClient) -> None:
+async def test_multipart_routes_require_an_upload_owner(
+    client: AsyncClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(get_settings(), "GOOGLE_CLIENT_ID", "configured")
     store = MagicMock()
-
-    def override_store() -> MagicMock:
-        return store
-
-    app.dependency_overrides[_get_upload_store] = override_store
+    app.dependency_overrides[_get_upload_store] = lambda: store
 
     response = await client.post("/api/v1/users/uploads/s3/multipart", json=_payload())
 
     assert response.status_code == 401
+
+
+async def test_local_mode_creates_a_temporary_upload_owner(
+    client: AsyncClient,
+    session: AsyncSession,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(get_settings(), "GOOGLE_CLIENT_ID", "")
+    monkeypatch.setattr(get_settings(), "MICROSOFT_CLIENT_ID", "")
+    store = MagicMock()
+    store.create.return_value = "provider-id"
+    app.dependency_overrides[_get_upload_store] = lambda: store
+
+    response = await client.post("/api/v1/users/uploads/s3/multipart", json=_payload())
+
+    assert response.status_code == 201
+    row = await session.get_one(UploadSession, response.json()["uploadId"])
+    assert row.owner.startswith("local:")
+    assert client.cookies.get("session") is not None
+
+
+async def test_local_uploads_are_isolated_by_signed_browser_session(
+    client: AsyncClient,
+    session: AsyncSession,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(get_settings(), "GOOGLE_CLIENT_ID", "")
+    monkeypatch.setattr(get_settings(), "MICROSOFT_CLIENT_ID", "")
+    store = MagicMock()
+    store.create.return_value = "provider-id"
+    store.list_parts.return_value = []
+    app.dependency_overrides[_get_upload_store] = lambda: store
+    created = await client.post("/api/v1/users/uploads/s3/multipart", json=_payload())
+    row = await session.get_one(UploadSession, created.json()["uploadId"])
+
+    async with AsyncClient(
+        transport=ASGITransport(app=app),
+        base_url="http://test",
+    ) as other_browser:
+        response = await other_browser.get(
+            f"/api/v1/users/uploads/s3/multipart/{row.upload_id}",
+            params={"key": row.object_key},
+        )
+
+    assert response.status_code == 404
 
 
 async def test_uppy_multipart_contract(

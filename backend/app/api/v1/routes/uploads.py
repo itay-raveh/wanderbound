@@ -1,6 +1,8 @@
 import asyncio
 from collections.abc import AsyncIterable
+from dataclasses import dataclass
 from datetime import UTC, datetime
+from secrets import token_urlsafe
 from typing import Literal
 
 from dbos import DBOS
@@ -9,7 +11,6 @@ from fastapi.sse import EventSourceResponse
 from pydantic import BaseModel, ConfigDict, Field
 from sqlmodel import col, select
 
-from app.api.v1.deps import SessionDep, UploadStoreDep, login_session
 from app.core.config import get_settings
 from app.logic.uploads.progress import (
     UPLOAD_WORKFLOW_EVENT_ADAPTER,
@@ -24,13 +25,21 @@ from app.logic.workflows.uploads import (
 )
 from app.models.processing import UPLOAD_PART_SIZE_BYTES, UploadSession
 from app.models.upload import TripChoice, UploadResult
-from app.models.user import User
+from app.models.user import OAuthIdentity, User
 from app.services.upload_store import CompletionPart, ProviderPart, UploadStoreError
 
+from ..deps import SessionDep, UploadStoreDep, login_session, try_load_user
 from .auth import clear_pending_signup, get_pending_signup
-from .users import _resolve_auth, _upload_owner
 
 router = APIRouter(prefix="/users/uploads", tags=["users"])
+
+_LOCAL_UPLOAD_PRINCIPAL_KEY = "local_upload_principal"
+
+
+@dataclass(frozen=True)
+class UploadPrincipal:
+    owner: str
+    pending_identity: OAuthIdentity | None = None
 
 
 class UploadHTTPException(HTTPException):
@@ -91,33 +100,55 @@ def _aware(value: datetime) -> datetime:
     return value if value.tzinfo is not None else value.replace(tzinfo=UTC)
 
 
+async def _resolve_upload_principal(
+    request: Request,
+    session: SessionDep,
+) -> UploadPrincipal:
+    if user := await try_load_user(request, session):
+        return UploadPrincipal(owner=f"uid:{user.id}")
+    if identity := get_pending_signup(request):
+        return UploadPrincipal(
+            owner=f"{identity.provider}:{identity.sub}",
+            pending_identity=identity,
+        )
+    if not get_settings().local_login_enabled:
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED)
+    token = request.session.get(_LOCAL_UPLOAD_PRINCIPAL_KEY)
+    if token is None:
+        token = token_urlsafe(24)
+        request.session[_LOCAL_UPLOAD_PRINCIPAL_KEY] = token
+    return UploadPrincipal(owner=f"local:{token}")
+
+
 async def _owned_upload(
     request: Request, session: SessionDep, upload_id: str
 ) -> UploadSession:
-    existing, identity = await _resolve_auth(request, session)
-    owner = _upload_owner(existing, identity)
+    principal = await _resolve_upload_principal(request, session)
     row = await session.get(UploadSession, upload_id)
-    if row is None or row.owner != owner:
+    if row is None or row.owner != principal.owner:
         raise _error("upload_not_found", status.HTTP_404_NOT_FOUND)
     return row
 
 
 async def _claimable_upload(
     request: Request, session: SessionDep, upload_id: str
-) -> UploadSession:
-    existing, identity = await _resolve_auth(request, session)
+) -> tuple[UploadSession, UploadPrincipal]:
+    principal = await _resolve_upload_principal(request, session)
     row = await session.get(UploadSession, upload_id)
     if row is None:
         raise _error("upload_not_found", status.HTTP_404_NOT_FOUND)
-    if row.owner == _upload_owner(existing, identity):
-        return row
+    if row.owner == principal.owner:
+        return row, principal
+    if row.result is not None and principal.owner == f"uid:{row.result.user.id}":
+        return row, principal
+    identity = principal.pending_identity
     if identity is not None and row.result is not None:
         user = row.result.user
         provider_sub = (
             user.google_sub if identity.provider == "google" else user.microsoft_sub
         )
         if provider_sub == identity.sub and row.owner == f"uid:{user.id}":
-            return row
+            return row, principal
     raise _error("upload_not_found", status.HTTP_404_NOT_FOUND)
 
 
@@ -153,9 +184,9 @@ async def create_upload(
     maximum = get_settings().MAX_UPLOAD_SIZE_BYTES
     if not 0 < payload.metadata.size_bytes <= maximum:
         raise _error("upload_invalid_size", status.HTTP_400_BAD_REQUEST)
-    existing, identity = await _resolve_auth(request, session)
+    principal = await _resolve_upload_principal(request, session)
     row = UploadSession.new(
-        owner=_upload_owner(existing, identity),
+        owner=principal.owner,
         provider_upload_id="pending",
         filename=payload.filename,
         content_type=payload.type,
@@ -319,12 +350,11 @@ async def _completed_upload_result(
 
 @router.get("/pending")
 async def pending_upload(request: Request, session: SessionDep) -> PendingUpload | None:
-    existing, identity = await _resolve_auth(request, session)
-    owner = _upload_owner(existing, identity)
+    principal = await _resolve_upload_principal(request, session)
     statement = (
         select(UploadSession)
         .where(
-            UploadSession.owner == owner,
+            UploadSession.owner == principal.owner,
             col(UploadSession.status).in_(("processing", "awaiting_selection")),
             UploadSession.expires_at > datetime.now(UTC),
         )
@@ -390,5 +420,5 @@ async def upload_progress(
 async def complete_ingestion(
     upload_id: str, request: Request, session: SessionDep
 ) -> UploadResult:
-    row = await _claimable_upload(request, session, upload_id)
+    row, _principal = await _claimable_upload(request, session, upload_id)
     return await _completed_upload_result(request, session, row)

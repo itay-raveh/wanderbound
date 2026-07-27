@@ -32,7 +32,6 @@ from app.logic.session import cancel_session, process_stream
 from app.logic.trip_processing import ProcessingEvent
 from app.logic.upload import TripMeta, UploadResult, scan_user_folder
 from app.models.user import (
-    OAuthIdentity,
     PSUser,
     User,
     UserPublic,
@@ -46,34 +45,11 @@ from ..deps import (
     apply_update,
     login_session,
     to_user_public,
-    try_load_user,
 )
-from .auth import get_pending_signup
 
 logger = structlog.get_logger(__name__)
 
 router = APIRouter(prefix="/users", tags=["users"])
-
-
-async def _resolve_auth(
-    request: Request,
-    session: SessionDep,
-) -> tuple[User | None, OAuthIdentity | None]:
-    """Return (existing_user, pending_signup_identity) or raise 401."""
-    if existing := await try_load_user(request, session):
-        return existing, None
-    identity = get_pending_signup(request)
-    if identity is None:
-        raise HTTPException(status.HTTP_401_UNAUTHORIZED)
-    return None, identity
-
-
-def _upload_owner(existing: User | None, identity: OAuthIdentity | None) -> str:
-    """Stable identifier for the auth principal behind an upload session."""
-    if existing is not None:
-        return f"uid:{existing.id}"
-    assert identity is not None  # noqa: S101 - _resolve_auth guarantees one is set
-    return f"{identity.provider}:{identity.sub}"
 
 
 @cache
