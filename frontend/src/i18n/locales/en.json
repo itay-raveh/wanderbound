@@ -48,6 +48,7 @@
   "login": {
     "signInGoogle": "Sign in with Google",
     "signInMicrosoft": "Sign in with Microsoft",
+    "localZip": "Log in with Polarsteps ZIP",
     "signInFailed": "Sign-in failed. @:common.retry"
   },
   "register": {

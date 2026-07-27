@@ -48,6 +48,7 @@
   "login": {
     "signInGoogle": "התחברות עם Google",
     "signInMicrosoft": "התחברות עם Microsoft",
+    "localZip": "התחברות עם קובץ ZIP מ-Polarsteps",
     "signInFailed": "ההתחברות נכשלה. @:common.retry"
   },
   "register": {
