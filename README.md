@@ -82,18 +82,6 @@ and `DOMAIN`, then use:
 docker compose -f compose.yml up -d
 ```
 
-### Authentication
-
-Wanderbound uses Google or Microsoft sign-in when either provider client ID is
-configured. If both client IDs are empty, it uses local ZIP login: uploading a
-valid Polarsteps export creates or selects the user identified by the export's
-Polarsteps user ID.
-
-Local ZIP login does not verify identity. Anyone who can reach the instance can
-construct or upload an export for a known Polarsteps user ID and access that
-user's Wanderbound data. Use it only when network access to the entire instance
-is restricted to trusted people. Google Photos is unavailable in this mode.
-
 ## Development
 
 Clone, run `mise run setup` and fill in `.env`, as described above.
