@@ -1,5 +1,7 @@
-from collections.abc import Iterator
-from contextlib import contextmanager
+import asyncio
+import weakref
+from collections.abc import AsyncIterator, Iterator
+from contextlib import asynccontextmanager, contextmanager
 from io import BytesIO
 from pathlib import Path
 from typing import Annotated, Self
@@ -32,6 +34,19 @@ _media_budget = max(256, detect_memory_mb() - _MEDIA_BASELINE_MB)
 media_limiter = anyio.CapacityLimiter(
     max(4, min(40, _media_budget // _PER_MEDIA_OP_MB))
 )
+_generation_locks: weakref.WeakValueDictionary[Path, asyncio.Lock] = (
+    weakref.WeakValueDictionary()
+)
+
+
+@asynccontextmanager
+async def generation_lock(path: Path) -> AsyncIterator[None]:
+    lock = _generation_locks.get(path)
+    if lock is None:
+        lock = asyncio.Lock()
+        _generation_locks[path] = lock
+    async with lock:
+        yield
 
 
 @contextmanager

@@ -1,7 +1,11 @@
 import { ref, type Ref } from "vue";
 import type { StepRead as Step, StepUpdate } from "@/client";
-import { provideStepMutate, useStepLayout } from "@/composables/useStepLayout";
-import { makeStep, withParentSetup } from "../helpers";
+import {
+  fullPageLayout,
+  provideStepMutate,
+  useStepLayout,
+} from "@/composables/useStepLayout";
+import { makeStep, photoGridPage, withParentSetup } from "../helpers";
 
 vi.mock("vue-draggable-plus", () => ({
   useDraggable: vi.fn(),
@@ -41,34 +45,26 @@ describe("onCoverUpdate", () => {
     [
       {
         cover: null,
-        pages: [
-          { kind: "grid" as const, media: ["p1", "p2"] },
-          { kind: "grid" as const, media: ["p3"] },
-        ],
+        pages: [photoGridPage("p1", "p2"), photoGridPage("p3")],
         unused: [],
       },
       "p2",
       {
         cover: "p2",
-        pages: [
-          { kind: "grid", media: ["p1"] },
-          { kind: "grid", media: ["p3"] },
-        ],
+        pages: [photoGridPage("p1"), photoGridPage("p3")],
         unused: [],
       },
     ],
     [
       {
         cover: "old_cover",
-        pages: [
-          { kind: "grid" as const, media: ["p1", "new_cover"] },
-        ],
+        pages: [photoGridPage("p1", "new_cover")],
         unused: ["u1"],
       },
       "new_cover",
       {
         cover: "new_cover",
-        pages: [{ kind: "grid", media: ["p1"] }],
+        pages: [photoGridPage("p1")],
         unused: ["u1", "old_cover"],
       },
     ],
@@ -92,42 +88,33 @@ describe("onPageUpdate", () => {
   it.each([
     [
       {
-        pages: [
-          { kind: "grid" as const, media: ["a", "b"] },
-          { kind: "grid" as const, media: ["c", "d"] },
-        ],
+        pages: [photoGridPage("a", "b"), photoGridPage("c", "d")],
         unused: [],
       },
       ["a", "b", "c"],
       {
-        pages: [
-          { kind: "grid", media: ["a", "b", "c"] },
-          { kind: "grid", media: ["d"] },
-        ],
+        pages: [photoGridPage("a", "b", "c"), photoGridPage("d")],
         unused: [],
       },
     ],
     [
       {
-        pages: [{ kind: "grid" as const, media: ["a"] }],
+        pages: [photoGridPage("a")],
         unused: ["u1", "u2"],
       },
       ["a", "u1"],
       {
-        pages: [{ kind: "grid", media: ["a", "u1"] }],
+        pages: [photoGridPage("a", "u1")],
         unused: ["u2"],
       },
     ],
     [
       {
-        pages: [
-          { kind: "grid" as const, media: ["a"] },
-          { kind: "grid" as const, media: ["b"] },
-        ],
+        pages: [photoGridPage("a"), photoGridPage("b")],
         unused: [],
       },
       ["a", "b"],
-      { pages: [{ kind: "grid", media: ["a", "b"] }] },
+      { pages: [photoGridPage("a", "b")] },
     ],
   ])("updates page placement", (stepPatch, page, expected) => {
     const { result, mutateSpy } = mountStepLayout(
@@ -137,5 +124,53 @@ describe("onPageUpdate", () => {
     result.onPageUpdate(0, page);
 
     expect(lastUpdate(mutateSpy)).toMatchObject(expected);
+  });
+
+  it("moves a panorama into a grid without leaving half a spread", () => {
+    const { result, mutateSpy } = mountStepLayout(
+      makeStep({
+        pages: [
+          photoGridPage("grid.jpg"),
+          { kind: "panorama_spread", media: ["panorama.jpg"] },
+        ],
+      }),
+    );
+
+    result.onPageUpdate(0, ["grid.jpg", "panorama.jpg"]);
+
+    expect(lastUpdate(mutateSpy)).toMatchObject({
+      pages: [{ kind: "grid", media: ["grid.jpg", "panorama.jpg"] }],
+    });
+  });
+
+});
+
+describe("fullPageLayout", () => {
+  it("splits a photo out of a grid atomically", () => {
+    const step = makeStep({
+      pages: [photoGridPage("panorama.jpg", "other.jpg")],
+    });
+
+    expect(fullPageLayout(step, 0, "panorama.jpg")).toEqual([
+      photoGridPage("other.jpg"),
+      photoGridPage("panorama.jpg"),
+    ]);
+  });
+});
+
+describe("onUnusedUpdate", () => {
+  it("removes a panorama spread as one logical page", () => {
+    const { result, mutateSpy } = mountStepLayout(
+      makeStep({
+        pages: [{ kind: "panorama_spread", media: ["panorama.jpg"] }],
+      }),
+    );
+
+    result.onUnusedUpdate(["panorama.jpg"]);
+
+    expect(lastUpdate(mutateSpy)).toMatchObject({
+      pages: [],
+      unused: ["panorama.jpg"],
+    });
   });
 });

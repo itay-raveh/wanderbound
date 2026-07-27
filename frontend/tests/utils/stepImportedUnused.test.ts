@@ -4,7 +4,7 @@ import { makeStep } from "../helpers";
 describe("mergeImportedUnused", () => {
   it("does not re-add imported media that was placed on a page", () => {
     const step = makeStep({
-      pages: [["imported.jpg"]],
+      pages: [{ kind: "grid", media: ["imported.jpg"] }],
       unused: [],
     });
 

@@ -182,6 +182,7 @@ const activeStep = computed(() =>
           :album-ids="albumIds ?? undefined"
           :steps="displayedSteps"
           :album="album"
+          :media="media ?? []"
           :hidden-steps="album.hidden_steps ?? undefined"
           :hidden-headers="album.hidden_headers ?? undefined"
           :colors="album.colors ?? undefined"

@@ -41,6 +41,7 @@ from app.logic.media_upgrade.processing import (
     process_photo_sync,
     process_video,
 )
+from app.models.album_media import PanoramaConfig
 from app.models.google_photos import GoogleMediaFile, GoogleMediaType, PickedMediaItem
 
 from .factories import AID, create_test_jpeg, insert_album, insert_album_media
@@ -316,6 +317,15 @@ class TestProcessPhoto:
         with Image.open(out) as result:
             assert result.size == expected_size
 
+    def test_retains_more_resolution_for_panorama(self, tmp_path: Path) -> None:
+        raw = tmp_path / "in.jpg"
+        out = tmp_path / "out.jpg"
+        _write_jpeg(raw, 9000, 3000)
+
+        size = process_photo_sync(raw, out)
+
+        assert size == (8192, 2731)
+
     def test_converts_png_to_jpeg(self, tmp_path: Path) -> None:
         raw = tmp_path / "in.png"
         out = tmp_path / "out.jpg"
@@ -410,9 +420,12 @@ class TestPersistUpgrade:
         await insert_album(session, uid)
         media = await insert_album_media(session, uid, name="photo.jpg")
         media.byte_size = 1
+        media.width = 4000
+        media.height = 1000
+        media.panorama = PanoramaConfig(aspect_ratio=2)
         media.perceptual_hashes = ["0123456789abcdef"]
         session.add(media)
-        target = create_test_jpeg(tmp_path / "photo.jpg", 1200, 800)
+        target = create_test_jpeg(tmp_path / "photo.jpg", 3200, 1000)
         await session.commit()
 
         await _persist_upgrade_in_session(
@@ -428,6 +441,7 @@ class TestPersistUpgrade:
         await session.refresh(media)
 
         assert media.byte_size == target.stat().st_size
+        assert media.panorama == PanoramaConfig(aspect_ratio=2)
         assert media.perceptual_hashes is None
         assert media.upgrade_candidate is False
 

@@ -34,7 +34,11 @@ from app.logic.trip_processing import (
     track_iter,
 )
 from app.models.album import Album
-from app.models.album_media import AlbumMedia, StepPageMedia, StepUnusedMedia
+from app.models.album_media import (
+    AlbumMedia,
+    StepPageMedia,
+    StepUnusedMedia,
+)
 from app.models.polarsteps import PSStep
 from app.models.step import Step, StepPageLayout, StepRead
 from app.models.user import User
@@ -141,9 +145,8 @@ def _retained_media_state(
     trip_dir: Path,
     all_on_disk: set[str],
     existing_media_rows: list[AlbumMedia],
-) -> tuple[dict[str, list[str]], dict[str, bool]]:
-    retained_hashes: dict[str, list[str]] = {}
-    retained_candidates: dict[str, bool] = {}
+) -> dict[str, AlbumMedia]:
+    retained: dict[str, AlbumMedia] = {}
     for row in existing_media_rows:
         if row.name not in all_on_disk:
             continue
@@ -152,28 +155,29 @@ def _retained_media_state(
         except OSError:
             continue
         if current_size == row.byte_size:
-            retained_candidates[row.name] = row.upgrade_candidate
-            if row.perceptual_hashes is not None:
-                retained_hashes[row.name] = row.perceptual_hashes
-    return retained_hashes, retained_candidates
+            retained[row.name] = row
+    return retained
 
 
 def _fix_album_covers(
     album: Album,
-    all_on_disk: set[str],
+    eligible_covers: set[str],
     cover_name: str,
     steps: list[StepRead],
 ) -> None:
-    """Ensure chapter cover photos reference files that exist on disk."""
-    first_step_cover = next((s.cover for s in steps if s.cover), None)
+    """Ensure chapter cover photos reference eligible files."""
+    first_step_cover = next(
+        (s.cover for s in steps if s.cover in eligible_covers),
+        None,
+    )
     cover_fallback = (
         cover_name
-        if cover_name in all_on_disk
-        else (first_step_cover or next(iter(all_on_disk), ""))
+        if cover_name in eligible_covers
+        else (first_step_cover or next(iter(eligible_covers), ""))
     )
     for chapter in album.chapters:
         for attr in ("front_cover_photo", "back_cover_photo"):
-            if getattr(chapter, attr) not in all_on_disk:
+            if getattr(chapter, attr) not in eligible_covers:
                 setattr(chapter, attr, cover_fallback)
 
 
@@ -395,7 +399,7 @@ async def reconcile_trip(  # noqa: PLR0913
     merged_media = await _probe_media(
         trip_dir, [*new_step_objects, *reconciled_steps], known_media
     )
-    perceptual_hashes_by_name, upgrade_candidate_by_name = await run_sync(
+    retained_media = await run_sync(
         _retained_media_state, trip_dir, all_on_disk, existing_media_rows
     )
     album_media = build_album_media_rows(
@@ -403,9 +407,16 @@ async def reconcile_trip(  # noqa: PLR0913
         aid,
         trip_dir,
         merged_media,
-        upgrade_candidate_by_name,
-        perceptual_hashes_by_name,
+        {name: row.upgrade_candidate for name, row in retained_media.items()},
+        {
+            name: row.perceptual_hashes
+            for name, row in retained_media.items()
+            if row.perceptual_hashes is not None
+        },
     )
+    for media in album_media:
+        if previous := retained_media.get(media.name):
+            media.panorama = previous.panorama
 
     # Rebuild segments from GPS data (segments are not persisted across
     # re-uploads; always rebuild from GPS locations).
@@ -415,7 +426,12 @@ async def reconcile_trip(  # noqa: PLR0913
         album.chapters[0].title = trip.title
         album.chapters[0].subtitle = trip.subtitle
     _assign_new_steps_to_chapters(album, new_step_objects)
-    _fix_album_covers(album, all_on_disk, cover_name, all_steps)
+    eligible_covers = {
+        media.name
+        for media in album_media
+        if media.kind == "photo" and not media.panorama_candidate
+    }
+    _fix_album_covers(album, eligible_covers, cover_name, all_steps)
 
     yield PhaseUpdate(phase="segments", done=0, total=1)
     segments = await asyncio.to_thread(

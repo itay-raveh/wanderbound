@@ -126,6 +126,25 @@
     "resolutionWarningsPrint": "Print",
     "zoom": "Zoom"
   },
+  "panorama": {
+    "treat": "Treat as panorama",
+    "makeFullPage": "Make full page",
+    "makeSpread": "Make two-page spread",
+    "alignment": {
+      "title": "Page added for the panorama",
+      "body": "This page was added so the next two pages appear side by side, rather than back to back. This note will not be printed."
+    },
+    "frame": {
+      "title": "Frame panorama",
+      "preview": "Interactive panorama preview",
+      "loading": "Preparing the interactive preview...",
+      "unsupported": "Interactive reframing needs a browser with WebGL support. Your saved frame is still available in the album.",
+      "perspective": "Perspective",
+      "zoom": "Zoom",
+      "disable": "Use as normal photo",
+      "apply": "Apply frame"
+    }
+  },
   "settings": {
     "menu": "Settings",
     "appearance": "Appearance",
@@ -299,6 +318,7 @@
     "updatePreference": "Couldn't save your preference. @:common.retry",
     "saveAlbum": "Couldn't save album changes. @:common.retry",
     "saveStep": "Couldn't save step changes. @:common.retry",
+    "panoramaFrame": "Couldn't apply the panorama frame. @:common.retry",
     "videoFrame": "Couldn't set the video poster. @:common.retry",
     "pdfExport": "PDF export failed. @:common.retry",
     "dataExport": "Data export failed. @:common.retry",

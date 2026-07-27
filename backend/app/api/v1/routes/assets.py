@@ -1,7 +1,3 @@
-import asyncio
-import weakref
-from collections.abc import AsyncIterator
-from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Annotated
 
@@ -15,6 +11,7 @@ from app.logic.layout.media import (
     delete_thumbnails,
     extract_frame,
     generate_thumbnail,
+    generation_lock,
     is_video,
 )
 
@@ -29,23 +26,6 @@ _CACHE_IMMUTABLE = "public, max-age=31536000, immutable"
 # Video posters (.jpg with a sibling .mp4) can change when the user
 # picks a new frame, so the browser must revalidate on each load.
 _CACHE_REVALIDATE = "public, no-cache"
-
-# Deduplicates concurrent lazy generation of the same file (poster or thumbnail).
-# WeakValueDictionary auto-collects locks when no coroutine holds a reference,
-# avoiding the race where manual cleanup deletes a lock while a waiter exists.
-_gen_locks: weakref.WeakValueDictionary[Path, asyncio.Lock] = (
-    weakref.WeakValueDictionary()
-)
-
-
-@asynccontextmanager
-async def _gen_lock(path: Path) -> AsyncIterator[None]:
-    lock = _gen_locks.get(path)
-    if lock is None:
-        lock = asyncio.Lock()
-        _gen_locks[path] = lock
-    async with lock:
-        yield
 
 
 @router.get("/{aid}/media/{name}")
@@ -65,7 +45,7 @@ async def get_media(
 
     # Lazy poster extraction: .jpg requested but only the .mp4 exists.
     if not source.is_file() and is_poster:
-        async with _gen_lock(source):
+        async with generation_lock(source):
             if not source.is_file():
                 await extract_frame(video)
                 logger.debug("asset.poster_extracted", media_name=name)
@@ -77,7 +57,7 @@ async def get_media(
     if w is not None and w in THUMB_WIDTHS:
         thumb = album_dir / ".thumbs" / str(w) / f"{Path(name).stem}.webp"
         if not thumb.is_file():
-            async with _gen_lock(thumb):
+            async with generation_lock(thumb):
                 if not thumb.is_file():
                     await generate_thumbnail(source, w)
         if thumb.is_file():

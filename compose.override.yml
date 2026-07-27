@@ -18,9 +18,12 @@ services:
     read_only: false
     ports:
       - "127.0.0.1:8000:8000"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     command: [start-wanderbound, --reload, --reload-exclude, /app/backend/data]
     environment:
       - PUBLIC_URL
+      - INTERNAL_URL
     build:
       context: .
       dockerfile: Dockerfile

@@ -126,6 +126,25 @@
     "resolutionWarningsPrint": "דפוס",
     "zoom": "זום"
   },
+  "panorama": {
+    "treat": "הגדרה כפנורמה",
+    "makeFullPage": "הפיכה לעמוד אחד",
+    "makeSpread": "הפיכה לפריסה של שני עמודים",
+    "alignment": {
+      "title": "עמוד נוסף עבור הפנורמה",
+      "body": "העמוד הזה נוסף כדי ששני העמודים הבאים יהיו זה לצד זה, ולא גב אל גב. ההערה הזאת לא תודפס."
+    },
+    "frame": {
+      "title": "מסגור פנורמה",
+      "preview": "תצוגה מקדימה אינטראקטיבית של הפנורמה",
+      "loading": "מכין תצוגה מקדימה אינטראקטיבית...",
+      "unsupported": "מסגור אינטראקטיבי דורש דפדפן שתומך ב-WebGL. המסגור השמור עדיין זמין באלבום.",
+      "perspective": "פרספקטיבה",
+      "zoom": "זום",
+      "disable": "שימוש כתמונה רגילה",
+      "apply": "החלת המסגור"
+    }
+  },
   "settings": {
     "menu": "תפריט",
     "appearance": "מראה",
@@ -299,6 +318,7 @@
     "updatePreference": "לא הצלחנו לשמור את ההעדפה. @:common.retry",
     "saveAlbum": "לא הצלחנו לשמור את האלבום. @:common.retry",
     "saveStep": "לא הצלחנו לשמור את השינויים. @:common.retry",
+    "panoramaFrame": "לא הצלחנו להחיל את מסגור הפנורמה. @:common.retry",
     "videoFrame": "לא הצלחנו לעדכן את הפוסטר. @:common.retry",
     "pdfExport": "ייצוא PDF נכשל. @:common.retry",
     "dataExport": "ייצוא הנתונים נכשל. @:common.retry",

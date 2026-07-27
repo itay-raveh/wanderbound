@@ -8,9 +8,9 @@ import { useAlbumMutation } from "@/queries/useAlbumMutation";
 import { provideAlbum } from "@/composables/useAlbum";
 import {
   THUMB_WIDTHS,
+  isCoverEligible,
   mediaThumbUrl,
-  isVideo,
-  isPortrait,
+  placementMediaUrl,
 } from "@/utils/media";
 import {
   DEFAULT_MEDIA_RESOLUTION_WARNING_PRESET,
@@ -97,12 +97,21 @@ watch(
   { immediate: true },
 );
 
-const landscapeMedia = computed(() =>
-  props.media.filter((m) => !isPortrait(m) && !isVideo(m.name)),
-);
+const landscapeMedia = computed(() => props.media.filter(isCoverEligible));
 const COVER_GRID_COLUMNS = 2;
 const COVER_GRID_ROW_SIZE = 92;
 const COVER_GRID_SLICE_ROWS = 8;
+
+function coverPickerUrl(media: AlbumMedia): string {
+  if (media.panorama)
+    return placementMediaUrl(media.name, props.album.id, media);
+  return mediaThumbUrl(
+    media.name,
+    props.album.id,
+    THUMB_WIDTHS[0],
+    media.updated_at,
+  );
+}
 
 const landscapeRows = computed(() => {
   const rows: AlbumMedia[][] = [];
@@ -265,14 +274,7 @@ const importTargetLabel = computed<string | null>(() => {
               <CoverCell
                 v-for="(media, columnIndex) in row"
                 :key="media.name"
-                :src="
-                  mediaThumbUrl(
-                    media.name,
-                    album.id,
-                    THUMB_WIDTHS[0],
-                    media.updated_at,
-                  )
-                "
+                :src="coverPickerUrl(media)"
                 :selected="media.name === activeCoverPhoto"
                 :label="
                   t('album.selectCoverPhoto', {

@@ -115,16 +115,10 @@ export function stepPageCount(
   mediaByName: ReadonlyMap<string, AlbumMedia> = new Map(),
 ): number {
   const plan = planStepPages(step, mediaByName);
-  return plan.editorPagePhotoIds.length;
-}
-
-export function sectionPageCount(
-  section: Section,
-  mediaByName?: ReadonlyMap<string, AlbumMedia>,
-): number {
-  if (section.type === "map" || section.type === "hike") return 1;
-  const step = section.step;
-  return stepPageCount(step, mediaByName);
+  return plan.editorPages.reduce(
+    (count, page) => count + (page.kind === "panorama_spread" ? 2 : 1),
+    0,
+  );
 }
 
 /** Group map ranges by the ID of their first overlapping step. */

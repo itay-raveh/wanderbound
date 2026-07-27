@@ -8,6 +8,7 @@ from .routes import (
     external_media,
     google_photos,
     health,
+    panoramas,
     uploads,
     users,
 )
@@ -20,5 +21,6 @@ router.include_router(uploads.router)
 router.include_router(albums.router)
 router.include_router(external_media.router)
 router.include_router(assets.router)
+router.include_router(panoramas.router)
 router.include_router(google_photos.router)
 router.include_router(config.router)

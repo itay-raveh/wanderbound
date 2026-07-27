@@ -1,12 +1,34 @@
 import { client } from "@/client/client.gen";
+import type { AlbumMedia } from "@/client";
 import { PAGE_WIDTH_MM } from "@/utils/pageSize";
 
 export function mediaUrl(name: string, albumId: string): string {
   return `${client.getConfig().baseUrl}/api/v1/albums/${albumId}/media/${name}`;
 }
 
+export function placementMediaUrl(
+  name: string,
+  albumId: string,
+  media: AlbumMedia | undefined,
+): string {
+  const base = mediaUrl(name, albumId);
+  if (!media?.panorama) return base;
+  const cacheKey = media.updated_at
+    ? `?d=${encodeURIComponent(media.updated_at)}`
+    : "";
+  return `${base}/panorama-render${cacheKey}`;
+}
+
 export function isVideo(name: string): boolean {
   return name.endsWith(".mp4");
+}
+
+export function isPanorama(media: AlbumMedia | undefined): boolean {
+  return media?.panorama_candidate ?? false;
+}
+
+export function isCoverEligible(media: AlbumMedia): boolean {
+  return !isPortrait(media) && !isPanorama(media) && !isVideo(media.name);
 }
 
 export function posterPath(path: string): string {

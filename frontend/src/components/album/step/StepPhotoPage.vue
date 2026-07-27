@@ -13,23 +13,28 @@ import {
   resolveLayoutClass,
 } from "@/utils/photoLayout";
 import { mediaQuality } from "@/utils/photoQuality";
+import type { StepPageLayout } from "@/client";
 
 const { mediaByName, mediaResolutionWarningPreset } = useAlbum();
 const printMode = usePrintMode();
 
 const props = defineProps<{
-  page: string[];
+  page: StepPageLayout;
 }>();
 
 const emit = defineEmits<{
-  "update:page": [page: string[]];
+  "update:page": [page: StepPageLayout];
+  "make-full-page": [media: string];
+  "make-panorama-spread": [media: string];
 }>();
 const isPortrait = (name: string) => isPortraitByName(name, mediaByName.value);
 
 /** Local copy for instant drag feedback. Syncs from prop on external changes. */
-const localPage = ref(enforceOrientationOrder([...props.page], isPortrait));
+const localPage = ref(
+  enforceOrientationOrder([...props.page.media], isPortrait),
+);
 watch(
-  () => props.page,
+  () => props.page.media,
   (val) => {
     const enforced = enforceOrientationOrder(val, isPortrait);
     if (
@@ -49,7 +54,7 @@ const pageVisible = useElementVisibility(containerRef, {
 
 function syncPage() {
   localPage.value = enforceOrientationOrder(localPage.value, isPortrait);
-  emit("update:page", [...localPage.value]);
+  emit("update:page", { ...props.page, media: [...localPage.value] });
 }
 
 if (!printMode) {
@@ -81,6 +86,10 @@ const layoutClass = computed(() =>
   resolveLayoutClass(localPage.value, isPortrait),
 );
 const photoFit = computed(() => photoPageFit(layoutClass.value));
+const fullBleedPanorama = computed(() => {
+  const media = localPage.value.length === 1 ? localPage.value[0] : undefined;
+  return media != null && mediaByName.value.get(media)?.panorama != null;
+});
 
 const photoQualities = computed(() =>
   localPage.value.map((name, i) =>
@@ -99,14 +108,26 @@ const photoQualities = computed(() =>
   <div class="page page-container">
     <div
       ref="containerRef"
-      :class="['container', layoutClass, `fit-${photoFit}`]"
+      :class="[
+        'container',
+        layoutClass,
+        `fit-${photoFit}`,
+        { 'full-bleed-panorama': fullBleedPanorama },
+      ]"
     >
       <MediaItem
         v-for="(photo, i) in localPage"
         :key="photo"
         :media="photo"
         :quality="photoQualities[i]"
+        :panorama-destination-kind="
+          localPage.length === 1 ? 'full_page' : 'grid'
+        "
+        :make-full-page="localPage.length > 1"
+        :make-panorama-spread="localPage.length === 1"
         class="item"
+        @make-full-page="emit('make-full-page', $event)"
+        @make-panorama-spread="emit('make-panorama-spread', $event)"
       />
     </div>
   </div>
@@ -142,6 +163,15 @@ const photoQualities = computed(() =>
 
 .container.fit-contain :deep(img) {
   object-fit: contain;
+}
+
+.container.full-bleed-panorama {
+  gap: 0;
+  padding: 0;
+}
+
+.container.full-bleed-panorama :deep(img) {
+  object-fit: cover;
 }
 
 // -- 1 photo --

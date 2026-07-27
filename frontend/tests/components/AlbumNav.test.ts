@@ -108,6 +108,7 @@ describe("AlbumNav", () => {
     const wrapper = mountWithPlugins(AlbumNav, {
       props: {
         album: albumForSteps(steps),
+        media: [],
         steps,
         hiddenSteps: [],
         hiddenHeaders: [],
@@ -142,6 +143,7 @@ describe("AlbumNav", () => {
     mountWithPlugins(AlbumNav, {
       props: {
         album: albumForSteps(steps),
+        media: [],
         steps,
         hiddenSteps: [],
         hiddenHeaders: [],
@@ -183,6 +185,7 @@ describe("AlbumNav", () => {
     const wrapper = mountWithPlugins(AlbumNav, {
       props: {
         album: { ...mockAlbum, chapters },
+        media: [],
         steps,
         hiddenSteps: [],
         hiddenHeaders: [],
@@ -234,6 +237,18 @@ describe("AlbumNav", () => {
             },
           ],
         },
+        media: [
+          {
+            uid: 1,
+            aid: "aid-1",
+            name: "three.jpg",
+            kind: "photo",
+            width: 1920,
+            height: 1080,
+            byte_size: 2048,
+            panorama_candidate: false,
+          },
+        ],
         steps,
         hiddenSteps: [],
         hiddenHeaders: [],
@@ -288,6 +303,7 @@ describe("AlbumNav", () => {
     const wrapper = mountWithPlugins(AlbumNav, {
       props: {
         album: albumForSteps(steps),
+        media: [],
         steps,
         hiddenSteps: [],
         hiddenHeaders: [],
@@ -328,6 +344,7 @@ describe("AlbumNav", () => {
     const wrapper = mountWithPlugins(AlbumNav, {
       props: {
         album: albumForSteps(steps),
+        media: [],
         steps,
         hiddenSteps: [],
         hiddenHeaders: [],

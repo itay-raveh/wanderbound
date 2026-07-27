@@ -1,10 +1,16 @@
 import { describe, it, expect, vi } from "vitest";
+import type { AlbumMedia } from "@/client";
 
 vi.mock("@/client/client.gen", () => ({
   client: { getConfig: () => ({ baseUrl: "" }) },
 }));
 
-import { flagUrl, mediaThumbUrl, weatherIconUrl } from "@/utils/media";
+import {
+  flagUrl,
+  mediaThumbUrl,
+  placementMediaUrl,
+  weatherIconUrl,
+} from "@/utils/media";
 
 describe("mediaThumbUrl", () => {
   it("returns the poster .jpg for a video, not the .mp4", () => {
@@ -21,6 +27,19 @@ describe("mediaThumbUrl", () => {
     const url = mediaThumbUrl("photo.jpg", "aid-1", 200, "2026-05-13T12:34:56Z");
     expect(url).toBe(
       "/api/v1/albums/aid-1/media/photo.jpg?w=200&d=2026-05-13T12%3A34%3A56Z",
+    );
+  });
+});
+
+describe("placementMediaUrl", () => {
+  it("uses the global poster and media timestamp for active panoramas", () => {
+    const active = {
+      panorama: {},
+      updated_at: "2026-05-13T12:34:56Z",
+    } as AlbumMedia;
+
+    expect(placementMediaUrl("wide.jpg", "aid-1", active)).toBe(
+      "/api/v1/albums/aid-1/media/wide.jpg/panorama-render?d=2026-05-13T12%3A34%3A56Z",
     );
   });
 });

@@ -32,7 +32,12 @@ from app.models.album import (
     Album,
     MediaResolutionWarningPreset,
 )
-from app.models.album_media import AlbumMedia, StepPageMedia, StepUnusedMedia
+from app.models.album_media import (
+    AlbumMedia,
+    StepPageMedia,
+    StepUnusedMedia,
+    is_panorama_size,
+)
 from app.models.polarsteps import Location, Point, PSLocations, PSStep, PSTrip
 from app.models.segment import Segment, SegmentKind
 from app.models.step import Step, StepRead
@@ -369,20 +374,21 @@ async def run_weather(
 
 def _pick_landscape_cover(trip_dir: Path) -> tuple[str, str]:
     """Pick a random landscape photo as cover fallback. Returns (name, orientation)."""
+    fallback: tuple[str, str] | None = None
     for path in trip_dir.iterdir():
         if path.suffix.lower() != ".jpg":
             continue
         try:
             m = Media.load(path)
+            if is_panorama_size(m.width, m.height):
+                continue
+            if fallback is None:
+                fallback = (m.name, m.orientation)
             if m.orientation == "l":
                 return m.name, "l"
         except OSError, ValueError:
             continue
-    # No landscape found - just use the first jpg
-    for path in trip_dir.iterdir():
-        if path.suffix.lower() == ".jpg":
-            return normalize_name(path.name), "l"
-    return "", "l"
+    return fallback or ("", "l")
 
 
 async def prepare_media(
@@ -407,7 +413,12 @@ async def prepare_media(
         if cover_dest.exists():
             try:
                 cover_photo = await asyncio.to_thread(Media.load, cover_dest)
-                cover_orientation = cover_photo.orientation
+                if is_panorama_size(cover_photo.width, cover_photo.height):
+                    cover_name, cover_orientation = await asyncio.to_thread(
+                        _pick_landscape_cover, trip_dir
+                    )
+                else:
+                    cover_orientation = cover_photo.orientation
             except OSError, ValueError:
                 cover_orientation = "l"
         else:

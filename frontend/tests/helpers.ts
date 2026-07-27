@@ -242,6 +242,10 @@ export function makeStep(overrides: Partial<Step> = {}): Step {
   };
 }
 
+export function photoGridPage(...media: string[]): Step["pages"][number] {
+  return { kind: "grid", media };
+}
+
 export function makeSegment(overrides: Partial<Segment> = {}): Segment {
   return {
     uid: 1,

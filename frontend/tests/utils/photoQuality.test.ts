@@ -1,9 +1,10 @@
 import type { StepRead as Step } from "@/client";
-import { makeAlbumMedia, makeStep } from "../helpers";
+import { makeAlbumMedia, makeStep, photoGridPage } from "../helpers";
 import { PAGE_WIDTH_MM, PAGE_HEIGHT_MM, MM_PER_INCH } from "@/utils/pageSize";
 import {
   computeDpi,
   dpiTier,
+  mediaQuality,
   summarizeQuality,
 } from "@/utils/photoQuality";
 import {
@@ -155,7 +156,7 @@ describe("summarizeQuality", () => {
     const steps = [
       makeStep({
         id: 1,
-        pages: [{ kind: "grid", media: [portrait.name] }],
+        pages: [photoGridPage(portrait.name)],
       }),
     ];
 
@@ -189,7 +190,7 @@ describe("summarizeQuality", () => {
       makeStep({
         id: 1,
         cover: "lo.jpg",
-        pages: [{ kind: "grid", media: ["lo.jpg"] }],
+        pages: [photoGridPage("lo.jpg")],
       }),
     ];
     const result = summarizeQuality(
@@ -209,10 +210,7 @@ describe("summarizeQuality", () => {
       makeStep({
         id: 1,
         pages: [
-          {
-            kind: "grid",
-            media: ["landscape.jpg", "portrait.jpg", "landscape.jpg"],
-          },
+          photoGridPage("landscape.jpg", "portrait.jpg", "landscape.jpg"),
         ],
       }),
     ];
@@ -223,5 +221,40 @@ describe("summarizeQuality", () => {
       mediaMap(portrait, landscape),
     );
     expect(result).toEqual({ caution: 0, warning: 0 });
+  });
+
+  it("lowers active panorama PPI as ordinary zoom crops its perspective viewport", () => {
+    const wide = media("wide.jpg", 8000, 1000);
+    wide.panorama = {
+      yaw: 0,
+      pitch: 0,
+      perspective_fov: 60,
+      zoom: 1,
+      revision: 1,
+    };
+    const cell = { widthFrac: 1, heightFrac: 1 };
+    const unzoomed = mediaQuality(wide.name, cell, "cover", mediaMap(wide));
+    wide.panorama.zoom = 2;
+    const zoomed = mediaQuality(wide.name, cell, "cover", mediaMap(wide));
+
+    expect(zoomed?.dpi).toBeLessThan(unzoomed?.dpi ?? Number.POSITIVE_INFINITY);
+    expect(zoomed?.dpi).toBe(Math.round((unzoomed?.dpi ?? 0) / 2));
+  });
+
+  it("uses two A4 page widths for a panorama spread quality warning", () => {
+    const wide = media("wide.jpg", 8000, 1000);
+    wide.panorama = {
+      yaw: 0,
+      pitch: 0,
+      perspective_fov: 60,
+      zoom: 1,
+      revision: 1,
+    };
+    const steps = [
+      makeStep({ id: 1, pages: [{ kind: "panorama_spread", media: [wide.name] }] }),
+    ];
+
+    expect(summarizeQuality(steps, undefined, undefined, mediaMap(wide), "print"))
+      .toEqual({ caution: 0, warning: 1 });
   });
 });

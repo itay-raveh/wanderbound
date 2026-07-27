@@ -28,14 +28,23 @@ function nextChapterId(chapters: AlbumChapter[]): string {
   }
 }
 
-function coverFromSteps(steps: Step[], fallback: string): string {
-  return steps.find((step) => step.cover)?.cover ?? fallback;
+function coverFromSteps(
+  steps: Step[],
+  fallback: string,
+  eligibleCovers?: ReadonlySet<string>,
+): string {
+  return (
+    steps.find(
+      (step) => step.cover && (!eligibleCovers || eligibleCovers.has(step.cover)),
+    )?.cover ?? fallback
+  );
 }
 
 export function splitChapter(
   chapters: AlbumChapter[],
   steps: Step[],
   chapterId: string,
+  eligibleCovers?: ReadonlySet<string>,
 ): AlbumChapter[] {
   const index = chapterIndex(chapters, chapterId);
   if (index < 0) return chapters;
@@ -51,8 +60,12 @@ export function splitChapter(
   const nextSteps = nextStepIds
     .map((stepId) => byId.get(stepId))
     .filter((step): step is Step => Boolean(step));
-  const fallbackCover = source.front_cover_photo || source.back_cover_photo || "";
-  const cover = coverFromSteps(nextSteps, fallbackCover);
+  const fallbackCover = eligibleCovers
+    ? [source.front_cover_photo, source.back_cover_photo].find((cover) =>
+        eligibleCovers.has(cover),
+      ) ?? eligibleCovers.values().next().value ?? ""
+    : source.front_cover_photo || source.back_cover_photo || "";
+  const cover = coverFromSteps(nextSteps, fallbackCover, eligibleCovers);
   const nextChapter: AlbumChapter = {
     id: nextChapterId(chapters),
     title: "",
