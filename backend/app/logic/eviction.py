@@ -11,32 +11,14 @@ from app.core.config import get_settings
 from app.core.db import get_engine
 from app.core.observability import set_span_data, start_span
 from app.core.resources import MiB
+from app.logic.storage_metrics import (
+    capture_media_storage_metrics,
+    sizes_by_album as _sizes_by_album,
+)
 from app.models.album import Album
 from app.models.user import User
 
 logger = structlog.get_logger(__name__)
-
-
-def _sizes_by_album(users_folder: Path) -> tuple[int, dict[tuple[int, str], int]]:
-    if not users_folder.exists():
-        return 0, {}
-    by_album: dict[tuple[int, str], int] = {}
-    for user_folder in users_folder.iterdir():
-        try:
-            uid = int(user_folder.name)
-        except ValueError:
-            continue
-        trips_folder = user_folder / "trip"
-        if not trips_folder.is_dir():
-            continue
-        for album_folder in trips_folder.iterdir():
-            if album_folder.is_dir():
-                by_album[(uid, album_folder.name)] = sum(
-                    file.stat().st_size
-                    for file in album_folder.rglob("*")
-                    if file.is_file()
-                )
-    return sum(by_album.values()), by_album
 
 
 def _remove_tree(path: Path) -> None:
@@ -99,6 +81,7 @@ async def run_eviction(skip_uid: int) -> None:
                 "album.count": len(sizes),
             },
         )
+    capture_media_storage_metrics(total, cap)
     if total <= cap:
         return
 
@@ -182,4 +165,5 @@ async def run_eviction(skip_uid: int) -> None:
                 },
             )
 
+    capture_media_storage_metrics(total, cap)
     logger.info("eviction.completed", storage_mb=total // MiB)

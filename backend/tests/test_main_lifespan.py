@@ -29,6 +29,7 @@ async def test_lifespan_initializes_workflow_clients_before_launch(
     app = SimpleNamespace(state=SimpleNamespace())
     launch_calls: list[bool | None] = []
     reconciliation_calls: list[list[bool | None]] = []
+    metrics_calls: list[Path] = []
 
     def locked(_key: str) -> object:
         acquired = True
@@ -50,6 +51,10 @@ async def test_lifespan_initializes_workflow_clients_before_launch(
     async def reconcile_hashes() -> None:
         reconciliation_calls.append(list(launch_calls))
 
+    async def capture_storage_metrics(data_folder: Path) -> None:
+        metrics_calls.append(data_folder)
+        await asyncio.Event().wait()
+
     upload_store = SimpleNamespace(close=lambda: None)
 
     monkeypatch.setattr(settings, "DATA_FOLDER", tmp_path)
@@ -70,13 +75,16 @@ async def test_lifespan_initializes_workflow_clients_before_launch(
     monkeypatch.setattr("app.main.workflow_recovery_loop", _forever)
     monkeypatch.setattr("app.main.media_hash_reconciliation_loop", _forever)
     monkeypatch.setattr("app.main.upload_cleanup_loop", _forever)
+    monkeypatch.setattr("app.main.storage_metrics_loop", capture_storage_metrics)
 
     async with lifespan(app):
+        await asyncio.sleep(0)
         assert app.state.http is http
         assert app.state.upload_store is upload_store
 
     assert launch_calls == [True]
     assert reconciliation_calls == [[True]]
+    assert metrics_calls == [tmp_path]
 
 
 async def _noop_cleanup(_path: Path) -> None:
