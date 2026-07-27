@@ -34,13 +34,14 @@ run = [{ tasks = ["dev:stack", "dev:vite"] }]
 
 [tasks."dev:stack"]
 hide = true
-env = { PUBLIC_URL = "http://localhost:5173", WANDERBOUND_BUILD_TARGET = "backend-dev" }
+env = { PUBLIC_URL = "http://localhost:5173", INTERNAL_URL = "http://host.docker.internal:5173", WANDERBOUND_BUILD_TARGET = "backend-dev" }
 run = "docker compose up --watch"
 
 [tasks."dev:vite"]
 hide = true
 dir = "frontend"
-run = "bun run dev"
+env = { __VITE_ADDITIONAL_SERVER_ALLOWED_HOSTS = "host.docker.internal" }
+run = "bun run dev -- --host 0.0.0.0"
 
 # -- Testing ------------------------------------------------------
 
