@@ -25,6 +25,7 @@
 - Upgrades compressed Polarsteps photos with originals from Google Photos
 - Add maps with your GPS data. Automaticaly recognizes hikes, flights, and roads
 - Include your videos in the album by selecting one frame, right within our editor
+- Look around phone panoramas, choose their framing, and lay them out across one or two full pages
 - Full RTL and localization support
 
 See planned features, or ask for your own, [here](https://github.com/itay-raveh/wanderbound/issues?q=is%3Aissue%20state%3Aopen%20label%3Aenhancement).
