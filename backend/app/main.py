@@ -26,6 +26,7 @@ from app.logic.media_upgrade.pipeline import cleanup_orphaned_tmp
 from app.logic.pdf import lifespan as pdf_lifespan
 from app.logic.segment_routes import set_route_enrichment_http_clients
 from app.logic.session import cancel_all_sessions
+from app.logic.storage_metrics import storage_metrics_loop
 from app.logic.uploads.cleanup import upload_cleanup_loop
 from app.logic.workflows.media_hashes import (
     media_hash_reconciliation_loop,
@@ -109,6 +110,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:  # noqa: PLR0915
                         has_admin_server=lambda: admin_state.has_admin_server,
                     )
                 )
+                storage_metrics_task = asyncio.create_task(
+                    storage_metrics_loop(settings.DATA_FOLDER)
+                )
                 media_hash_reconciliation_task = asyncio.create_task(
                     media_hash_reconciliation_loop()
                 )
@@ -137,6 +141,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:  # noqa: PLR0915
                 try:
                     yield
                 finally:
+                    storage_metrics_task.cancel()
+                    with suppress(asyncio.CancelledError):
+                        await storage_metrics_task
                     upload_cleanup_task.cancel()
                     with suppress(asyncio.CancelledError):
                         await upload_cleanup_task

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, call, patch
 
 import pytest
 
@@ -79,9 +79,15 @@ class TestRunEviction:
 
         _make_file(users_dir / "1" / "trip" / "a" / "data.bin", 100)
 
-        await run_eviction(skip_uid=999)
+        with patch("sentry_sdk.metrics.gauge") as gauge:
+            await run_eviction(skip_uid=999)
 
         assert (users_dir / "1" / "trip" / "a" / "data.bin").exists()
+        assert gauge.call_args_list == [
+            call("storage.media.used_bytes", 100, unit="byte"),
+            call("storage.media.limit_bytes", 1000, unit="byte"),
+            call("storage.media.utilization", 10.0, unit="percent"),
+        ]
 
     async def test_evicts_lru_album_without_removing_its_user(
         self, tmp_path: Path, users_dir: Path, monkeypatch: pytest.MonkeyPatch
