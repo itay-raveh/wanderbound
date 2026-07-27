@@ -68,6 +68,8 @@ def install_frontend(app: FastAPI, settings: Settings) -> None:
     ) -> Response:
         response = await call_next(request)
         response.headers["Content-Security-Policy"] = content_security_policy
+        if settings.APP_VERSION:
+            response.headers["X-Wanderbound-Version"] = settings.APP_VERSION
         if request.url.path.startswith("/assets/") and response.status_code < 400:
             response.headers["Cache-Control"] = "public, max-age=31536000, immutable"
         elif response.headers.get("Content-Type", "").startswith("text/html"):

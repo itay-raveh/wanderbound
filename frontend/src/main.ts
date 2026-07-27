@@ -26,11 +26,13 @@ import { useChunkErrorRecovery } from "@/composables/useChunkErrorRecovery";
 import { client } from "@/client/client.gen";
 import { loadSettings } from "@/config";
 import { setupSentry } from "@/plugins/sentry";
+import { setupVersionSkewRecovery } from "@/plugins/versionSkew";
 
 client.setConfig({
   baseUrl: "",
   credentials: "include",
 });
+setupVersionSkewRecovery(client);
 const settings = await loadSettings();
 
 const app = createApp(App);

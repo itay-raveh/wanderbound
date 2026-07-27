@@ -21,6 +21,8 @@ COPY frontend ./
 COPY PRIVACY.md TERMS.md /app/
 COPY backend/openapi.json /app/backend/openapi.json
 
+ARG APP_VERSION
+ENV VITE_APP_VERSION=$APP_VERSION
 RUN bun run build
 
 COPY --from=sentry-cli /bin/sentry-cli /usr/local/bin/sentry-cli

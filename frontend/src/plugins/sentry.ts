@@ -3,6 +3,7 @@ import type { Pinia } from "pinia";
 import type { App } from "vue";
 import type { Router } from "vue-router";
 import type { Settings } from "@/config";
+import { BUILD_VERSION } from "@/plugins/versionSkew";
 
 const PRELOAD_ERROR_PATTERNS = [
   "Failed to fetch dynamically imported module",
@@ -37,9 +38,7 @@ export function setupSentry(
     app,
     dsn: settings.PUBLIC_SENTRY_DSN ?? undefined,
     environment: settings.ENVIRONMENT,
-    release: settings.APP_VERSION
-      ? `wanderbound@${settings.APP_VERSION}`
-      : undefined,
+    release: BUILD_VERSION ? `wanderbound@${BUILD_VERSION}` : undefined,
     integrations: [
       Sentry.feedbackIntegration({
         autoInject: true,
