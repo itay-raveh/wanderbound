@@ -1,18 +1,34 @@
 from __future__ import annotations
 
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+import pytest
 from sqlmodel import col, select
 
 from app.core.config import get_settings
 from app.logic.uploads.finalize import finalize_upload_session
 from app.models.processing import ProcessingOperation, UploadSession
+from app.models.user import User
 from tests.factories import PS_USER, TRIPS, make_user
 
 if TYPE_CHECKING:
-    import pytest
     from sqlmodel.ext.asyncio.session import AsyncSession
+
+
+@asynccontextmanager
+async def _lock(*, acquired: bool) -> AsyncIterator[bool]:
+    yield acquired
+
+
+@pytest.fixture(autouse=True)
+def acquire_upload_lock(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        "app.logic.uploads.finalize.try_advisory_lock",
+        lambda _key: _lock(acquired=True),
+    )
 
 
 async def test_finalization_is_idempotent_across_database_and_filesystem(
@@ -136,3 +152,39 @@ async def test_local_finalization_updates_existing_polarsteps_user(
     assert user.id == existing.id
     assert user.first_name == "Edited"
     assert user.album_ids == ["old-trip", "trip-1"]
+
+
+async def test_local_finalization_rejects_a_concurrent_upload_for_the_same_user(
+    session: AsyncSession,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(get_settings(), "DATA_FOLDER", tmp_path)
+    (tmp_path / "users").mkdir()
+    source = tmp_path / "local-conflict"
+    (source / "trip" / "trip-1").mkdir(parents=True)
+    upload = UploadSession.new(
+        owner="local:browser-two",
+        provider_upload_id="provider-id",
+        filename="polarsteps.zip",
+        content_type="application/zip",
+        size_bytes=1,
+    )
+    upload.status = "processing"
+    session.add(upload)
+    await session.commit()
+    monkeypatch.setattr(
+        "app.logic.uploads.finalize.scan_user_folder",
+        lambda _path: (PS_USER, TRIPS),
+    )
+    monkeypatch.setattr(
+        "app.logic.uploads.finalize.try_advisory_lock",
+        lambda _key: _lock(acquired=False),
+        raising=False,
+    )
+
+    with pytest.raises(RuntimeError, match="already being imported"):
+        await finalize_upload_session(session, upload, source)
+
+    assert await session.get(User, PS_USER.id) is None
+    assert upload.result is None

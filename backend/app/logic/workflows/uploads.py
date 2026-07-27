@@ -17,7 +17,7 @@ from app.core.db import get_engine
 from app.logic.eviction import run_eviction
 from app.logic.upload import extract_selected, inspect_archive, scan_user_folder
 from app.logic.uploads.files import remove_tree_if_present
-from app.logic.uploads.finalize import finalize_upload_session
+from app.logic.uploads.finalize import ConcurrentUploadError, finalize_upload_session
 from app.logic.uploads.progress import (
     SelectionRequiredEvent,
     UploadCompleteEvent,
@@ -216,15 +216,18 @@ async def extract_upload(
 
 
 @DBOS.step(retries_allowed=True, max_attempts=3)
-async def finalize_upload(upload_id: str, extracted_path: str) -> dict[str, Any]:
+async def finalize_upload(upload_id: str, extracted_path: str) -> dict[str, Any] | None:
     async with AsyncSession(get_engine(), expire_on_commit=False) as session:
         row = await _current_upload(session, upload_id)
         row.updated_at = datetime.now(UTC)
         session.add(row)
         await session.commit()
-        result, operation, user = await finalize_upload_session(
-            session, row, Path(extracted_path)
-        )
+        try:
+            result, operation, user = await finalize_upload_session(
+                session, row, Path(extracted_path)
+            )
+        except ConcurrentUploadError:
+            return None
     return {
         "operation_id": operation.operation_id,
         "uid": user.id,
@@ -303,6 +306,10 @@ async def upload_import_workflow(upload_id: str) -> None:
         extracted = await extract_upload(upload_id, source, selected_ids)
         await _write_progress(UploadProgressUpdate(phase="importing", done=0, total=1))
         processing = await finalize_upload(upload_id, extracted)
+        if processing is None:
+            await mark_upload_failed(upload_id, "upload_conflict")
+            await _write_progress(UploadErrorEvent(error_code="upload_conflict"))
+            return
         await _write_progress(UploadProgressUpdate(phase="importing", done=1, total=1))
         operation_id = str(processing["operation_id"])
         with SetWorkflowID(f"processing:{operation_id}"):

@@ -5,18 +5,23 @@ from typing import TYPE_CHECKING
 from sqlmodel import col, select
 
 from app.api.v1.deps import to_user_public
+from app.core.locks import try_advisory_lock
 from app.logic.processing_operations import mark_user_processing_operations_stale
 from app.logic.session import cancel_session
 from app.logic.upload import scan_user_folder
 from app.logic.uploads.files import remove_tree_if_present
 from app.models.processing import ProcessingOperation, UploadSession
-from app.models.upload import UploadResult
+from app.models.upload import TripMeta, UploadResult
 from app.models.user import PSUser, User
 
 if TYPE_CHECKING:
     from sqlmodel.ext.asyncio.session import AsyncSession
 
 _MARKER = ".wanderbound-upload-id"
+
+
+class ConcurrentUploadError(RuntimeError):
+    pass
 
 
 def finalization_operation_id(upload_id: str) -> str:
@@ -109,13 +114,17 @@ async def _resolve_archive_user(
     return user
 
 
-async def finalize_upload_session(
-    session: AsyncSession, upload: UploadSession, extracted_folder: Path
+async def _finalize_upload_session_locked(
+    session: AsyncSession,
+    upload: UploadSession,
+    source: Path,
+    scanned: tuple[PSUser, list[TripMeta]] | None = None,
 ) -> tuple[UploadResult, ProcessingOperation, User]:
-    source = extracted_folder
     operation_id = finalization_operation_id(upload.upload_id)
     if upload.result is None:
-        ps_user, trips = await asyncio.to_thread(scan_user_folder, source)
+        if scanned is None:
+            raise RuntimeError("unscanned upload cannot be finalized")
+        ps_user, trips = scanned
         album_ids = [trip.id for trip in trips]
         user = await _resolve_archive_user(session, upload, ps_user, album_ids)
         cancel_session(user.id)
@@ -159,3 +168,20 @@ async def finalize_upload_session(
         )
     await asyncio.to_thread(remove_tree_if_present, source)
     return result, operation, user
+
+
+async def finalize_upload_session(
+    session: AsyncSession, upload: UploadSession, extracted_folder: Path
+) -> tuple[UploadResult, ProcessingOperation, User]:
+    if upload.result is not None:
+        return await _finalize_upload_session_locked(session, upload, extracted_folder)
+    scanned = await asyncio.to_thread(scan_user_folder, extracted_folder)
+    ps_user, _trips = scanned
+    async with try_advisory_lock(f"upload-finalize:{ps_user.id}") as acquired:
+        if not acquired:
+            raise ConcurrentUploadError(
+                "another upload for this Polarsteps user is already being imported"
+            )
+        return await _finalize_upload_session_locked(
+            session, upload, extracted_folder, scanned
+        )
