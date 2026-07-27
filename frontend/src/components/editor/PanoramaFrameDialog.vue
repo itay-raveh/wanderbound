@@ -300,7 +300,7 @@ onBeforeUnmount(cleanupAdapter);
               type="range"
               :min="MIN_PANORAMA_ZOOM"
               :max="MAX_PANORAMA_ZOOM"
-              step="0.1"
+              step="any"
               :value="draft.zoom"
               @input="setZoom(numberFromInput($event))"
             />

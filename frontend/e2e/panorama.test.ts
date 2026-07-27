@@ -142,7 +142,7 @@ test("frames a panorama globally and prints a two-page spread", async ({
   await expect(dialog.locator('input[name="zoom"]')).toHaveAttribute("max", "2");
 
   await dialog.locator('input[name="perspective"]').fill("55");
-  await dialog.locator('input[name="zoom"]').fill("1.8");
+  await dialog.locator('input[name="zoom"]').fill("1.837");
   const box = await preview.boundingBox();
   expect(box).not.toBeNull();
   await page.mouse.move(box!.x + box!.width * 0.65, box!.y + box!.height * 0.5);
@@ -161,7 +161,7 @@ test("frames a panorama globally and prints a two-page spread", async ({
   await expect.poll(() => state.appliedFrame()).not.toBeNull();
   expect(state.appliedFrame()).toMatchObject({
     perspective_fov: 55,
-    zoom: 1.8,
+    zoom: 1.837,
   });
   expect(Math.abs(state.appliedFrame()!.yaw)).toBeGreaterThan(1);
 
