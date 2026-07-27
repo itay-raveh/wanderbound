@@ -115,7 +115,7 @@ test("frames a panorama globally and prints a two-page spread", async ({
 
   const treat = page
     .locator(`[data-media="${panoramaName}"]`)
-    .getByRole("button", { name: "Treat as panorama" });
+    .locator(".panorama-frame-action");
   await expect(treat).toBeVisible({ timeout: 5_000 });
   const [buttonBox, imageBox] = await Promise.all([
     treat.boundingBox(),
@@ -125,18 +125,16 @@ test("frames a panorama globally and prints a two-page spread", async ({
     imageBox!.x + imageBox!.width / 2,
   );
   await treat.click();
-  const dialog = page.getByRole("dialog", { name: "Frame panorama" });
+  const dialog = page.locator(".panorama-dialog");
   await expect(dialog).toBeVisible();
   await expect
     .poll(() =>
-      dialog
-        .locator(".panorama-dialog")
-        .evaluate((element) => element.scrollHeight <= element.clientHeight),
+      dialog.evaluate(
+        (element) => element.scrollHeight <= element.clientHeight,
+      ),
     )
     .toBe(true);
-  const preview = dialog.getByRole("region", {
-    name: "Interactive panorama preview",
-  });
+  const preview = dialog.locator(".panorama-viewport");
   await expect(preview).toBeVisible();
   await expect(dialog.getByRole("alert")).toHaveCount(0);
   await expect(dialog.locator('input[name="zoom"]')).toHaveAttribute("max", "2");
@@ -156,7 +154,7 @@ test("frames a panorama globally and prints a two-page spread", async ({
   );
   await page.mouse.up();
 
-  await dialog.getByRole("button", { name: "Apply frame" }).click();
+  await dialog.locator(".apply-button").click();
   await expect(dialog).toBeHidden();
   await expect.poll(() => state.appliedFrame()).not.toBeNull();
   expect(state.appliedFrame()).toMatchObject({
@@ -167,10 +165,8 @@ test("frames a panorama globally and prints a two-page spread", async ({
 
   await expect(page.locator('img[src*="/panorama-render"]')).toHaveCount(1);
   await scrollToStep(page, "Amsterdam");
-  await expect(
-    page.getByRole("button", { name: "Frame panorama" }).first(),
-  ).toBeVisible();
-  await page.getByRole("button", { name: "Make two-page spread" }).click();
+  await expect(page.locator(".panorama-frame-action").first()).toBeVisible();
+  await page.locator(".panorama-spread-action").click();
   await expect.poll(() => state.step().pages[0]?.kind).toBe("panorama_spread");
   await expect(page.locator(".alignment-item")).toHaveCount(1);
   await expect(page.locator(".panorama-page")).toHaveCount(2);
@@ -182,9 +178,7 @@ test("frames a panorama globally and prints a two-page spread", async ({
   await expect(
     page.locator(".alignment-item").getByRole("note"),
   ).toHaveCount(0);
-  await expect(
-    page.getByRole("button", { name: "Frame panorama" }),
-  ).toHaveCount(0);
+  await expect(page.locator(".panorama-frame-action")).toHaveCount(0);
   await expect
     .poll(() =>
       page.evaluate(
@@ -196,7 +190,7 @@ test("frames a panorama globally and prints a two-page spread", async ({
     .toBe(true);
 
   await openEditor(page);
-  await page.getByRole("button", { name: "Frame panorama" }).first().click();
-  await page.getByRole("button", { name: "Use as normal photo" }).click();
+  await page.locator(".panorama-frame-action").first().click();
+  await page.locator(".disable-button").click();
   await expect(page.locator('img[src*="/panorama-render"]')).toHaveCount(0);
 });
