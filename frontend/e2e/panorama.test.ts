@@ -35,6 +35,7 @@ async function mockPanoramaAlbum(page: Page) {
   };
   const album = {
     ...mockAlbum,
+    safe_margin_mm: 10,
     hidden_headers: [
       "cover-back" as const,
       "overview" as const,
@@ -141,6 +142,9 @@ test("frames a panorama globally and prints a two-page spread", async ({
 
   await dialog.locator('input[name="perspective"]').fill("55");
   await dialog.locator('input[name="zoom"]').fill("1.837");
+  await expect(
+    dialog.locator('input[name="zoom"]').locator("..").locator("output"),
+  ).toHaveText("1.84×");
   const box = await preview.boundingBox();
   expect(box).not.toBeNull();
   await page.mouse.move(box!.x + box!.width * 0.65, box!.y + box!.height * 0.5);
@@ -164,6 +168,21 @@ test("frames a panorama globally and prints a two-page spread", async ({
   expect(Math.abs(state.appliedFrame()!.yaw)).toBeGreaterThan(1);
 
   await expect(page.locator('img[src*="/panorama-render"]')).toHaveCount(1);
+  const fullPagePanorama = page
+    .locator(`[data-media="${panoramaName}"]`)
+    .first();
+  await expect
+    .poll(() =>
+      fullPagePanorama.evaluate((element) => {
+        const container = element.parentElement;
+        const image = element.querySelector("img");
+        return {
+          padding: container ? getComputedStyle(container).paddingTop : null,
+          fit: image ? getComputedStyle(image).objectFit : null,
+        };
+      }),
+    )
+    .toEqual({ padding: "0px", fit: "cover" });
   await scrollToStep(page, "Amsterdam");
   await expect(page.locator(".panorama-frame-action").first()).toBeVisible();
   await page.locator(".panorama-spread-action").click();
@@ -190,7 +209,6 @@ test("frames a panorama globally and prints a two-page spread", async ({
     .toBe(true);
 
   await openEditor(page);
-  await page.locator(".panorama-frame-action").first().click();
-  await page.locator(".disable-button").click();
+  await page.locator(".panorama-disable-action").first().click();
   await expect(page.locator('img[src*="/panorama-render"]')).toHaveCount(0);
 });

@@ -145,7 +145,6 @@
       "perspectiveHelp": "Changes the camera angle and wide-angle character.",
       "zoom": "Zoom",
       "zoomHelp": "Crops the projected view like an ordinary photo.",
-      "reset": "Reset fit",
       "disable": "Use as normal photo",
       "apply": "Apply frame"
     }

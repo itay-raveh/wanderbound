@@ -6,6 +6,7 @@ import { registerQualityBadge } from "@/composables/usePhotoQuality";
 import { usePrintMode } from "@/composables/usePrintReady";
 import { PROGRAMMATIC_SCROLL_KEY } from "@/composables/useProgrammaticScroll";
 import { useVideoFrameMutation } from "@/queries/useVideoFrameMutation";
+import PanoramaActions from "./PanoramaActions.vue";
 import { usePanoramaFrame } from "@/composables/usePanoramaFrame";
 import { useElementVisibility, useResizeObserver } from "@vueuse/core";
 import {
@@ -143,9 +144,6 @@ const hasPanoramaAction = computed(
     !isVideo.value &&
     props.panoramaDestinationKind != null &&
     isPanorama(albumMedia.value),
-);
-const panoramaActionLabel = computed(() =>
-  panorama.value ? t("panorama.frame.title") : t("panorama.treat"),
 );
 const panoramaAspectRatio = computed<number | null>(() => {
   if (
@@ -388,35 +386,15 @@ function onVideoKey(e: KeyboardEvent) {
         }}
       </q-tooltip>
     </button>
-    <div
+    <PanoramaActions
       v-if="hasPanoramaAction"
-      class="panorama-actions column items-start"
-      @click.stop
-    >
-      <button
-        type="button"
-        class="panorama-frame-action panorama-action"
-        @click="openPanoramaFrame"
-      >
-        {{ panoramaActionLabel }}
-      </button>
-      <button
-        v-if="activePanorama && makeFullPage"
-        type="button"
-        class="panorama-full-page-action panorama-action"
-        @click="emit('make-full-page', media)"
-      >
-        {{ t("panorama.makeFullPage") }}
-      </button>
-      <button
-        v-if="activePanorama && makePanoramaSpread"
-        type="button"
-        class="panorama-spread-action panorama-action"
-        @click="emit('make-panorama-spread', media)"
-      >
-        {{ t("panorama.makeSpread") }}
-      </button>
-    </div>
+      :media="media"
+      :make-full-page="activePanorama && makeFullPage"
+      :make-panorama-spread="activePanorama && makePanoramaSpread"
+      @frame="openPanoramaFrame"
+      @make-full-page="emit('make-full-page', $event)"
+      @make-panorama-spread="emit('make-panorama-spread', $event)"
+    />
   </div>
 </template>
 
@@ -594,31 +572,6 @@ function onVideoKey(e: KeyboardEvent) {
   }
 }
 
-.panorama-actions {
-  position: absolute;
-  z-index: 3;
-  inset-block-start: var(--gap-md);
-  inset-inline-start: var(--gap-md);
-  gap: var(--gap-sm);
-}
-
-.panorama-action {
-  min-height: 2.75rem;
-  padding: var(--gap-sm) var(--gap-md-lg);
-  border: 1px solid var(--q-primary);
-  border-radius: var(--radius-sm);
-  background: var(--surface);
-  color: var(--q-primary);
-  cursor: pointer;
-  font: inherit;
-  font-size: var(--type-sm);
-  font-weight: 600;
-}
-
-.panorama-action:focus-visible {
-  outline: 0.125rem solid var(--q-primary);
-  outline-offset: 0.125rem;
-}
 
 @media print {
   .play-overlay,

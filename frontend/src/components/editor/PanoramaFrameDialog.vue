@@ -1,7 +1,6 @@
 <script lang="ts" setup>
 import type { AlbumMedia } from "@/client";
 import {
-  autoFitPanoramaFrame,
   clampPanoramaFrame,
   MAX_PANORAMA_ZOOM,
   MIN_PANORAMA_ZOOM,
@@ -11,10 +10,7 @@ import {
 } from "@/panorama/frame";
 import type { PanoramaViewerAdapter } from "@/panorama/view360Adapter";
 import { useResizeObserver } from "@vueuse/core";
-import {
-  useDisablePanoramaMutation,
-  usePanoramaMutation,
-} from "@/queries/usePanoramaMutation";
+import { usePanoramaMutation } from "@/queries/usePanoramaMutation";
 import { computed, nextTick, onBeforeUnmount, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 
@@ -33,7 +29,6 @@ const emit = defineEmits<{
 
 const { t } = useI18n();
 const mutation = usePanoramaMutation();
-const disableMutation = useDisablePanoramaMutation();
 const viewerRoot = ref<HTMLElement | null>(null);
 const draft = ref<PanoramaFrameDraft>({
   yaw: 0,
@@ -50,9 +45,6 @@ useResizeObserver(viewerRoot, () => adapter?.resize());
 
 const panorama = computed(() => props.media.panorama);
 const applying = computed(() => mutation.asyncStatus.value === "loading");
-const disabling = computed(
-  () => disableMutation.asyncStatus.value === "loading",
-);
 const viewportStyle = computed(() => ({
   aspectRatio: String(props.aspectRatio),
   maxWidth: `${props.aspectRatio * 50}vh`,
@@ -63,7 +55,7 @@ const projectionStyle = computed(() => ({
 const perspectiveLabel = computed(
   () => `${Math.round(draft.value.perspectiveFov)}°`,
 );
-const zoomLabel = computed(() => `${draft.value.zoom.toFixed(1)}×`);
+const zoomLabel = computed(() => `${draft.value.zoom.toFixed(2)}×`);
 
 function savedFrame(): PanoramaFrameDraft {
   const config = panorama.value;
@@ -160,15 +152,6 @@ function numberFromInput(event: Event): number {
   return Number((event.target as HTMLInputElement).value);
 }
 
-function resetFrame(): void {
-  draft.value = autoFitPanoramaFrame(
-    draft.value,
-    props.media,
-    props.aspectRatio,
-  );
-  adapter?.update(draft.value, currentBounds());
-}
-
 function cancel(): void {
   emit("update:modelValue", false);
 }
@@ -186,16 +169,6 @@ async function apply(): Promise<void> {
       zoom: frame.zoom,
       aspect_ratio: props.aspectRatio,
     },
-  });
-  emit("applied", committed);
-  emit("update:modelValue", false);
-}
-
-async function disablePanorama(): Promise<void> {
-  if (disabling.value) return;
-  const committed = await disableMutation.mutateAsync({
-    aid: props.albumId,
-    name: props.media.name,
   });
   emit("applied", committed);
   emit("update:modelValue", false);
@@ -311,28 +284,10 @@ onBeforeUnmount(cleanupAdapter);
 
       <q-card-actions class="panorama-actions" align="right">
         <q-btn
-          v-if="panorama"
-          class="disable-button"
-          flat
-          no-caps
-          color="negative"
-          :disable="applying || disabling"
-          :loading="disabling"
-          :label="t('panorama.frame.disable')"
-          @click="disablePanorama"
-        />
-        <q-btn
-          class="reset-button"
-          flat
-          no-caps
-          :label="t('panorama.frame.reset')"
-          @click="resetFrame"
-        />
-        <q-btn
           class="cancel-button"
           flat
           no-caps
-          :disable="applying || disabling"
+          :disable="applying"
           :label="t('common.cancel')"
           @click="cancel"
         />
@@ -340,7 +295,7 @@ onBeforeUnmount(cleanupAdapter);
           class="apply-button"
           color="primary"
           no-caps
-          :disable="loading || loadError || applying || disabling"
+          :disable="loading || loadError || applying"
           :loading="applying"
           :label="t('panorama.frame.apply')"
           @click="apply"

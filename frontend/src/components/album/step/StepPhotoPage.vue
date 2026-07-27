@@ -86,6 +86,10 @@ const layoutClass = computed(() =>
   resolveLayoutClass(localPage.value, isPortrait),
 );
 const photoFit = computed(() => photoPageFit(layoutClass.value));
+const fullBleedPanorama = computed(() => {
+  const media = localPage.value.length === 1 ? localPage.value[0] : undefined;
+  return media != null && mediaByName.value.get(media)?.panorama != null;
+});
 
 const photoQualities = computed(() =>
   localPage.value.map((name, i) =>
@@ -104,7 +108,12 @@ const photoQualities = computed(() =>
   <div class="page page-container">
     <div
       ref="containerRef"
-      :class="['container', layoutClass, `fit-${photoFit}`]"
+      :class="[
+        'container',
+        layoutClass,
+        `fit-${photoFit}`,
+        { 'full-bleed-panorama': fullBleedPanorama },
+      ]"
     >
       <MediaItem
         v-for="(photo, i) in localPage"
@@ -154,6 +163,15 @@ const photoQualities = computed(() =>
 
 .container.fit-contain :deep(img) {
   object-fit: contain;
+}
+
+.container.full-bleed-panorama {
+  gap: 0;
+  padding: 0;
+}
+
+.container.full-bleed-panorama :deep(img) {
+  object-fit: cover;
 }
 
 // -- 1 photo --

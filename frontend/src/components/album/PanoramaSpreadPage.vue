@@ -1,10 +1,10 @@
 <script lang="ts" setup>
-import { usePanoramaFrame } from "@/composables/usePanoramaFrame";
 import { useAlbum } from "@/composables/useAlbum";
 import { usePrintMode } from "@/composables/usePrintReady";
-import { t } from "@/i18n";
+import { usePanoramaFrame } from "@/composables/usePanoramaFrame";
 import { PAGE_HEIGHT_MM, PAGE_WIDTH_MM } from "@/utils/pageSize";
 import { computed } from "vue";
+import PanoramaActions from "./PanoramaActions.vue";
 
 const props = defineProps<{
   media: string;
@@ -42,22 +42,13 @@ function openPanoramaFrame(): void {
       :loading="printMode ? 'eager' : 'lazy'"
       decoding="async"
     />
-    <div v-if="!printMode && side === 'left'" class="panorama-actions">
-      <button
-        type="button"
-        class="panorama-frame-action panorama-action"
-        @click="openPanoramaFrame"
-      >
-        {{ t("panorama.frame.title") }}
-      </button>
-      <button
-        type="button"
-        class="panorama-full-page-action panorama-action"
-        @click="emit('make-full-page', media)"
-      >
-        {{ t("panorama.makeFullPage") }}
-      </button>
-    </div>
+    <PanoramaActions
+      v-if="!printMode && side === 'left'"
+      :media="media"
+      make-full-page
+      @frame="openPanoramaFrame"
+      @make-full-page="emit('make-full-page', $event)"
+    />
   </div>
 </template>
 
@@ -80,25 +71,4 @@ function openPanoramaFrame(): void {
   left: -100%;
 }
 
-.panorama-actions {
-  position: absolute;
-  z-index: 2;
-  inset-block-start: var(--gap-md);
-  inset-inline-start: var(--gap-md);
-  display: flex;
-  gap: var(--gap-sm);
-}
-
-.panorama-action {
-  min-height: 2.75rem;
-  padding: var(--gap-sm) var(--gap-md-lg);
-  border: 1px solid var(--q-primary);
-  border-radius: var(--radius-sm);
-  background: var(--surface);
-  color: var(--q-primary);
-  cursor: pointer;
-  font: inherit;
-  font-size: var(--type-sm);
-  font-weight: 600;
-}
 </style>
