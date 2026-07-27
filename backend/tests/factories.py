@@ -219,10 +219,16 @@ def make_user(
     unit_is_km: bool = True,
     temperature_is_celsius: bool = True,
     is_demo: bool = False,
+    is_local: bool = False,
     last_active_at: datetime | None = None,
 ) -> User:
     resolved_google_sub = google_sub
-    if resolved_google_sub is None and microsoft_sub is None and not is_demo:
+    if (
+        resolved_google_sub is None
+        and microsoft_sub is None
+        and not is_demo
+        and not is_local
+    ):
         resolved_google_sub = f"google-{uid}"
     user = User(
         id=uid,
@@ -234,6 +240,7 @@ def make_user(
         temperature_is_celsius=temperature_is_celsius,
         album_ids=album_ids if album_ids is not None else [AID],
         is_demo=is_demo,
+        is_local=is_local,
         last_active_at=last_active_at or datetime.now(UTC),
     )
     user.folder.mkdir(parents=True, exist_ok=True)
