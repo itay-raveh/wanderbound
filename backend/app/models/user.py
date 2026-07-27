@@ -66,14 +66,6 @@ class OAuthIdentity(BaseModel):
 
 
 class User(UserBase, table=True):
-    __table_args__ = (
-        sa.CheckConstraint(
-            "is_demo OR is_local OR google_sub IS NOT NULL "
-            "OR microsoft_sub IS NOT NULL",
-            name="ck_user_has_identity",
-        ),
-    )
-
     id: int = Field(primary_key=True)
     google_sub: str | None = Field(default=None, unique=True, index=True)
     microsoft_sub: str | None = Field(default=None, unique=True, index=True)
@@ -85,7 +77,6 @@ class User(UserBase, table=True):
         default_factory=list, sa_column=Column(JSON, nullable=False)
     )
     is_demo: bool = Field(default=False)
-    is_local: bool = Field(default=False)
     last_active_at: datetime = Field(
         default_factory=lambda: datetime.now(UTC),
         sa_column=Column(

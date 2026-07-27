@@ -4,11 +4,6 @@ import type { z } from "zod";
 
 export type Settings = z.output<typeof zPublicSettings>;
 
-type ProviderSettings = Pick<
-  Settings,
-  "GOOGLE_CLIENT_ID" | "MICROSOFT_CLIENT_ID"
->;
-
 let settings: Settings | undefined;
 let loading: Promise<Settings> | undefined;
 
@@ -27,6 +22,7 @@ export function getSettings(): Settings {
   return settings;
 }
 
-export function isLocalLoginEnabled(settings: ProviderSettings): boolean {
+export function isLocalLoginEnabled(): boolean {
+  const settings = getSettings();
   return !settings.GOOGLE_CLIENT_ID && !settings.MICROSOFT_CLIENT_ID;
 }

@@ -11,7 +11,6 @@ from sqlmodel import col, select
 from app.core.config import get_settings
 from app.logic.uploads.finalize import finalize_upload_session
 from app.models.processing import ProcessingOperation, UploadSession
-from app.models.user import User
 from tests.factories import PS_USER, TRIPS, make_user
 
 if TYPE_CHECKING:
@@ -29,6 +28,20 @@ def acquire_upload_lock(monkeypatch: pytest.MonkeyPatch) -> None:
         "app.logic.uploads.finalize.try_advisory_lock",
         lambda _key: _lock(acquired=True),
     )
+
+
+def _local_upload(tmp_path: Path, name: str) -> tuple[UploadSession, Path]:
+    source = tmp_path / name
+    (source / "trip" / "trip-1").mkdir(parents=True)
+    upload = UploadSession.new(
+        owner="local",
+        provider_upload_id="provider-id",
+        filename="polarsteps.zip",
+        content_type="application/zip",
+        size_bytes=1,
+    )
+    upload.status = "processing"
+    return upload, source
 
 
 async def test_finalization_is_idempotent_across_database_and_filesystem(
@@ -67,6 +80,8 @@ async def test_finalization_is_idempotent_across_database_and_filesystem(
 
     first = await finalize_upload_session(session, upload, source)
     second = await finalize_upload_session(session, upload, source)
+    assert first is not None
+    assert second is not None
 
     operations = (
         await session.exec(
@@ -83,75 +98,42 @@ async def test_finalization_is_idempotent_across_database_and_filesystem(
     assert not list(get_settings().USERS_FOLDER.glob("*.upload-backup-*"))
 
 
-async def test_local_finalization_creates_user_from_polarsteps(
+async def test_local_finalization_creates_and_updates_the_polarsteps_user(
     session: AsyncSession,
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(get_settings(), "DATA_FOLDER", tmp_path)
     (tmp_path / "users").mkdir()
-    source = tmp_path / "local-create"
-    (source / "trip" / "trip-1").mkdir(parents=True)
-    upload = UploadSession.new(
-        owner="local:browser-one",
-        provider_upload_id="provider-id",
-        filename="polarsteps.zip",
-        content_type="application/zip",
-        size_bytes=1,
-    )
-    upload.status = "processing"
-    session.add(upload)
-    await session.commit()
+    first_upload, first_source = _local_upload(tmp_path, "local-create")
+    session.add(first_upload)
     monkeypatch.setattr(
         "app.logic.uploads.finalize.scan_user_folder",
         lambda _path: (PS_USER, TRIPS),
     )
 
-    result, _operation, user = await finalize_upload_session(session, upload, source)
+    finalized = await finalize_upload_session(session, first_upload, first_source)
+    assert finalized is not None
+    _result, _operation, user = finalized
 
     assert user.id == PS_USER.id
-    assert user.is_local is True
     assert user.google_sub is None
     assert user.microsoft_sub is None
-    assert result.user.first_name == PS_USER.first_name
-
-
-async def test_local_finalization_updates_existing_polarsteps_user(
-    session: AsyncSession,
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.setattr(get_settings(), "DATA_FOLDER", tmp_path)
-    (tmp_path / "users").mkdir()
-    existing = make_user(
-        uid=PS_USER.id,
-        album_ids=["old-trip"],
-        first_name="Edited",
-        is_local=True,
-    )
-    session.add(existing)
-    source = tmp_path / "local-update"
-    (source / "trip" / "trip-1").mkdir(parents=True)
-    upload = UploadSession.new(
-        owner="local:browser-one",
-        provider_upload_id="provider-id",
-        filename="polarsteps.zip",
-        content_type="application/zip",
-        size_bytes=1,
-    )
-    upload.status = "processing"
-    session.add(upload)
+    user.first_name = "Edited"
+    user.album_ids = ["old-trip"]
+    session.add(user)
     await session.commit()
-    monkeypatch.setattr(
-        "app.logic.uploads.finalize.scan_user_folder",
-        lambda _path: (PS_USER, TRIPS),
-    )
 
-    _result, _operation, user = await finalize_upload_session(session, upload, source)
+    second_upload, second_source = _local_upload(tmp_path, "local-update")
+    session.add(second_upload)
 
-    assert user.id == existing.id
-    assert user.first_name == "Edited"
-    assert user.album_ids == ["old-trip", "trip-1"]
+    finalized = await finalize_upload_session(session, second_upload, second_source)
+    assert finalized is not None
+    _result, _operation, updated = finalized
+
+    assert updated.id == user.id
+    assert updated.first_name == "Edited"
+    assert updated.album_ids == ["old-trip", "trip-1"]
 
 
 async def test_local_finalization_rejects_a_concurrent_upload_for_the_same_user(
@@ -161,18 +143,8 @@ async def test_local_finalization_rejects_a_concurrent_upload_for_the_same_user(
 ) -> None:
     monkeypatch.setattr(get_settings(), "DATA_FOLDER", tmp_path)
     (tmp_path / "users").mkdir()
-    source = tmp_path / "local-conflict"
-    (source / "trip" / "trip-1").mkdir(parents=True)
-    upload = UploadSession.new(
-        owner="local:browser-two",
-        provider_upload_id="provider-id",
-        filename="polarsteps.zip",
-        content_type="application/zip",
-        size_bytes=1,
-    )
-    upload.status = "processing"
+    upload, source = _local_upload(tmp_path, "local-conflict")
     session.add(upload)
-    await session.commit()
     monkeypatch.setattr(
         "app.logic.uploads.finalize.scan_user_folder",
         lambda _path: (PS_USER, TRIPS),
@@ -183,8 +155,4 @@ async def test_local_finalization_rejects_a_concurrent_upload_for_the_same_user(
         raising=False,
     )
 
-    with pytest.raises(RuntimeError, match="already being imported"):
-        await finalize_upload_session(session, upload, source)
-
-    assert await session.get(User, PS_USER.id) is None
-    assert upload.result is None
+    assert await finalize_upload_session(session, upload, source) is None

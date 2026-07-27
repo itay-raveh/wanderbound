@@ -156,43 +156,8 @@ async def test_progress_runner_joins_worker_before_stream_error_escapes() -> Non
     assert finished.is_set()
 
 
-async def test_finalize_step_converts_a_conflict_to_a_non_retrying_result(
-    tmp_path: Path,
-) -> None:
-    engine = create_async_engine(f"sqlite+aiosqlite:///{tmp_path / 'upload.db'}")
-    async with engine.begin() as connection:
-        await connection.run_sync(SQLModel.metadata.create_all)
-    upload = UploadSession.new(
-        owner="local:browser-two",
-        provider_upload_id="provider-id",
-        filename="polarsteps.zip",
-        content_type="application/zip",
-        size_bytes=1,
-    )
-    upload.status = "processing"
-    upload_id = upload.upload_id
-    async with AsyncSession(engine) as session:
-        session.add(upload)
-        await session.commit()
-
-    with (
-        patch.object(upload_workflows, "get_engine", return_value=engine),
-        patch.object(
-            upload_workflows,
-            "finalize_upload_session",
-            new=AsyncMock(side_effect=upload_workflows.ConcurrentUploadError),
-        ) as finalize,
-    ):
-        result = await unwrap(upload_workflows.finalize_upload)(
-            upload_id, str(tmp_path / "extracted")
-        )
-
-    await engine.dispose()
-    assert result is None
-    finalize.assert_awaited_once()
-
-
-async def test_upload_workflow_persists_ingestion_progress() -> None:
+@pytest.mark.parametrize("conflict", [False, True])
+async def test_upload_workflow_persists_ingestion_progress(*, conflict: bool) -> None:
     choices = [{"id": "trip-a", "label": "trip-a"}]
     processing = {
         "operation_id": "operation-id",
@@ -221,8 +186,11 @@ async def test_upload_workflow_persists_ingestion_progress() -> None:
         ) as extract,
         patch(
             "app.logic.workflows.uploads.finalize_upload",
-            new=AsyncMock(return_value=processing),
+            new=AsyncMock(return_value=None if conflict else processing),
         ),
+        patch(
+            "app.logic.workflows.uploads.mark_upload_failed", new=AsyncMock()
+        ) as mark_failed,
         patch(
             "app.logic.workflows.uploads.complete_upload",
             new=AsyncMock(return_value=42),
@@ -237,6 +205,13 @@ async def test_upload_workflow_persists_ingestion_progress() -> None:
         ) as close,
     ):
         await unwrap(upload_import_workflow)("upload-id")
+
+    if conflict:
+        mark_failed.assert_awaited_once_with("upload-id", "upload_conflict")
+        assert write.await_args_list[-1] == (
+            ("progress", {"type": "error", "error_code": "upload_conflict"}),
+        )
+        return
 
     inspect.assert_awaited_once_with("upload-id", "/work/source.zip")
     receive.assert_awaited_once()
@@ -263,47 +238,3 @@ async def test_upload_workflow_persists_ingestion_progress() -> None:
         (("progress", {"type": "complete"}),),
     ]
     close.assert_awaited_once_with("progress")
-
-
-async def test_upload_workflow_reports_a_same_user_finalization_conflict() -> None:
-    choices = [{"id": "trip-a", "label": "trip-a"}]
-    with (
-        patch(
-            "app.logic.workflows.uploads.download_upload",
-            new=AsyncMock(return_value="/work/source.zip"),
-        ),
-        patch(
-            "app.logic.workflows.uploads.inspect_upload",
-            new=AsyncMock(return_value=choices),
-        ),
-        patch(
-            "app.logic.workflows.uploads.DBOS.recv_async",
-            new=AsyncMock(return_value=["trip-a"]),
-        ),
-        patch(
-            "app.logic.workflows.uploads.extract_upload",
-            new=AsyncMock(return_value="/work/extracted"),
-        ),
-        patch(
-            "app.logic.workflows.uploads.finalize_upload",
-            new=AsyncMock(return_value=None),
-        ),
-        patch(
-            "app.logic.workflows.uploads.mark_upload_failed",
-            new=AsyncMock(),
-        ) as mark_failed,
-        patch(
-            "app.logic.workflows.uploads.DBOS.write_stream_async",
-            new=AsyncMock(),
-        ) as write,
-        patch(
-            "app.logic.workflows.uploads.DBOS.close_stream_async",
-            new=AsyncMock(),
-        ),
-    ):
-        await unwrap(upload_import_workflow)("upload-id")
-
-    mark_failed.assert_awaited_once_with("upload-id", "upload_conflict")
-    assert write.await_args_list[-1] == (
-        ("progress", {"type": "error", "error_code": "upload_conflict"}),
-    )

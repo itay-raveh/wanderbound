@@ -3,7 +3,6 @@ import { deleteUser, logout } from "@/client";
 import { useUserQuery } from "@/queries/useUserQuery";
 import { useUserMutation } from "@/queries/useUserMutation";
 import { getLocaleOptions, resolveLocale } from "@/composables/useLocale";
-import { getSettings, isLocalLoginEnabled } from "@/config";
 import { useQuasar } from "quasar";
 import { useI18n } from "vue-i18n";
 import { computed, ref } from "vue";
@@ -32,7 +31,9 @@ const { user, isKm, isCelsius, isDemo, exitDemo, clearAllAuthState } =
 const { mutate: patch } = useUserMutation();
 const $q = useQuasar();
 const { t } = useI18n();
-const localLoginEnabled = isLocalLoginEnabled(getSettings());
+const localLoginEnabled = computed(
+  () => !user.value?.google_sub && !user.value?.microsoft_sub,
+);
 
 const exportStream = useDataExport();
 const menuOpen = ref(false);

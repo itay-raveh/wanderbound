@@ -17,7 +17,7 @@ from app.core.db import get_engine
 from app.logic.eviction import run_eviction
 from app.logic.upload import extract_selected, inspect_archive, scan_user_folder
 from app.logic.uploads.files import remove_tree_if_present
-from app.logic.uploads.finalize import ConcurrentUploadError, finalize_upload_session
+from app.logic.uploads.finalize import finalize_upload_session
 from app.logic.uploads.progress import (
     SelectionRequiredEvent,
     UploadCompleteEvent,
@@ -222,12 +222,10 @@ async def finalize_upload(upload_id: str, extracted_path: str) -> dict[str, Any]
         row.updated_at = datetime.now(UTC)
         session.add(row)
         await session.commit()
-        try:
-            result, operation, user = await finalize_upload_session(
-                session, row, Path(extracted_path)
-            )
-        except ConcurrentUploadError:
+        finalized = await finalize_upload_session(session, row, Path(extracted_path))
+        if finalized is None:
             return None
+        result, operation, user = finalized
     return {
         "operation_id": operation.operation_id,
         "uid": user.id,

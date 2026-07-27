@@ -41,17 +41,3 @@ it("rejects an invalid startup configuration response", async () => {
 
   await expect(loadSettings()).rejects.toThrow();
 });
-
-it("enables local login only when both provider IDs are empty", async () => {
-  const { isLocalLoginEnabled } = await import("@/config");
-
-  expect(
-    isLocalLoginEnabled({ GOOGLE_CLIENT_ID: "", MICROSOFT_CLIENT_ID: "" }),
-  ).toBe(true);
-  expect(
-    isLocalLoginEnabled({ GOOGLE_CLIENT_ID: "google", MICROSOFT_CLIENT_ID: "" }),
-  ).toBe(false);
-  expect(
-    isLocalLoginEnabled({ GOOGLE_CLIENT_ID: "", MICROSOFT_CLIENT_ID: "microsoft" }),
-  ).toBe(false);
-});

@@ -1,12 +1,9 @@
 from __future__ import annotations
 
-import asyncio
 import json
 from collections.abc import AsyncIterator
 from typing import TYPE_CHECKING
 from unittest.mock import AsyncMock, MagicMock, patch
-
-from httpx import ASGITransport, AsyncClient, Request, Response
 
 from app.api.v1.deps import _get_upload_store
 from app.core.config import get_settings
@@ -18,6 +15,7 @@ from tests.factories import make_user, sign_in
 
 if TYPE_CHECKING:
     import pytest
+    from httpx import AsyncClient
     from sqlmodel.ext.asyncio.session import AsyncSession
 
 
@@ -42,7 +40,7 @@ async def test_multipart_routes_require_an_upload_owner(
     assert response.status_code == 401
 
 
-async def test_local_mode_creates_a_temporary_upload_owner(
+async def test_local_upload_logs_in_its_polarsteps_user(
     client: AsyncClient,
     session: AsyncSession,
     monkeypatch: pytest.MonkeyPatch,
@@ -57,81 +55,24 @@ async def test_local_mode_creates_a_temporary_upload_owner(
 
     assert response.status_code == 201
     row = await session.get_one(UploadSession, response.json()["uploadId"])
-    assert row.owner.startswith("local:")
-    assert client.cookies.get("session") is not None
+    assert row.owner == "local"
+    user = make_user(uid=42)
+    user.google_sub = None
+    session.add(user)
+    await session.flush()
+    row.status = "succeeded"
+    row.result = UploadResult(user=UserPublic.model_validate(user), trips=[])
+    session.add(row)
+    await session.commit()
 
+    completed = await client.post(f"/api/v1/users/uploads/{row.upload_id}/complete")
 
-async def test_local_uploads_are_isolated_by_signed_browser_session(
-    client: AsyncClient,
-    session: AsyncSession,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.setattr(get_settings(), "GOOGLE_CLIENT_ID", "")
-    monkeypatch.setattr(get_settings(), "MICROSOFT_CLIENT_ID", "")
-    store = MagicMock()
-    store.create.return_value = "provider-id"
-    store.list_parts.return_value = []
-    app.dependency_overrides[_get_upload_store] = lambda: store
-    created = await client.post("/api/v1/users/uploads/s3/multipart", json=_payload())
-    row = await session.get_one(UploadSession, created.json()["uploadId"])
-
-    async with AsyncClient(
-        transport=ASGITransport(app=app),
-        base_url="http://test",
-    ) as other_browser:
-        response = await other_browser.get(
-            f"/api/v1/users/uploads/s3/multipart/{row.upload_id}",
-            params={"key": row.object_key},
-        )
-
-    assert response.status_code == 404
-
-
-async def test_late_local_pending_probe_does_not_replace_upload_owner(
-    client: AsyncClient,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.setattr(get_settings(), "GOOGLE_CLIENT_ID", "")
-    monkeypatch.setattr(get_settings(), "MICROSOFT_CLIENT_ID", "")
-    store = MagicMock()
-    store.create.return_value = "provider-id"
-    store.list_parts.return_value = []
-    app.dependency_overrides[_get_upload_store] = lambda: store
-    pending_response_ready = asyncio.Event()
-    release_pending_response = asyncio.Event()
-    transport = ASGITransport(app=app)
-    handle_request = transport.handle_async_request
-
-    async def delay_pending_response(request: Request) -> Response:
-        response = await handle_request(request)
-        if request.url.path == "/api/v1/users/uploads/pending":
-            pending_response_ready.set()
-            await release_pending_response.wait()
-        return response
-
-    monkeypatch.setattr(transport, "handle_async_request", delay_pending_response)
-    async with AsyncClient(transport=transport, base_url="http://test") as race_client:
-        pending_task = asyncio.create_task(
-            race_client.get("/api/v1/users/uploads/pending")
-        )
-        await pending_response_ready.wait()
-
-        created = await race_client.post(
-            "/api/v1/users/uploads/s3/multipart", json=_payload()
-        )
-        upload_cookie = race_client.cookies.get("session")
-        release_pending_response.set()
-        pending = await pending_task
-
-        assert pending.status_code == 200
-        assert pending.json() is None
-        assert pending.headers.get("set-cookie") is None
-        assert race_client.cookies.get("session") == upload_cookie
-        response = await race_client.get(
-            f"/api/v1/users/uploads/s3/multipart/{created.json()['uploadId']}",
-            params={"key": created.json()["key"]},
-        )
-        assert response.status_code == 200
+    assert completed.status_code == 200
+    auth = await client.get("/api/v1/auth/state")
+    assert auth.json()["user"]["id"] == user.id
+    reupload = await client.post("/api/v1/users/uploads/s3/multipart", json=_payload())
+    row = await session.get_one(UploadSession, reupload.json()["uploadId"])
+    assert row.owner == "local"
 
 
 async def test_uppy_multipart_contract(
@@ -371,70 +312,3 @@ async def test_complete_ingestion_claims_pending_signup_before_response_headers(
     auth = await client.get("/api/v1/auth/state")
     assert auth.json()["state"] == "authenticated"
     assert auth.json()["user"]["id"] == 42
-
-
-async def test_local_completion_logs_in_and_keeps_retry_proof(
-    client: AsyncClient,
-    session: AsyncSession,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.setattr(get_settings(), "GOOGLE_CLIENT_ID", "")
-    monkeypatch.setattr(get_settings(), "MICROSOFT_CLIENT_ID", "")
-    store = MagicMock()
-    store.create.return_value = "provider-id"
-    app.dependency_overrides[_get_upload_store] = lambda: store
-    created = await client.post("/api/v1/users/uploads/s3/multipart", json=_payload())
-    row = await session.get_one(UploadSession, created.json()["uploadId"])
-    temporary_owner = row.owner
-    temporary_cookie = client.cookies.get("session")
-    assert temporary_cookie is not None
-
-    user = make_user(uid=42, is_local=True)
-    session.add(user)
-    await session.flush()
-    row.status = "succeeded"
-    row.result = UploadResult(user=UserPublic.model_validate(user), trips=[])
-    session.add(row)
-    await session.commit()
-
-    completed = await client.post(f"/api/v1/users/uploads/{row.upload_id}/complete")
-
-    assert completed.status_code == 200
-    auth = await client.get("/api/v1/auth/state")
-    assert auth.json()["state"] == "authenticated"
-    assert auth.json()["user"]["id"] == user.id
-    await session.refresh(row)
-    assert row.owner == temporary_owner
-
-    client.cookies.clear()
-    client.cookies.set("session", temporary_cookie)
-    retried = await client.post(f"/api/v1/users/uploads/{row.upload_id}/complete")
-    assert retried.status_code == 200
-
-    client.cookies.clear()
-    anonymous = await client.get("/api/v1/auth/state")
-    assert anonymous.json()["state"] == "anonymous"
-
-
-async def test_failed_local_upload_does_not_authenticate(
-    client: AsyncClient,
-    session: AsyncSession,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.setattr(get_settings(), "GOOGLE_CLIENT_ID", "")
-    monkeypatch.setattr(get_settings(), "MICROSOFT_CLIENT_ID", "")
-    store = MagicMock()
-    store.create.return_value = "provider-id"
-    app.dependency_overrides[_get_upload_store] = lambda: store
-    created = await client.post("/api/v1/users/uploads/s3/multipart", json=_payload())
-    row = await session.get_one(UploadSession, created.json()["uploadId"])
-    row.status = "failed"
-    row.error_code = "upload_invalid_zip"
-    session.add(row)
-    await session.commit()
-
-    completed = await client.post(f"/api/v1/users/uploads/{row.upload_id}/complete")
-
-    assert completed.status_code == 404
-    auth = await client.get("/api/v1/auth/state")
-    assert auth.json()["state"] == "anonymous"

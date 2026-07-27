@@ -32,6 +32,7 @@ from app.logic.session import cancel_session, process_stream
 from app.logic.trip_processing import ProcessingEvent
 from app.logic.upload import TripMeta, UploadResult, scan_user_folder
 from app.models.user import (
+    OAuthIdentity,
     PSUser,
     User,
     UserPublic,
@@ -45,11 +46,39 @@ from ..deps import (
     apply_update,
     login_session,
     to_user_public,
+    try_load_user,
 )
+from .auth import get_pending_signup
 
 logger = structlog.get_logger(__name__)
 
 router = APIRouter(prefix="/users", tags=["users"])
+
+
+async def _resolve_auth(
+    request: Request,
+    session: SessionDep,
+) -> tuple[User | None, OAuthIdentity | None]:
+    if existing := await try_load_user(request, session):
+        return existing, None
+    identity = get_pending_signup(request)
+    if identity is None and not get_settings().local_login_enabled:
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED)
+    return None, identity
+
+
+def _upload_owner(existing: User | None, identity: OAuthIdentity | None) -> str:
+    if existing is not None:
+        if (
+            not existing.is_demo
+            and not existing.google_sub
+            and not existing.microsoft_sub
+        ):
+            return "local"
+        return f"uid:{existing.id}"
+    if identity is not None:
+        return f"{identity.provider}:{identity.sub}"
+    return "local"
 
 
 @cache

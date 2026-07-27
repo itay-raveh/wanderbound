@@ -3,7 +3,7 @@ import { authenticate, createDemo } from "@/client";
 import AuthActions from "@/components/landing/AuthActions.vue";
 import LandingImage from "@/components/landing/LandingImage.vue";
 import { microsoftLogin } from "@/composables/useMicrosoftAuth";
-import { getSettings, isLocalLoginEnabled } from "@/config";
+import { isLocalLoginEnabled } from "@/config";
 import { useAuthStateQuery } from "@/queries/useAuthStateQuery";
 import type { Provider } from "@/router";
 import {
@@ -21,7 +21,7 @@ const { t } = useI18n();
 const router = useRouter();
 const $q = useQuasar();
 const cache = useQueryCache();
-const localLoginEnabled = isLocalLoginEnabled(getSettings());
+const localLoginEnabled = isLocalLoginEnabled();
 
 const { data: authStateData } = useAuthStateQuery();
 const authenticated = computed(

@@ -20,10 +20,6 @@ if TYPE_CHECKING:
 _MARKER = ".wanderbound-upload-id"
 
 
-class ConcurrentUploadError(RuntimeError):
-    pass
-
-
 def finalization_operation_id(upload_id: str) -> str:
     return f"upload:{upload_id}:processing"
 
@@ -73,29 +69,17 @@ async def _resolve_archive_user(
             user, ps_user, list(dict.fromkeys([*user.album_ids, *album_ids]))
         )
         return user
-    if upload.owner.startswith("local:"):
+    google_sub = microsoft_sub = None
+    if upload.owner == "local":
         user = await session.get(User, ps_user.id)
-        if user is None:
-            return User(
-                id=ps_user.id,
-                first_name=ps_user.first_name or "Anonymous",
-                locale=ps_user.locale,
-                unit_is_km=ps_user.unit_is_km,
-                temperature_is_celsius=ps_user.temperature_is_celsius,
-                living_location=ps_user.living_location,
-                album_ids=album_ids,
-                is_local=True,
-            )
-        user.is_local = True
-        _apply_archive_profile(
-            user,
-            ps_user,
-            list(dict.fromkeys([*user.album_ids, *album_ids])),
+    else:
+        provider, sub = upload.owner.split(":", 1)
+        provider_column = (
+            User.google_sub if provider == "google" else User.microsoft_sub
         )
-        return user
-    provider, sub = upload.owner.split(":", 1)
-    provider_column = User.google_sub if provider == "google" else User.microsoft_sub
-    user = (await session.exec(select(User).where(provider_column == sub))).first()
+        user = (await session.exec(select(User).where(provider_column == sub))).first()
+        google_sub = sub if provider == "google" else None
+        microsoft_sub = sub if provider == "microsoft" else None
     if user is None:
         return User(
             id=ps_user.id,
@@ -103,8 +87,8 @@ async def _resolve_archive_user(
             locale=ps_user.locale,
             unit_is_km=ps_user.unit_is_km,
             temperature_is_celsius=ps_user.temperature_is_celsius,
-            google_sub=sub if provider == "google" else None,
-            microsoft_sub=sub if provider == "microsoft" else None,
+            google_sub=google_sub,
+            microsoft_sub=microsoft_sub,
             living_location=ps_user.living_location,
             album_ids=album_ids,
         )
@@ -172,16 +156,14 @@ async def _finalize_upload_session_locked(
 
 async def finalize_upload_session(
     session: AsyncSession, upload: UploadSession, extracted_folder: Path
-) -> tuple[UploadResult, ProcessingOperation, User]:
+) -> tuple[UploadResult, ProcessingOperation, User] | None:
     if upload.result is not None:
         return await _finalize_upload_session_locked(session, upload, extracted_folder)
     scanned = await asyncio.to_thread(scan_user_folder, extracted_folder)
     ps_user, _trips = scanned
     async with try_advisory_lock(f"upload-finalize:{ps_user.id}") as acquired:
         if not acquired:
-            raise ConcurrentUploadError(
-                "another upload for this Polarsteps user is already being imported"
-            )
+            return None
         return await _finalize_upload_session_locked(
             session, upload, extracted_folder, scanned
         )

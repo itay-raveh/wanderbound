@@ -23,13 +23,8 @@ async def test_public_config_filters_backend_settings(
     assert response.headers["cache-control"] == "no-store"
 
 
-def test_local_login_is_enabled_only_without_providers() -> None:
-    assert PublicSettings().local_login_enabled is True
+def test_missing_providers_enable_local_login_in_production() -> None:
     assert PublicSettings(GOOGLE_CLIENT_ID="google").local_login_enabled is False
-    assert PublicSettings(MICROSOFT_CLIENT_ID="microsoft").local_login_enabled is False
-
-
-def test_production_does_not_require_an_auth_provider() -> None:
     settings = Settings.model_construct(
         ENVIRONMENT="production",
         PUBLIC_URL=AnyHttpUrl("https://wanderbound.example"),
@@ -39,4 +34,5 @@ def test_production_does_not_require_an_auth_provider() -> None:
         GOOGLE_CLIENT_SECRET="",
     )
 
+    assert settings.local_login_enabled is True
     assert settings._require_in_production() is settings  # ty: ignore[call-non-callable]
