@@ -172,7 +172,7 @@ export function buildEditorItems(
           physicalPageCount++;
           continue;
         }
-        if (physicalPageCount % 2 === 0) {
+        if (physicalPageCount % 2 === 1) {
           result.push({
             type: "alignment",
             key: `${key}-alignment`,

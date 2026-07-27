@@ -43,25 +43,41 @@ describe("album render planning", () => {
     ).toHaveLength(1);
     expect(physicalTypes).toEqual([
       "step-page",
+      "alignment",
       "panorama-spread-left",
       "panorama-spread-right",
     ]);
   });
 
-  test("inserts one alignment page when a spread would start on a right page", () => {
+  test("does not align a spread that already starts on chapter page five", () => {
     const step = makeStep({
-      pages: [{ kind: "panorama_spread", media: ["wide.jpg"] }],
+      pages: [
+        { kind: "grid", media: ["normal.jpg"] },
+        { kind: "panorama_spread", media: ["wide.jpg"] },
+      ],
     });
 
     const editorItems = buildEditorItems(
-      [group([step], ["overview"])],
+      [
+        group(
+          [step],
+          ["cover-front", "cover-back", "overview", "full-map"],
+        ),
+      ],
       new Map(),
     );
 
-    expect(editorItems.map((item) => item.type)).toEqual([
+    expect(
+      editorItems
+        .filter((item) => item.type !== "step-add-zone")
+        .map((item) => item.type),
+    ).toEqual([
+      "header",
+      "header",
+      "header",
       "header",
       "step-page",
-      "alignment",
+      "grid",
       "panorama-spread",
     ]);
   });
@@ -87,11 +103,13 @@ describe("album render planning", () => {
     );
 
     expect(
-      original.filter((item) => item.type === "alignment"),
-    ).toHaveLength(0);
+      original
+        .filter((item) => item.type === "alignment")
+        .map((item) => item.step.id),
+    ).toEqual([2]);
     expect(
       reordered.filter((item) => item.type === "alignment").map((item) => item.step.id),
-    ).toEqual([2, 3]);
+    ).toEqual([3]);
   });
 
   test("restarts spread parity for each chapter", () => {
@@ -110,6 +128,10 @@ describe("album render planning", () => {
       new Map(),
     );
 
-    expect(editorItems.filter((item) => item.type === "alignment")).toEqual([]);
+    expect(
+      editorItems
+        .filter((item) => item.type === "alignment")
+        .map((item) => item.step.id),
+    ).toEqual([2]);
   });
 });
