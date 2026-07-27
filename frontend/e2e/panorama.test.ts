@@ -174,9 +174,7 @@ test("frames a panorama globally and prints a two-page spread", async ({
   await expect.poll(() => state.step().pages[0]?.kind).toBe("panorama_spread");
   await expect(page.locator(".alignment-item")).toHaveCount(1);
   await expect(page.locator(".panorama-page")).toHaveCount(2);
-  await expect(
-    page.locator(".alignment-item").getByRole("note"),
-  ).toContainText("This keeps the panorama on two facing pages.");
+  await expect(page.locator(".alignment-item").getByRole("note")).toBeVisible();
 
   await page.goto("/print/aid-1", { waitUntil: "domcontentloaded" });
   await expect(page.locator(".panorama-page")).toHaveCount(2);

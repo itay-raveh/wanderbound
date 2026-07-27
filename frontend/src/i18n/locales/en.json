@@ -132,7 +132,7 @@
     "makeSpread": "Make two-page spread",
     "alignment": {
       "title": "Page added for the panorama",
-      "body": "This keeps the panorama on two facing pages. The topographic page will be printed. This explanation only appears in the editor."
+      "body": "This page was added so the next two pages appear side by side, rather than back to back. This note will not be printed."
     },
     "frame": {
       "title": "Frame panorama",

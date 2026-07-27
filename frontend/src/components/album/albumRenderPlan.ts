@@ -118,8 +118,8 @@ export function buildEditorItems(
   mediaByName: ReadonlyMap<string, AlbumMedia>,
 ): EditorItem[] {
   const result: EditorItem[] = [];
-  let physicalPageCount = 0;
   groups.forEach((group) => {
+    let physicalPageCount = 0;
     for (const headerKey of group.headerKeys) {
       result.push({
         type: "header" as const,

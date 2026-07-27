@@ -93,4 +93,23 @@ describe("album render planning", () => {
       reordered.filter((item) => item.type === "alignment").map((item) => item.step.id),
     ).toEqual([2, 3]);
   });
+
+  test("restarts spread parity for each chapter", () => {
+    const firstChapterStep = makeStep({ id: 1 });
+    const secondChapterSpread = makeStep({
+      id: 2,
+      pages: [{ kind: "panorama_spread", media: ["wide.jpg"] }],
+    });
+    const secondChapter = {
+      ...group([secondChapterSpread]),
+      chapter: { ...chapter, id: "chapter-2" },
+    };
+
+    const editorItems = buildEditorItems(
+      [group([firstChapterStep]), secondChapter],
+      new Map(),
+    );
+
+    expect(editorItems.filter((item) => item.type === "alignment")).toEqual([]);
+  });
 });
