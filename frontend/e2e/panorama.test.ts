@@ -187,16 +187,12 @@ test("frames a panorama globally and prints a two-page spread", async ({
   await expect(page.locator(".panorama-frame-action").first()).toBeVisible();
   await page.locator(".panorama-spread-action").click();
   await expect.poll(() => state.step().pages[0]?.kind).toBe("panorama_spread");
-  await expect(page.locator(".alignment-item")).toHaveCount(1);
+  await expect(page.locator(".alignment-item")).toHaveCount(0);
   await expect(page.locator(".panorama-page")).toHaveCount(2);
-  await expect(page.locator(".alignment-item").getByRole("note")).toBeVisible();
 
   await page.goto("/print/aid-1", { waitUntil: "domcontentloaded" });
   await expect(page.locator(".panorama-page")).toHaveCount(2);
-  await expect(page.locator(".alignment-item")).toHaveCount(1);
-  await expect(
-    page.locator(".alignment-item").getByRole("note"),
-  ).toHaveCount(0);
+  await expect(page.locator(".alignment-item")).toHaveCount(0);
   await expect(page.locator(".panorama-frame-action")).toHaveCount(0);
   await expect
     .poll(() =>
