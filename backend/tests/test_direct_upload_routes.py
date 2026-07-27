@@ -323,3 +323,70 @@ async def test_complete_ingestion_claims_pending_signup_before_response_headers(
     auth = await client.get("/api/v1/auth/state")
     assert auth.json()["state"] == "authenticated"
     assert auth.json()["user"]["id"] == 42
+
+
+async def test_local_completion_logs_in_and_keeps_retry_proof(
+    client: AsyncClient,
+    session: AsyncSession,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(get_settings(), "GOOGLE_CLIENT_ID", "")
+    monkeypatch.setattr(get_settings(), "MICROSOFT_CLIENT_ID", "")
+    store = MagicMock()
+    store.create.return_value = "provider-id"
+    app.dependency_overrides[_get_upload_store] = lambda: store
+    created = await client.post("/api/v1/users/uploads/s3/multipart", json=_payload())
+    row = await session.get_one(UploadSession, created.json()["uploadId"])
+    temporary_owner = row.owner
+    temporary_cookie = client.cookies.get("session")
+    assert temporary_cookie is not None
+
+    user = make_user(uid=42, is_local=True)
+    session.add(user)
+    await session.flush()
+    row.status = "succeeded"
+    row.result = UploadResult(user=UserPublic.model_validate(user), trips=[])
+    session.add(row)
+    await session.commit()
+
+    completed = await client.post(f"/api/v1/users/uploads/{row.upload_id}/complete")
+
+    assert completed.status_code == 200
+    auth = await client.get("/api/v1/auth/state")
+    assert auth.json()["state"] == "authenticated"
+    assert auth.json()["user"]["id"] == user.id
+    await session.refresh(row)
+    assert row.owner == temporary_owner
+
+    client.cookies.clear()
+    client.cookies.set("session", temporary_cookie)
+    retried = await client.post(f"/api/v1/users/uploads/{row.upload_id}/complete")
+    assert retried.status_code == 200
+
+    client.cookies.clear()
+    anonymous = await client.get("/api/v1/auth/state")
+    assert anonymous.json()["state"] == "anonymous"
+
+
+async def test_failed_local_upload_does_not_authenticate(
+    client: AsyncClient,
+    session: AsyncSession,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(get_settings(), "GOOGLE_CLIENT_ID", "")
+    monkeypatch.setattr(get_settings(), "MICROSOFT_CLIENT_ID", "")
+    store = MagicMock()
+    store.create.return_value = "provider-id"
+    app.dependency_overrides[_get_upload_store] = lambda: store
+    created = await client.post("/api/v1/users/uploads/s3/multipart", json=_payload())
+    row = await session.get_one(UploadSession, created.json()["uploadId"])
+    row.status = "failed"
+    row.error_code = "upload_invalid_zip"
+    session.add(row)
+    await session.commit()
+
+    completed = await client.post(f"/api/v1/users/uploads/{row.upload_id}/complete")
+
+    assert completed.status_code == 404
+    auth = await client.get("/api/v1/auth/state")
+    assert auth.json()["state"] == "anonymous"

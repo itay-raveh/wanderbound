@@ -316,11 +316,20 @@ async def abort_upload(
 
 
 async def _completed_upload_result(
-    request: Request, session: SessionDep, row: UploadSession
+    request: Request,
+    session: SessionDep,
+    row: UploadSession,
+    principal: UploadPrincipal,
 ) -> UploadResult:
     await session.refresh(row)
     if row.status != "succeeded" or row.result is None:
         raise _error("upload_not_found", status.HTTP_404_NOT_FOUND)
+    if row.owner.startswith("local:") and row.owner == principal.owner:
+        db_user = await session.get(User, row.result.user.id)
+        if db_user is None or not db_user.is_local:
+            raise _error("upload_not_found", status.HTTP_404_NOT_FOUND)
+        login_session(request, db_user.id)
+        return row.result
     pending = get_pending_signup(request)
     if pending is not None:
         user = row.result.user
@@ -420,5 +429,5 @@ async def upload_progress(
 async def complete_ingestion(
     upload_id: str, request: Request, session: SessionDep
 ) -> UploadResult:
-    row, _principal = await _claimable_upload(request, session, upload_id)
-    return await _completed_upload_result(request, session, row)
+    row, principal = await _claimable_upload(request, session, upload_id)
+    return await _completed_upload_result(request, session, row, principal)

@@ -54,6 +54,61 @@ def _apply_archive_profile(user: User, ps_user: PSUser, album_ids: list[str]) ->
     user.first_name = user.first_name or ps_user.first_name
 
 
+async def _resolve_archive_user(
+    session: AsyncSession,
+    upload: UploadSession,
+    ps_user: PSUser,
+    album_ids: list[str],
+) -> User:
+    if upload.owner.startswith("uid:"):
+        user = await session.get(User, int(upload.owner.removeprefix("uid:")))
+        if user is None:
+            raise RuntimeError("upload owner no longer exists")
+        _apply_archive_profile(
+            user, ps_user, list(dict.fromkeys([*user.album_ids, *album_ids]))
+        )
+        return user
+    if upload.owner.startswith("local:"):
+        user = await session.get(User, ps_user.id)
+        if user is None:
+            return User(
+                id=ps_user.id,
+                first_name=ps_user.first_name or "Anonymous",
+                locale=ps_user.locale,
+                unit_is_km=ps_user.unit_is_km,
+                temperature_is_celsius=ps_user.temperature_is_celsius,
+                living_location=ps_user.living_location,
+                album_ids=album_ids,
+                is_local=True,
+            )
+        user.is_local = True
+        _apply_archive_profile(
+            user,
+            ps_user,
+            list(dict.fromkeys([*user.album_ids, *album_ids])),
+        )
+        return user
+    provider, sub = upload.owner.split(":", 1)
+    provider_column = User.google_sub if provider == "google" else User.microsoft_sub
+    user = (await session.exec(select(User).where(provider_column == sub))).first()
+    if user is None:
+        return User(
+            id=ps_user.id,
+            first_name=ps_user.first_name or "Anonymous",
+            locale=ps_user.locale,
+            unit_is_km=ps_user.unit_is_km,
+            temperature_is_celsius=ps_user.temperature_is_celsius,
+            google_sub=sub if provider == "google" else None,
+            microsoft_sub=sub if provider == "microsoft" else None,
+            living_location=ps_user.living_location,
+            album_ids=album_ids,
+        )
+    _apply_archive_profile(
+        user, ps_user, list(dict.fromkeys([*user.album_ids, *album_ids]))
+    )
+    return user
+
+
 async def finalize_upload_session(
     session: AsyncSession, upload: UploadSession, extracted_folder: Path
 ) -> tuple[UploadResult, ProcessingOperation, User]:
@@ -62,37 +117,7 @@ async def finalize_upload_session(
     if upload.result is None:
         ps_user, trips = await asyncio.to_thread(scan_user_folder, source)
         album_ids = [trip.id for trip in trips]
-        if upload.owner.startswith("uid:"):
-            user = await session.get(User, int(upload.owner.removeprefix("uid:")))
-            if user is None:
-                raise RuntimeError("upload owner no longer exists")
-            _apply_archive_profile(
-                user, ps_user, list(dict.fromkeys([*user.album_ids, *album_ids]))
-            )
-        else:
-            provider, sub = upload.owner.split(":", 1)
-            provider_column = (
-                User.google_sub if provider == "google" else User.microsoft_sub
-            )
-            user = (
-                await session.exec(select(User).where(provider_column == sub))
-            ).first()
-            if user is None:
-                user = User(
-                    id=ps_user.id,
-                    first_name=ps_user.first_name or "Anonymous",
-                    locale=ps_user.locale,
-                    unit_is_km=ps_user.unit_is_km,
-                    temperature_is_celsius=ps_user.temperature_is_celsius,
-                    google_sub=sub if provider == "google" else None,
-                    microsoft_sub=sub if provider == "microsoft" else None,
-                    living_location=ps_user.living_location,
-                    album_ids=album_ids,
-                )
-            else:
-                _apply_archive_profile(
-                    user, ps_user, list(dict.fromkeys([*user.album_ids, *album_ids]))
-                )
+        user = await _resolve_archive_user(session, upload, ps_user, album_ids)
         cancel_session(user.id)
         await mark_user_processing_operations_stale(session, uid=user.id)
         session.add(user)
