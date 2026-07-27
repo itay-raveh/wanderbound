@@ -24,6 +24,18 @@ test.describe("Stack smoke tests", () => {
     expect(headers["cache-control"]).toBe("no-cache");
   });
 
+  test("API advertises the image version", async ({ page }) => {
+    const configResponse = page.waitForResponse((response) =>
+      response.url().endsWith("/api/v1/config"),
+    );
+
+    await page.goto("/");
+
+    const response = await configResponse;
+    const expected = process.env.APP_VERSION ?? "dev";
+    expect(response.headers()["x-wanderbound-version"]).toBe(expected);
+  });
+
   test("static assets have immutable cache headers", async ({ page }) => {
     const assetResponse = page.waitForResponse((r) =>
       r.url().includes("/assets/"),
