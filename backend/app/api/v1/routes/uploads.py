@@ -100,10 +100,10 @@ def _aware(value: datetime) -> datetime:
     return value if value.tzinfo is not None else value.replace(tzinfo=UTC)
 
 
-async def _resolve_upload_principal(
+async def _resolve_existing_upload_principal(
     request: Request,
     session: SessionDep,
-) -> UploadPrincipal:
+) -> UploadPrincipal | None:
     if user := await try_load_user(request, session):
         return UploadPrincipal(owner=f"uid:{user.id}")
     if identity := get_pending_signup(request):
@@ -115,8 +115,18 @@ async def _resolve_upload_principal(
         raise HTTPException(status.HTTP_401_UNAUTHORIZED)
     token = request.session.get(_LOCAL_UPLOAD_PRINCIPAL_KEY)
     if token is None:
-        token = token_urlsafe(24)
-        request.session[_LOCAL_UPLOAD_PRINCIPAL_KEY] = token
+        return None
+    return UploadPrincipal(owner=f"local:{token}")
+
+
+async def _resolve_upload_principal(
+    request: Request,
+    session: SessionDep,
+) -> UploadPrincipal:
+    if principal := await _resolve_existing_upload_principal(request, session):
+        return principal
+    token = token_urlsafe(24)
+    request.session[_LOCAL_UPLOAD_PRINCIPAL_KEY] = token
     return UploadPrincipal(owner=f"local:{token}")
 
 
@@ -359,7 +369,9 @@ async def _completed_upload_result(
 
 @router.get("/pending")
 async def pending_upload(request: Request, session: SessionDep) -> PendingUpload | None:
-    principal = await _resolve_upload_principal(request, session)
+    principal = await _resolve_existing_upload_principal(request, session)
+    if principal is None:
+        return None
     statement = (
         select(UploadSession)
         .where(

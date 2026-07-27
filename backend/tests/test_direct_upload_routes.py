@@ -1,11 +1,12 @@
 from __future__ import annotations
 
+import asyncio
 import json
 from collections.abc import AsyncIterator
 from typing import TYPE_CHECKING
 from unittest.mock import AsyncMock, MagicMock, patch
 
-from httpx import ASGITransport, AsyncClient
+from httpx import ASGITransport, AsyncClient, Request, Response
 
 from app.api.v1.deps import _get_upload_store
 from app.core.config import get_settings
@@ -84,6 +85,53 @@ async def test_local_uploads_are_isolated_by_signed_browser_session(
         )
 
     assert response.status_code == 404
+
+
+async def test_late_local_pending_probe_does_not_replace_upload_owner(
+    client: AsyncClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(get_settings(), "GOOGLE_CLIENT_ID", "")
+    monkeypatch.setattr(get_settings(), "MICROSOFT_CLIENT_ID", "")
+    store = MagicMock()
+    store.create.return_value = "provider-id"
+    store.list_parts.return_value = []
+    app.dependency_overrides[_get_upload_store] = lambda: store
+    pending_response_ready = asyncio.Event()
+    release_pending_response = asyncio.Event()
+    transport = ASGITransport(app=app)
+    handle_request = transport.handle_async_request
+
+    async def delay_pending_response(request: Request) -> Response:
+        response = await handle_request(request)
+        if request.url.path == "/api/v1/users/uploads/pending":
+            pending_response_ready.set()
+            await release_pending_response.wait()
+        return response
+
+    monkeypatch.setattr(transport, "handle_async_request", delay_pending_response)
+    async with AsyncClient(transport=transport, base_url="http://test") as race_client:
+        pending_task = asyncio.create_task(
+            race_client.get("/api/v1/users/uploads/pending")
+        )
+        await pending_response_ready.wait()
+
+        created = await race_client.post(
+            "/api/v1/users/uploads/s3/multipart", json=_payload()
+        )
+        upload_cookie = race_client.cookies.get("session")
+        release_pending_response.set()
+        pending = await pending_task
+
+        assert pending.status_code == 200
+        assert pending.json() is None
+        assert pending.headers.get("set-cookie") is None
+        assert race_client.cookies.get("session") == upload_cookie
+        response = await race_client.get(
+            f"/api/v1/users/uploads/s3/multipart/{created.json()['uploadId']}",
+            params={"key": created.json()["key"]},
+        )
+        assert response.status_code == 200
 
 
 async def test_uppy_multipart_contract(
