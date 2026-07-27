@@ -27,6 +27,10 @@ export function isPanorama(media: AlbumMedia | undefined): boolean {
   return media?.panorama_candidate ?? false;
 }
 
+export function isCoverEligible(media: AlbumMedia): boolean {
+  return !isPortrait(media) && !isPanorama(media) && !isVideo(media.name);
+}
+
 export function posterPath(path: string): string {
   return isVideo(path) ? path.replace(".mp4", ".jpg") : path;
 }

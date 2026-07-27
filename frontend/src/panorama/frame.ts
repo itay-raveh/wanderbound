@@ -23,7 +23,7 @@ export interface PanoramaCameraBounds {
 export const MIN_PERSPECTIVE_FOV = 1;
 const MAX_PERSPECTIVE_FOV = 179;
 export const MIN_PANORAMA_ZOOM = 1;
-export const MAX_PANORAMA_ZOOM = 2;
+export const MAX_PANORAMA_ZOOM = 3;
 
 const toRadians = (degrees: number) => (degrees * Math.PI) / 180;
 const toDegrees = (radians: number) => (radians * 180) / Math.PI;

@@ -2,8 +2,15 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const view360Fake = vi.hoisted(() => {
   const viewers: FakeViewer[] = [];
+  const controlBars: FakeControlBar[] = [];
 
   class FakeProjection {}
+
+  class FakeControlBar {
+    constructor(public options: Record<string, unknown>) {
+      controlBars.push(this);
+    }
+  }
 
   class FakeViewer {
     camera: {
@@ -21,9 +28,11 @@ const view360Fake = vi.hoisted(() => {
     });
     resize = vi.fn();
     fov: number;
+    options: Record<string, unknown>;
     handlers = new Map<string, (event: unknown) => void>();
 
     constructor(_root: HTMLElement, options: Record<string, unknown>) {
+      this.options = options;
       this.fov = options.fov as number;
       this.camera = {
         yaw: options.initialYaw as number,
@@ -48,11 +57,12 @@ const view360Fake = vi.hoisted(() => {
     }
   }
 
-  return { FakeProjection, FakeViewer, viewers };
+  return { controlBars, FakeControlBar, FakeProjection, FakeViewer, viewers };
 });
 
 vi.mock("@egjs/view360", () => ({
   default: view360Fake.FakeViewer,
+  ControlBar: view360Fake.FakeControlBar,
   EquirectProjection: view360Fake.FakeProjection,
   EVENTS: { VIEW_CHANGE: "viewChange" },
 }));
@@ -62,6 +72,7 @@ import { createPanoramaViewerAdapter } from "@/panorama/view360Adapter";
 describe("View360 panorama adapter", () => {
   beforeEach(() => {
     view360Fake.viewers.length = 0;
+    view360Fake.controlBars.length = 0;
   });
 
   it("keeps negative yaw through exact-beta-style control synchronization", async () => {
@@ -101,5 +112,28 @@ describe("View360 panorama adapter", () => {
     expect(onChange).toHaveBeenLastCalledWith(
       expect.objectContaining({ yaw: -30, pitch: -15 }),
     );
+  });
+
+  it("uses the built-in camera direction control", async () => {
+    const adapter = createPanoramaViewerAdapter(document.createElement("div"));
+
+    await adapter.load({
+      src: "/panorama.jpg",
+      frame: { yaw: 0, pitch: 0, perspectiveFov: 70, zoom: 1 },
+      bounds: {
+        yaw: { min: -50, max: 50 },
+        pitch: { min: -15, max: 15 },
+      },
+      onChange: vi.fn(),
+    });
+
+    expect(view360Fake.controlBars).toHaveLength(1);
+    expect(view360Fake.controlBars[0]?.options).toMatchObject({
+      pieView: { resetCamera: false },
+      playButton: false,
+      progressBar: false,
+      volumeButton: false,
+      videoTime: false,
+    });
   });
 });

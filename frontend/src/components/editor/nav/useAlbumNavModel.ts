@@ -1,6 +1,7 @@
 import type { AlbumChapter, DateRange } from "@/client";
 import type { HeaderKey } from "@/components/album/albumSections";
 import { useAlbumMutation } from "@/queries/useAlbumMutation";
+import { isCoverEligible } from "@/utils/media";
 import { computed, ref, type Ref } from "vue";
 import {
   adjustChapterBoundary,
@@ -26,6 +27,9 @@ export function useAlbumNavModel(
   const albumMutation = useAlbumMutation(() => selectedAlbumId.value ?? "");
   const openChapterKey = ref<string | null>(null);
   const data = useAlbumNavData(props, selectedAlbumId);
+  const eligibleCovers = computed(
+    () => new Set(props.media.filter(isCoverEligible).map((media) => media.name)),
+  );
 
   function updateChapters(chapters: AlbumChapter[]) {
     albumMutation.mutate({ chapters });
@@ -66,7 +70,12 @@ export function useAlbumNavModel(
   }
 
   function onSplitChapter(chapterId: string) {
-    const chapters = splitChapter(data.chaptersForNav.value, props.steps, chapterId);
+    const chapters = splitChapter(
+      data.chaptersForNav.value,
+      props.steps,
+      chapterId,
+      eligibleCovers.value,
+    );
     if (chapters === data.chaptersForNav.value) return;
     updateChapters(chapters);
     const sourceIndex = chapters.findIndex((chapter) => chapter.id === chapterId);

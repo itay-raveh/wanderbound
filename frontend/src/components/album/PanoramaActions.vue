@@ -3,6 +3,13 @@ import { computed } from "vue";
 import { useAlbum } from "@/composables/useAlbum";
 import { t } from "@/i18n";
 import { useDisablePanoramaMutation } from "@/queries/usePanoramaMutation";
+import {
+  symOutlinedCropLandscape,
+  symOutlinedFilterCenterFocus,
+  symOutlinedPanoramaPhotosphere,
+  symOutlinedPhoto,
+  symOutlinedViewWeek,
+} from "@quasar/extras/material-symbols-outlined";
 
 const props = defineProps<{
   media: string;
@@ -22,6 +29,23 @@ const panorama = computed(() => mediaByName.value.get(props.media)?.panorama);
 const disabling = computed(
   () => disableMutation.asyncStatus.value === "loading",
 );
+const frameLabel = computed(() =>
+  panorama.value ? t("panorama.frame.title") : t("panorama.treat"),
+);
+const frameIcon = computed(() =>
+  panorama.value ? symOutlinedFilterCenterFocus : symOutlinedPanoramaPhotosphere,
+);
+const layoutLabel = computed(() =>
+  props.makeFullPage ? t("panorama.makeFullPage") : t("panorama.makeSpread"),
+);
+const layoutIcon = computed(() =>
+  props.makeFullPage ? symOutlinedCropLandscape : symOutlinedViewWeek,
+);
+
+function switchLayout(): void {
+  if (props.makeFullPage) emit("make-full-page", props.media);
+  else emit("make-panorama-spread", props.media);
+}
 
 async function disablePanorama(): Promise<void> {
   if (disabling.value) return;
@@ -37,34 +61,37 @@ async function disablePanorama(): Promise<void> {
     <button
       type="button"
       class="panorama-frame-action panorama-action"
+      :aria-label="frameLabel"
       @click="emit('frame')"
     >
-      {{ panorama ? t("panorama.frame.title") : t("panorama.treat") }}
+      <q-icon :name="frameIcon" />
+      <q-tooltip>{{ frameLabel }}</q-tooltip>
     </button>
     <button
-      v-if="panorama && makeFullPage"
+      v-if="panorama && (makeFullPage || makePanoramaSpread)"
       type="button"
-      class="panorama-full-page-action panorama-action"
-      @click="emit('make-full-page', media)"
+      :class="[
+        'panorama-action',
+        makeFullPage
+          ? 'panorama-full-page-action'
+          : 'panorama-spread-action',
+      ]"
+      :aria-label="layoutLabel"
+      @click="switchLayout"
     >
-      {{ t("panorama.makeFullPage") }}
-    </button>
-    <button
-      v-if="panorama && makePanoramaSpread"
-      type="button"
-      class="panorama-spread-action panorama-action"
-      @click="emit('make-panorama-spread', media)"
-    >
-      {{ t("panorama.makeSpread") }}
+      <q-icon :name="layoutIcon" />
+      <q-tooltip>{{ layoutLabel }}</q-tooltip>
     </button>
     <button
       v-if="panorama"
       type="button"
       class="panorama-disable-action panorama-action"
       :disabled="disabling"
+      :aria-label="t('panorama.frame.disable')"
       @click="disablePanorama"
     >
-      {{ t("panorama.frame.disable") }}
+      <q-icon :name="symOutlinedPhoto" />
+      <q-tooltip>{{ t("panorama.frame.disable") }}</q-tooltip>
     </button>
   </div>
 </template>
@@ -72,11 +99,11 @@ async function disablePanorama(): Promise<void> {
 <style lang="scss" scoped>
 .panorama-actions {
   position: absolute;
-  z-index: 3;
+  z-index: 51;
   inset-block-start: var(--gap-md);
   inset-inline-start: var(--gap-md);
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
   overflow: hidden;
   border: 1px solid var(--q-primary);
   border-radius: var(--radius-sm);
@@ -86,22 +113,23 @@ async function disablePanorama(): Promise<void> {
 }
 
 .panorama-action {
-  min-height: 2.5rem;
-  padding: var(--gap-sm) var(--gap-md-lg);
+  display: grid;
+  width: 2.5rem;
+  height: 2.5rem;
+  place-items: center;
+  padding: 0;
   border: 0;
-  border-block-start: 1px solid
+  border-inline-start: 1px solid
     color-mix(in srgb, var(--q-primary) 35%, transparent);
   background: transparent;
   color: var(--q-primary);
   cursor: pointer;
   font: inherit;
-  font-size: var(--type-sm);
-  font-weight: 600;
-  text-align: start;
+  font-size: var(--type-lg);
 }
 
 .panorama-action:first-child {
-  border-block-start: 0;
+  border-inline-start: 0;
 }
 
 .panorama-action:hover {

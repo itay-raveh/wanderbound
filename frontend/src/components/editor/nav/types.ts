@@ -1,5 +1,6 @@
 import type {
   AlbumChapter,
+  AlbumMedia,
   AlbumMeta,
   DateRange,
   StepRead as Step,
@@ -8,6 +9,7 @@ import type { HeaderKey } from "@/components/album/albumSections";
 
 export type AlbumNavProps = {
   album: AlbumMeta;
+  media: AlbumMedia[];
   steps: Step[];
   albumIds?: string[];
   hiddenSteps?: number[];

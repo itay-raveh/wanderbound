@@ -81,18 +81,26 @@ async def test_put_saves_one_global_poster(
     assert len(list((album_dir / ".panoramas").rglob("poster-*.jpg"))) == 1
 
 
-async def test_put_rejects_zoom_above_slider_range(
+async def test_put_enforces_zoom_slider_range(
     client: AsyncClient,
     session: AsyncSession,
 ) -> None:
     row, _album_dir = await _scenario(client, session)
 
-    response = await client.put(
-        f"/api/v1/albums/{AID}/media/{row.name}/panorama",
-        json=_body() | {"zoom": 2.1},
-    )
+    with patch(
+        "app.api.v1.routes.panoramas.render_panorama", side_effect=_write_render
+    ):
+        maximum = await client.put(
+            f"/api/v1/albums/{AID}/media/{row.name}/panorama",
+            json=_body() | {"zoom": 3},
+        )
+        above_maximum = await client.put(
+            f"/api/v1/albums/{AID}/media/{row.name}/panorama",
+            json=_body() | {"zoom": 3.1},
+        )
 
-    assert response.status_code == 422
+    assert maximum.status_code == 200
+    assert above_maximum.status_code == 422
 
 
 async def test_failed_put_preserves_saved_frame(

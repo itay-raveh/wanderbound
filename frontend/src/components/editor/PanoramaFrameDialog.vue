@@ -47,7 +47,7 @@ const panorama = computed(() => props.media.panorama);
 const applying = computed(() => mutation.asyncStatus.value === "loading");
 const viewportStyle = computed(() => ({
   aspectRatio: String(props.aspectRatio),
-  maxWidth: `${props.aspectRatio * 50}vh`,
+  maxWidth: `${props.aspectRatio * 56}vh`,
 }));
 const projectionStyle = computed(() => ({
   "--panorama-zoom": String(draft.value.zoom),
@@ -190,26 +190,14 @@ onBeforeUnmount(cleanupAdapter);
   <q-dialog
     :model-value="modelValue"
     aria-labelledby="panorama-frame-title"
-    aria-describedby="panorama-frame-description"
     persistent
     @update:model-value="(value) => emit('update:modelValue', value)"
   >
     <q-card class="panorama-dialog">
       <q-card-section class="panorama-header">
-        <div>
-          <h2 id="panorama-frame-title" class="panorama-title">
-            {{ t("panorama.frame.title") }}
-          </h2>
-          <p id="panorama-frame-description" class="panorama-subtitle">
-            {{ t("panorama.frame.body") }}
-          </p>
-        </div>
-        <div class="frame-readout" aria-live="polite">
-          <span
-            >{{ t("panorama.frame.perspective") }} {{ perspectiveLabel }}</span
-          >
-          <span>{{ t("panorama.frame.zoom") }} {{ zoomLabel }}</span>
-        </div>
+        <h2 id="panorama-frame-title" class="panorama-title">
+          {{ t("panorama.frame.title") }}
+        </h2>
       </q-card-section>
 
       <q-card-section class="panorama-workspace">
@@ -240,7 +228,6 @@ onBeforeUnmount(cleanupAdapter);
               {{ t("panorama.frame.unsupported") }}
             </div>
           </div>
-          <p class="interaction-hint">{{ t("panorama.frame.hint") }}</p>
         </div>
 
         <div class="frame-controls">
@@ -258,9 +245,6 @@ onBeforeUnmount(cleanupAdapter);
               :value="draft.perspectiveFov"
               @input="setPerspective(numberFromInput($event))"
             />
-            <span class="control-help">{{
-              t("panorama.frame.perspectiveHelp")
-            }}</span>
           </label>
 
           <label class="control-group">
@@ -277,7 +261,6 @@ onBeforeUnmount(cleanupAdapter);
               :value="draft.zoom"
               @input="setZoom(numberFromInput($event))"
             />
-            <span class="control-help">{{ t("panorama.frame.zoomHelp") }}</span>
           </label>
         </div>
       </q-card-section>
@@ -306,21 +289,19 @@ onBeforeUnmount(cleanupAdapter);
 </template>
 <style lang="scss" scoped>
 .panorama-dialog {
-  width: min(76rem, 96vw);
+  width: min(62rem, 96vw);
   max-width: none;
-  max-height: 94vh;
-  overflow: auto;
+  max-height: 92vh;
+  overflow: hidden;
 }
 
 .panorama-header,
 .panorama-actions {
-  padding: 1.25rem 1.5rem;
+  padding: var(--gap-md-lg) 1.25rem;
 }
 
 .panorama-header {
-  display: flex;
-  justify-content: space-between;
-  gap: var(--gap-lg);
+  padding-block-end: var(--gap-md);
 }
 
 .panorama-title {
@@ -330,25 +311,12 @@ onBeforeUnmount(cleanupAdapter);
   font-weight: 700;
 }
 
-.panorama-subtitle,
-.interaction-hint {
-  margin: var(--gap-sm) 0 0;
-  color: var(--text-muted);
-}
-
-.frame-readout {
-  display: flex;
-  gap: var(--gap-md);
-  color: var(--text-muted);
-  font-variant-numeric: tabular-nums;
-}
-
 .panorama-workspace {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 18rem;
-  gap: 1.25rem;
+  grid-template-columns: minmax(0, 1fr) 14rem;
+  gap: 1rem;
   align-items: start;
-  padding: 0 1.5rem 1.25rem;
+  padding: 0 1.25rem var(--gap-md-lg);
 }
 
 .preview-column {
@@ -361,7 +329,6 @@ onBeforeUnmount(cleanupAdapter);
   margin-inline: auto;
   overflow: hidden;
   border: 1px solid var(--border-color);
-  border-radius: var(--radius-md);
   background: #11131a;
   touch-action: none;
 }
@@ -435,11 +402,6 @@ input[type="range"] {
 input[type="range"]:focus-visible {
   outline: 0.125rem solid var(--q-primary);
   outline-offset: 0.125rem;
-}
-
-.control-help {
-  color: var(--text-muted);
-  font-size: var(--type-xs);
 }
 
 .panorama-actions {

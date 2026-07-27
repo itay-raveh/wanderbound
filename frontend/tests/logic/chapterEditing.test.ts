@@ -54,6 +54,31 @@ describe("chapterEditing", () => {
     ]);
   });
 
+  it("does not select a panorama as the new chapter cover", () => {
+    const chapters = [
+      chapter({
+        id: "chapter-1",
+        step_ids: [1, 2],
+        front_cover_photo: "landscape.jpg",
+        back_cover_photo: "landscape.jpg",
+      }),
+    ];
+    const steps = [
+      makeStep({ id: 1 }),
+      makeStep({ id: 2, cover: "panorama.jpg" }),
+    ];
+
+    const result = splitChapter(
+      chapters,
+      steps,
+      "chapter-1",
+      new Set(["landscape.jpg"]),
+    );
+
+    expect(result[1]?.front_cover_photo).toBe("landscape.jpg");
+    expect(result[1]?.back_cover_photo).toBe("landscape.jpg");
+  });
+
   it("adjusts the boundary between adjacent chapters", () => {
     const chapters = [
       chapter({ id: "chapter-1", step_ids: [1, 2] }),

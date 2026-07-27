@@ -1,5 +1,7 @@
 import "@egjs/view360/css/base.css";
+import "@egjs/view360/css/control-bar.css";
 import View360, {
+  ControlBar,
   EquirectProjection,
   EVENTS,
   type ViewChangeEvent,
@@ -121,6 +123,20 @@ export function createPanoramaViewerAdapter(
         gyro: false,
         scrollable: false,
         wheelScrollable: false,
+        plugins: [
+          new ControlBar({
+            clickToPlay: false,
+            keyboardControls: false,
+            progressBar: false,
+            playButton: false,
+            volumeButton: false,
+            fullscreenButton: false,
+            videoTime: false,
+            pieView: { resetCamera: false },
+            vrButton: false,
+            gyroButton: false,
+          }),
+        ],
       });
       viewer = createdViewer;
       createdViewer.on(EVENTS.VIEW_CHANGE, handleViewChange);
