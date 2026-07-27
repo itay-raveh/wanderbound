@@ -49,6 +49,11 @@ def capture_filesystem_storage_metrics(data_folder: Path) -> None:
     sentry_sdk.metrics.gauge(
         "storage.filesystem.capacity_bytes", usage.total, unit="byte"
     )
+    sentry_sdk.metrics.gauge(
+        "storage.filesystem.utilization",
+        usage.used / usage.total * 100,
+        unit="percent",
+    )
 
 
 async def storage_metrics_loop(data_folder: Path) -> None:
