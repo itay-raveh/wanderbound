@@ -86,7 +86,7 @@ class TestRunEviction:
         assert gauge.call_args_list == [
             call("storage.media.used_bytes", 100, unit="byte"),
             call("storage.media.limit_bytes", 1000, unit="byte"),
-            call("storage.media.utilization", 10.0, unit="percent"),
+            call("storage.media.utilization", 0.1, unit="percent"),
         ]
 
     async def test_evicts_lru_album_without_removing_its_user(
