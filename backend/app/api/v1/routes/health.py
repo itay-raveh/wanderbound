@@ -9,12 +9,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
 from app.core.db import get_engine
-from app.core.resources import MiB
+from app.core.resources import MIN_DISK_FREE_BYTES, MiB
 
 logger = structlog.get_logger(__name__)
 router = APIRouter(tags=["health"])
-
-_MIN_DISK_FREE_MB = 256
 
 
 class HealthStatus(BaseModel):
@@ -59,7 +57,7 @@ def _check_disk() -> tuple[bool, int]:
     data_folder = get_settings().DATA_FOLDER
     usage = shutil.disk_usage(data_folder)
     free_mb = usage.free // MiB
-    return free_mb >= _MIN_DISK_FREE_MB, free_mb
+    return usage.free >= MIN_DISK_FREE_BYTES, free_mb
 
 
 def _check_playwright(request: Request) -> bool:

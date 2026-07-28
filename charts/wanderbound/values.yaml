@@ -3,6 +3,11 @@ image:
   tag: ""
   pullPolicy: IfNotPresent
 
+replicaCount: 1
+
+deploymentStrategy:
+  type: Recreate
+
 config: {}
 
 existingSecrets: []

@@ -6,9 +6,9 @@ metadata:
   labels:
     {{- include "wanderbound.labels" . | nindent 4 }}
 spec:
-  replicas: 1
+  replicas: {{ .Values.replicaCount }}
   strategy:
-    type: Recreate
+    {{- toYaml .Values.deploymentStrategy | nindent 4 }}
   selector:
     matchLabels:
       {{- include "wanderbound.selectorLabels" . | nindent 6 }}

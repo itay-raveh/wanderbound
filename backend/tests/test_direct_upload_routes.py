@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from typing import TYPE_CHECKING
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -130,9 +131,19 @@ async def test_completion_starts_finalization(
     upload_id = created.json()["uploadId"]
     key = created.json()["key"]
 
-    with patch(
-        "app.api.v1.routes.uploads.start_upload_workflow", new_callable=AsyncMock
-    ) as start:
+    @asynccontextmanager
+    async def capacity_available(*_args: object) -> AsyncIterator[bool]:
+        yield True
+
+    with (
+        patch(
+            "app.api.v1.routes.uploads.upload_capacity_slot",
+            side_effect=capacity_available,
+        ),
+        patch(
+            "app.api.v1.routes.uploads.start_upload_workflow", new_callable=AsyncMock
+        ) as start,
+    ):
         completed = await client.post(
             f"/api/v1/users/uploads/s3/multipart/{upload_id}/complete",
             params={"key": key},
@@ -151,6 +162,38 @@ async def test_completion_starts_finalization(
     row = await session.get(UploadSession, upload_id)
     assert row is not None
     assert row.status == "processing"
+
+
+async def test_completion_rejects_before_finalizing_when_capacity_is_exhausted(
+    client: AsyncClient, session: AsyncSession
+) -> None:
+    store = MagicMock()
+    store.create.return_value = "provider-id"
+    app.dependency_overrides[_get_upload_store] = lambda: store
+    await sign_in(client)
+    created = await client.post("/api/v1/users/uploads/s3/multipart", json=_payload())
+    upload_id = created.json()["uploadId"]
+    key = created.json()["key"]
+
+    @asynccontextmanager
+    async def capacity_exhausted(*_args: object) -> AsyncIterator[bool]:
+        yield False
+
+    with patch(
+        "app.api.v1.routes.uploads.upload_capacity_slot",
+        side_effect=capacity_exhausted,
+    ):
+        completed = await client.post(
+            f"/api/v1/users/uploads/s3/multipart/{upload_id}/complete",
+            params={"key": key},
+            json={"parts": [{"PartNumber": 1, "ETag": '"etag"'}]},
+        )
+
+    assert completed.status_code == 503
+    assert completed.json()["message"] == "upload_capacity_busy"
+    store.complete.assert_not_called()
+    row = await session.get_one(UploadSession, upload_id)
+    assert row.status == "uploading"
 
 
 async def test_pending_upload_can_be_resumed_and_selected(

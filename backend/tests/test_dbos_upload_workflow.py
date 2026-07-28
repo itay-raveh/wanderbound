@@ -19,7 +19,7 @@ from app.logic.workflows.uploads import (
     upload_import_workflow,
     upload_workflow_id,
 )
-from app.models.processing import UploadSession
+from app.models.processing import UploadSession, UploadStatus
 from app.models.upload import TripChoice
 
 
@@ -189,8 +189,8 @@ async def test_upload_workflow_persists_ingestion_progress(*, conflict: bool) ->
             new=AsyncMock(return_value=None if conflict else processing),
         ),
         patch(
-            "app.logic.workflows.uploads.mark_upload_failed", new=AsyncMock()
-        ) as mark_failed,
+            "app.logic.workflows.uploads.terminate_upload", new=AsyncMock()
+        ) as terminate,
         patch(
             "app.logic.workflows.uploads.complete_upload",
             new=AsyncMock(return_value=42),
@@ -207,7 +207,7 @@ async def test_upload_workflow_persists_ingestion_progress(*, conflict: bool) ->
         await unwrap(upload_import_workflow)("upload-id")
 
     if conflict:
-        mark_failed.assert_awaited_once_with("upload-id", "upload_conflict")
+        terminate.assert_awaited_once_with("upload-id", "failed", "upload_conflict")
         assert write.await_args_list[-1] == (
             ("progress", {"type": "error", "error_code": "upload_conflict"}),
         )
@@ -238,3 +238,78 @@ async def test_upload_workflow_persists_ingestion_progress(*, conflict: bool) ->
         (("progress", {"type": "complete"}),),
     ]
     close.assert_awaited_once_with("progress")
+
+
+@pytest.mark.parametrize(
+    ("initial_status", "inspect_error", "terminal_status", "error_code"),
+    [
+        ("awaiting_selection", None, "aborted", None),
+        ("processing", InvalidUploadArchiveError(), "failed", "upload_invalid_zip"),
+    ],
+)
+async def test_upload_workflow_cleans_up_terminal_uploads(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    initial_status: UploadStatus,
+    inspect_error: Exception | None,
+    terminal_status: UploadStatus,
+    error_code: str | None,
+) -> None:
+    engine = create_async_engine(f"sqlite+aiosqlite:///{tmp_path / 'upload.db'}")
+    async with engine.begin() as connection:
+        await connection.run_sync(SQLModel.metadata.create_all)
+    upload = UploadSession.new(
+        owner="uid:42",
+        provider_upload_id="provider-id",
+        filename="polarsteps.zip",
+        content_type="application/zip",
+        size_bytes=1,
+    )
+    upload.status = initial_status
+    upload_id = upload.upload_id
+    object_key = upload.object_key
+    async with AsyncSession(engine) as session:
+        session.add(upload)
+        await session.commit()
+    workspace = tmp_path / "upload-work" / upload_id
+    workspace.mkdir(parents=True)
+    (workspace / "source.zip").write_bytes(b"upload")
+    store = MagicMock()
+    settings = upload_workflows.get_settings()
+    monkeypatch.setattr(settings, "DATA_FOLDER", tmp_path)
+    monkeypatch.setattr(settings, "UPLOAD_SESSION_TTL_SECONDS", 1)
+    monkeypatch.setattr(upload_workflows, "get_engine", lambda: engine)
+    monkeypatch.setattr(upload_workflows, "_store", lambda: store)
+    monkeypatch.setattr(
+        upload_workflows,
+        "terminate_upload",
+        unwrap(upload_workflows.terminate_upload),
+    )
+
+    with (
+        patch(
+            "app.logic.workflows.uploads.download_upload",
+            new=AsyncMock(return_value="/work/source.zip"),
+        ),
+        patch(
+            "app.logic.workflows.uploads.inspect_upload",
+            new=AsyncMock(return_value=[{"id": "trip-a", "label": "trip-a"}]),
+        ) as inspect,
+        patch(
+            "app.logic.workflows.uploads.DBOS.recv_async",
+            new=AsyncMock(return_value=None),
+        ),
+        patch("app.logic.workflows.uploads.DBOS.write_stream_async", new=AsyncMock()),
+        patch("app.logic.workflows.uploads.DBOS.close_stream_async", new=AsyncMock()),
+    ):
+        inspect.side_effect = inspect_error
+        await unwrap(upload_import_workflow)(upload_id)
+
+    async with AsyncSession(engine) as session:
+        saved = await session.get_one(UploadSession, upload_id)
+    await engine.dispose()
+    assert saved.status == terminal_status
+    assert saved.error_code == error_code
+    assert saved.completed_at is not None
+    assert not workspace.exists()
+    store.delete.assert_called_once_with(object_key)
