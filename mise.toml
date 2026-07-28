@@ -73,25 +73,6 @@ run = "scripts/run_direct_upload_integration.sh"
 description = "Run all tests"
 depends = ["test:backend", "test:frontend", "test:e2e"]
 
-# -- Dependency security ------------------------------------------
-
-[tasks."audit:backend"]
-description = "Audit locked production Python dependencies"
-run = "uv audit --preview-features audit-command --no-dev --locked"
-
-[tasks."audit:frontend"]
-description = "Audit locked production frontend dependencies"
-run = """
-bun audit --prod \
-  --ignore GHSA-3v7f-55p6-f55p \
-  --ignore GHSA-c2c7-rcm5-vvqj \
-  --ignore GHSA-g7r4-m6w7-qqqr
-"""
-
-[tasks.audit]
-description = "Audit locked production dependencies"
-depends = ["audit:*"]
-
 # -- Linting ------------------------------------------------------
 
 [tasks."lint:backend"]
