@@ -20,7 +20,7 @@ def test_capture_filesystem_storage_metrics(
     assert gauge.call_args_list == [
         call("storage.filesystem.available_bytes", 38_000, unit="byte"),
         call("storage.filesystem.capacity_bytes", 50_000, unit="byte"),
-        call("storage.filesystem.utilization", 24.0, unit="percent"),
+        call("storage.filesystem.utilization", 0.24, unit="percent"),
     ]
 
 

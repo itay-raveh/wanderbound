@@ -36,7 +36,7 @@ def capture_media_storage_metrics(used_bytes: int, limit_bytes: int) -> None:
     sentry_sdk.metrics.gauge("storage.media.limit_bytes", limit_bytes, unit="byte")
     sentry_sdk.metrics.gauge(
         "storage.media.utilization",
-        used_bytes / limit_bytes * 100,
+        used_bytes / limit_bytes,
         unit="percent",
     )
 
@@ -51,7 +51,7 @@ def capture_filesystem_storage_metrics(data_folder: Path) -> None:
     )
     sentry_sdk.metrics.gauge(
         "storage.filesystem.utilization",
-        usage.used / usage.total * 100,
+        usage.used / usage.total,
         unit="percent",
     )
 
