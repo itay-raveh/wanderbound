@@ -348,6 +348,7 @@ async def render_pdf_file(  # noqa: C901, PLR0913, PLR0915
             viewport={"width": 1920, "height": 1080},
             device_scale_factor=2,
             bypass_csp=True,
+            extra_http_headers={"Referer": str(settings.PUBLIC_URL)},
         )
     try:
         await context.add_cookies(

@@ -4,6 +4,7 @@ from contextlib import AbstractAsyncContextManager, asynccontextmanager
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
+from unittest.mock import AsyncMock
 
 import pytest
 
@@ -82,6 +83,25 @@ def test_render_capacity_uses_one_slot_per_available_cpu() -> None:
     assert pdf.render_capacity(0) == 1
     assert pdf.render_capacity(1) == 1
     assert pdf.render_capacity(4) == 4
+
+
+async def test_pdf_browser_requests_use_public_url_as_referer() -> None:
+    browser = SimpleNamespace(new_context=AsyncMock(side_effect=RuntimeError))
+    stream = pdf.render_pdf_file(
+        browser,  # type: ignore[arg-type]
+        "trip-1",
+        Path("unused.pdf"),
+        session_cookie="session-cookie",
+        dark=False,
+    )
+
+    assert await anext(stream) == pdf.PdfProgress(phase="loading", done=0)
+    with pytest.raises(RuntimeError):
+        await anext(stream)
+
+    assert browser.new_context.await_args.kwargs["extra_http_headers"] == {
+        "Referer": str(get_settings().PUBLIC_URL)
+    }
 
 
 async def test_render_queue_stops_waiting_after_one_minute(monkeypatch: Any) -> None:
