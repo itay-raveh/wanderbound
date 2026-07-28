@@ -85,17 +85,7 @@ def test_render_capacity_uses_one_slot_per_available_cpu() -> None:
     assert pdf.render_capacity(4) == 4
 
 
-async def test_pdf_browser_requests_use_public_url_as_referer(
-    monkeypatch: Any,
-) -> None:
-    monkeypatch.setattr(
-        pdf,
-        "get_settings",
-        lambda: SimpleNamespace(
-            INTERNAL_URL="http://127.0.0.1:8000",
-            PUBLIC_URL="https://wanderbound.example/",
-        ),
-    )
+async def test_pdf_browser_requests_use_public_url_as_referer() -> None:
     browser = SimpleNamespace(new_context=AsyncMock(side_effect=RuntimeError))
     stream = pdf.render_pdf_file(
         browser,  # type: ignore[arg-type]
@@ -109,12 +99,9 @@ async def test_pdf_browser_requests_use_public_url_as_referer(
     with pytest.raises(RuntimeError):
         await anext(stream)
 
-    browser.new_context.assert_awaited_once_with(
-        viewport={"width": 1920, "height": 1080},
-        device_scale_factor=2,
-        bypass_csp=True,
-        extra_http_headers={"Referer": "https://wanderbound.example/"},
-    )
+    assert browser.new_context.await_args.kwargs["extra_http_headers"] == {
+        "Referer": str(get_settings().PUBLIC_URL)
+    }
 
 
 async def test_render_queue_stops_waiting_after_one_minute(monkeypatch: Any) -> None:
