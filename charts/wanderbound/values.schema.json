@@ -3,6 +3,39 @@
   "type": "object",
   "additionalProperties": false,
   "properties": {
+    "replicaCount": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "deploymentStrategy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type"],
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": ["Recreate", "RollingUpdate"]
+        },
+        "rollingUpdate": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "maxSurge": {
+              "oneOf": [
+                {"type": "integer", "minimum": 0},
+                {"type": "string", "pattern": "^[0-9]+%$"}
+              ]
+            },
+            "maxUnavailable": {
+              "oneOf": [
+                {"type": "integer", "minimum": 0},
+                {"type": "string", "pattern": "^[0-9]+%$"}
+              ]
+            }
+          }
+        }
+      }
+    },
     "image": {
       "type": "object",
       "additionalProperties": false,

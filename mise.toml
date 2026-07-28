@@ -91,7 +91,7 @@ run = "bun run lint"
 
 [tasks."lint:helm"]
 description = "Lint the Helm chart"
-run = "helm lint --strict charts/wanderbound"
+run = "sh scripts/check_helm_chart.sh"
 
 [tasks.lint]
 description = "Run all linters"

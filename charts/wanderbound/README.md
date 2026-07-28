@@ -1,7 +1,8 @@
 # Wanderbound Helm chart
 
-The chart installs one Wanderbound pod, a ClusterIP Service, and a persistent
-volume. You provide PostgreSQL, object storage, ingress, TLS, and backups.
+The chart installs one Wanderbound pod by default, a ClusterIP Service, and a
+persistent volume. You provide PostgreSQL, object storage, ingress, TLS, and
+backups.
 
 ## Prerequisites
 
@@ -65,6 +66,19 @@ secretEnv:
 
 The managed PVC defaults to `10Gi`, `ReadWriteOnce`, and the cluster's default
 storage class. Set `persistence.existingClaim` to use an existing PVC.
+
+The Deployment defaults to one replica with a `Recreate` strategy. Override
+both through normal Helm values:
+
+```yaml
+replicaCount: 3
+
+deploymentStrategy:
+  type: RollingUpdate
+  rollingUpdate:
+    maxSurge: 1
+    maxUnavailable: 0
+```
 
 See [`values.yaml`](values.yaml) for all values and
 [`values.schema.json`](values.schema.json) for validation rules.
