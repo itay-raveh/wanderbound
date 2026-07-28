@@ -66,5 +66,4 @@ secretEnv:
 The managed PVC defaults to `10Gi`, `ReadWriteOnce`, and the cluster's default
 storage class. Set `persistence.existingClaim` to use an existing PVC.
 
-See [`values.yaml`](values.yaml) for all values and
-[`values.schema.json`](values.schema.json) for validation rules.
+See default values at [`values.yaml`](values.yaml).
