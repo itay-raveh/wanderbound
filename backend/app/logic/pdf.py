@@ -120,55 +120,87 @@ pdf_tokens = _PdfTokens()
 
 
 class BrowserManager:
-    """Lazy-reconnecting wrapper around a Playwright Chromium browser.
-
-    If Chromium crashes (OOM, segfault), the next call to `get()` relaunches it.
-    An asyncio.Lock ensures only one coroutine launches at a time.
-    """
+    """Share Chromium across active PDF renders and stop it while idle."""
 
     _LAUNCH_ARGS: ClassVar[list[str]] = ["--use-gl=angle", "--no-sandbox"]
 
-    def __init__(self, pw: Playwright) -> None:
-        self._pw = pw
+    def __init__(self) -> None:
+        self._pw: Playwright | None = None
         self._browser: Browser | None = None
+        self._leases = 0
+        self._healthy = False
         self._lock = asyncio.Lock()
 
-    async def launch(self) -> None:
-        self._browser = await self._pw.chromium.launch(args=self._LAUNCH_ARGS)
-        logger.info("playwright.browser_launched")
-
-    async def get(self) -> Browser:
+    async def _launch_locked(self) -> Browser:
         if self._browser is not None and self._browser.is_connected():
             return self._browser
+        if self._pw is not None:
+            await self._close_locked()
+
+        pw = await async_playwright().start()
+        try:
+            browser = await pw.chromium.launch(args=self._LAUNCH_ARGS)
+        except BaseException:
+            self._healthy = False
+            await pw.stop()
+            raise
+        self._pw = pw
+        self._browser = browser
+        self._healthy = True
+        logger.info("playwright.browser_launched")
+        return browser
+
+    @asynccontextmanager
+    async def acquire(self) -> AsyncGenerator[Browser]:
         async with self._lock:
-            if self._browser is None or not self._browser.is_connected():
-                logger.warning("playwright.browser_disconnected")
-                self._browser = await self._pw.chromium.launch(args=self._LAUNCH_ARGS)
-                logger.info("playwright.browser_relaunched")
-        return self._browser
+            browser = await self._launch_locked()
+            self._leases += 1
+        try:
+            yield browser
+        finally:
+            async with self._lock:
+                self._leases -= 1
+                if self._leases == 0:
+                    await self._close_locked()
+
+    async def probe(self) -> None:
+        async with self.acquire():
+            pass
 
     @property
-    def connected(self) -> bool:
-        return self._browser is not None and self._browser.is_connected()
+    def healthy(self) -> bool:
+        return self._healthy and (self._browser is None or self._browser.is_connected())
+
+    async def _close_locked(self) -> None:
+        browser = self._browser
+        pw = self._pw
+        if browser is None and pw is None:
+            return
+        self._browser = None
+        self._pw = None
+        try:
+            if browser is not None:
+                await browser.close()
+        finally:
+            if pw is not None:
+                await pw.stop()
+        logger.info("playwright.browser_closed")
 
     async def close(self) -> None:
-        if self._browser:
-            await self._browser.close()
+        async with self._lock:
+            await self._close_locked()
 
 
 @asynccontextmanager
 async def lifespan() -> AsyncGenerator[BrowserManager]:
     """Setup/teardown for PDF rendering: tmp dir cleanup + Playwright browser."""
     async with pdf_tokens.lifespan():
-        pw = await async_playwright().start()
-        manager = BrowserManager(pw)
-        await manager.launch()
+        manager = BrowserManager()
+        await manager.probe()
         try:
             yield manager
         finally:
             await manager.close()
-            await pw.stop()
-            logger.info("playwright.browser_closed")
 
 
 async def store_pdf_token(session: AsyncSession, path: Path, aid: str) -> str:
