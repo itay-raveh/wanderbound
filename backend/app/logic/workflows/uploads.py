@@ -3,7 +3,7 @@ from collections.abc import Callable
 from contextlib import suppress
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 from zipfile import BadZipFile
 
 import sentry_sdk
@@ -235,17 +235,21 @@ async def finalize_upload(upload_id: str, extracted_path: str) -> dict[str, Any]
     }
 
 
+async def _delete_upload_artifacts(row: UploadSession) -> None:
+    await asyncio.to_thread(_store().delete, row.object_key)
+    await asyncio.to_thread(
+        remove_tree_if_present,
+        get_settings().DATA_FOLDER / "upload-work" / row.upload_id,
+    )
+
+
 @DBOS.step(retries_allowed=True, max_attempts=3)
 async def complete_upload(upload_id: str) -> int:
     async with AsyncSession(get_engine(), expire_on_commit=False) as session:
         row = await _current_upload(session, upload_id)
         if row.result is None:
             raise UploadWorkflowCancelledError(upload_id)
-        await asyncio.to_thread(_store().delete, row.object_key)
-        await asyncio.to_thread(
-            remove_tree_if_present,
-            get_settings().DATA_FOLDER / "upload-work" / upload_id,
-        )
+        await _delete_upload_artifacts(row)
         row.status = "succeeded"
         row.completed_at = datetime.now(UTC)
         row.updated_at = row.completed_at
@@ -255,36 +259,18 @@ async def complete_upload(upload_id: str) -> int:
 
 
 @DBOS.step(retries_allowed=True, max_attempts=3)
-async def mark_upload_failed(upload_id: str, error_code: str) -> None:
-    async with AsyncSession(get_engine()) as session:
-        row = await session.get(UploadSession, upload_id)
-        if row is None or row.status != "processing":
-            return
-        await asyncio.to_thread(_store().delete, row.object_key)
-        await asyncio.to_thread(
-            remove_tree_if_present,
-            get_settings().DATA_FOLDER / "upload-work" / upload_id,
-        )
-        row.status = "failed"
-        row.error_code = error_code
-        row.completed_at = datetime.now(UTC)
-        row.updated_at = row.completed_at
-        session.add(row)
-        await session.commit()
-
-
-@DBOS.step(retries_allowed=True, max_attempts=3)
-async def abort_upload(upload_id: str) -> None:
+async def terminate_upload(
+    upload_id: str,
+    terminal_status: Literal["failed", "aborted"],
+    error_code: str | None = None,
+) -> None:
     async with AsyncSession(get_engine()) as session:
         row = await session.get(UploadSession, upload_id)
         if row is None or row.status not in ("processing", "awaiting_selection"):
             return
-        await asyncio.to_thread(_store().delete, row.object_key)
-        await asyncio.to_thread(
-            remove_tree_if_present,
-            get_settings().DATA_FOLDER / "upload-work" / upload_id,
-        )
-        row.status = "aborted"
+        await _delete_upload_artifacts(row)
+        row.status = terminal_status
+        row.error_code = error_code
         row.completed_at = datetime.now(UTC)
         row.updated_at = row.completed_at
         session.add(row)
@@ -316,13 +302,13 @@ async def upload_import_workflow(upload_id: str) -> None:
         )
         selected_ids = [str(aid) for aid in selection or []]
         if not selected_ids:
-            await abort_upload(upload_id)
+            await terminate_upload(upload_id, "aborted")
             return
         extracted = await extract_upload(upload_id, source, selected_ids)
         await _write_progress(UploadProgressUpdate(phase="importing", done=0, total=1))
         processing = await finalize_upload(upload_id, extracted)
         if processing is None:
-            await mark_upload_failed(upload_id, "upload_conflict")
+            await terminate_upload(upload_id, "failed", "upload_conflict")
             await _write_progress(UploadErrorEvent(error_code="upload_conflict"))
             return
         await _write_progress(UploadProgressUpdate(phase="importing", done=1, total=1))
@@ -335,12 +321,12 @@ async def upload_import_workflow(upload_id: str) -> None:
     except UploadWorkflowCancelledError:
         return
     except InvalidUploadArchiveError:
-        await mark_upload_failed(upload_id, "upload_invalid_zip")
+        await terminate_upload(upload_id, "failed", "upload_invalid_zip")
         await _write_progress(UploadErrorEvent(error_code="upload_invalid_zip"))
     except Exception as exc:
         logger.exception("upload.import_failed", upload_id=upload_id)
         sentry_sdk.capture_exception(exc)
-        await mark_upload_failed(upload_id, "upload_processing_failed")
+        await terminate_upload(upload_id, "failed", "upload_processing_failed")
         await _write_progress(UploadErrorEvent(error_code="upload_processing_failed"))
     finally:
         await DBOS.close_stream_async(PROGRESS_STREAM_KEY)
