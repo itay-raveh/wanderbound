@@ -88,13 +88,36 @@ async def test_pdf_browser_requests_use_public_url_as_referer(
     monkeypatch: Any,
     tmp_path: Path,
 ) -> None:
-    class BrowserContextCreatedError(Exception):
-        def __init__(self, options: dict[str, Any]) -> None:
-            self.options = options
+    calls: dict[str, Any] = {}
+
+    class PrintPageNavigatedError(Exception):
+        pass
+
+    class RecordingPage:
+        def on(self, _event: str, _handler: object) -> None:
+            pass
+
+        async def emulate_media(self, *, media: str) -> None:
+            calls["media"] = media
+
+        async def goto(self, url: str, *, wait_until: str) -> None:
+            calls["goto"] = (url, wait_until)
+            raise PrintPageNavigatedError
+
+    class RecordingContext:
+        async def add_cookies(self, cookies: list[dict[str, Any]]) -> None:
+            calls["cookies"] = cookies
+
+        async def new_page(self) -> RecordingPage:
+            return RecordingPage()
+
+        async def close(self) -> None:
+            calls["closed"] = True
 
     class RecordingBrowser:
-        async def new_context(self, **options: Any) -> None:
-            raise BrowserContextCreatedError(options)
+        async def new_context(self, **options: Any) -> RecordingContext:
+            calls["context_options"] = options
+            return RecordingContext()
 
     monkeypatch.setattr(
         pdf,
@@ -113,12 +136,24 @@ async def test_pdf_browser_requests_use_public_url_as_referer(
     )
 
     assert await anext(stream) == pdf.PdfProgress(phase="loading", done=0)
-    with pytest.raises(BrowserContextCreatedError) as created:
+    with pytest.raises(PrintPageNavigatedError):
         await anext(stream)
 
-    assert created.value.options["extra_http_headers"] == {
+    assert calls["context_options"]["extra_http_headers"] == {
         "Referer": "https://wanderbound.example/"
     }
+    assert calls["cookies"] == [
+        {
+            "name": "session",
+            "value": "session-cookie",
+            "url": "http://127.0.0.1:8000",
+        }
+    ]
+    assert calls["goto"] == (
+        "http://127.0.0.1:8000/print/trip-1?dark=false",
+        "domcontentloaded",
+    )
+    assert calls["closed"] is True
 
 
 async def test_render_queue_stops_waiting_after_one_minute(monkeypatch: Any) -> None:
