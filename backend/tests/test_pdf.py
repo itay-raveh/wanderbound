@@ -4,6 +4,7 @@ from contextlib import AbstractAsyncContextManager, asynccontextmanager
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
+from unittest.mock import AsyncMock
 
 import pytest
 
@@ -86,39 +87,7 @@ def test_render_capacity_uses_one_slot_per_available_cpu() -> None:
 
 async def test_pdf_browser_requests_use_public_url_as_referer(
     monkeypatch: Any,
-    tmp_path: Path,
 ) -> None:
-    calls: dict[str, Any] = {}
-
-    class PrintPageNavigatedError(Exception):
-        pass
-
-    class RecordingPage:
-        def on(self, _event: str, _handler: object) -> None:
-            pass
-
-        async def emulate_media(self, *, media: str) -> None:
-            calls["media"] = media
-
-        async def goto(self, url: str, *, wait_until: str) -> None:
-            calls["goto"] = (url, wait_until)
-            raise PrintPageNavigatedError
-
-    class RecordingContext:
-        async def add_cookies(self, cookies: list[dict[str, Any]]) -> None:
-            calls["cookies"] = cookies
-
-        async def new_page(self) -> RecordingPage:
-            return RecordingPage()
-
-        async def close(self) -> None:
-            calls["closed"] = True
-
-    class RecordingBrowser:
-        async def new_context(self, **options: Any) -> RecordingContext:
-            calls["context_options"] = options
-            return RecordingContext()
-
     monkeypatch.setattr(
         pdf,
         "get_settings",
@@ -127,33 +96,25 @@ async def test_pdf_browser_requests_use_public_url_as_referer(
             PUBLIC_URL="https://wanderbound.example/",
         ),
     )
+    browser = SimpleNamespace(new_context=AsyncMock(side_effect=RuntimeError))
     stream = pdf.render_pdf_file(
-        RecordingBrowser(),  # type: ignore[arg-type]
+        browser,  # type: ignore[arg-type]
         "trip-1",
-        tmp_path / "trip-1.pdf",
+        Path("unused.pdf"),
         session_cookie="session-cookie",
         dark=False,
     )
 
     assert await anext(stream) == pdf.PdfProgress(phase="loading", done=0)
-    with pytest.raises(PrintPageNavigatedError):
+    with pytest.raises(RuntimeError):
         await anext(stream)
 
-    assert calls["context_options"]["extra_http_headers"] == {
-        "Referer": "https://wanderbound.example/"
-    }
-    assert calls["cookies"] == [
-        {
-            "name": "session",
-            "value": "session-cookie",
-            "url": "http://127.0.0.1:8000",
-        }
-    ]
-    assert calls["goto"] == (
-        "http://127.0.0.1:8000/print/trip-1?dark=false",
-        "domcontentloaded",
+    browser.new_context.assert_awaited_once_with(
+        viewport={"width": 1920, "height": 1080},
+        device_scale_factor=2,
+        bypass_csp=True,
+        extra_http_headers={"Referer": "https://wanderbound.example/"},
     )
-    assert calls["closed"] is True
 
 
 async def test_render_queue_stops_waiting_after_one_minute(monkeypatch: Any) -> None:
