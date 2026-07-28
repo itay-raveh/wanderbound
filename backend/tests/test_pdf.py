@@ -84,6 +84,43 @@ def test_render_capacity_uses_one_slot_per_available_cpu() -> None:
     assert pdf.render_capacity(4) == 4
 
 
+async def test_pdf_browser_requests_use_public_url_as_referer(
+    monkeypatch: Any,
+    tmp_path: Path,
+) -> None:
+    class BrowserContextCreatedError(Exception):
+        def __init__(self, options: dict[str, Any]) -> None:
+            self.options = options
+
+    class RecordingBrowser:
+        async def new_context(self, **options: Any) -> None:
+            raise BrowserContextCreatedError(options)
+
+    monkeypatch.setattr(
+        pdf,
+        "get_settings",
+        lambda: SimpleNamespace(
+            INTERNAL_URL="http://127.0.0.1:8000",
+            PUBLIC_URL="https://wanderbound.example/",
+        ),
+    )
+    stream = pdf.render_pdf_file(
+        RecordingBrowser(),  # type: ignore[arg-type]
+        "trip-1",
+        tmp_path / "trip-1.pdf",
+        session_cookie="session-cookie",
+        dark=False,
+    )
+
+    assert await anext(stream) == pdf.PdfProgress(phase="loading", done=0)
+    with pytest.raises(BrowserContextCreatedError) as created:
+        await anext(stream)
+
+    assert created.value.options["extra_http_headers"] == {
+        "Referer": "https://wanderbound.example/"
+    }
+
+
 async def test_render_queue_stops_waiting_after_one_minute(monkeypatch: Any) -> None:
     class Clock:
         now = 0.0
