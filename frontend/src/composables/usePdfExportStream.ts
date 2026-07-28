@@ -2,6 +2,7 @@ import { Dark, format } from "quasar";
 import {
   generateChaptersPdf,
   generatePdf,
+  type PdfBusy,
   type PdfDone,
   type PdfError,
   type PdfProgress as PdfProgressEvent,
@@ -15,7 +16,7 @@ import {
 } from "./usePolledExportDownload";
 import { ref, watch, type Ref } from "vue";
 
-type PdfEvent = PdfQueued | PdfProgressEvent | PdfDone | PdfError;
+type PdfEvent = PdfQueued | PdfProgressEvent | PdfDone | PdfError | PdfBusy;
 
 export type PdfExportTarget =
   | { type: "album" }
@@ -132,6 +133,8 @@ export function usePdfExportStream(
           return { done: event.token };
         case "error":
           return { error: t("error.pdfExport") };
+        case "busy":
+          return { info: t("pdf.highLoad") };
         default:
           return { error: t("error.pdfExport") };
       }

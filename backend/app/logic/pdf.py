@@ -20,7 +20,7 @@ from pydantic import BaseModel, Field
 from app.core.config import get_settings
 from app.core.locks import try_advisory_lock
 from app.core.observability import set_span_data, start_span
-from app.core.resources import MiB, detect_memory_mb
+from app.core.resources import MiB, detect_cpu_count
 from app.core.tokens import ArtifactTokenStore
 
 if TYPE_CHECKING:
@@ -28,13 +28,14 @@ if TYPE_CHECKING:
 
 logger = structlog.get_logger(__name__)
 
-_PDF_BASELINE_MB = 512
-_PER_RENDER_MB = 768
 
-_memory_mb = detect_memory_mb()
-_max_concurrent = max(1, (_memory_mb - _PDF_BASELINE_MB) // _PER_RENDER_MB)
+def render_capacity(cpu_count: int) -> int:
+    return max(1, cpu_count)
 
-PDF_QUEUE_TIMEOUT = 120
+
+_max_concurrent = render_capacity(detect_cpu_count())
+
+PDF_QUEUE_TIMEOUT = 60
 _RENDER_TIMEOUT = 300
 _PROGRESS_CHUNK_BYTES = 512 * 1024
 _RENDER_SLOT_POLL_INTERVAL = 0.25
@@ -61,6 +62,10 @@ class PdfError(BaseModel):
     detail: str
 
 
+class PdfBusy(BaseModel):
+    type: Literal["busy"] = "busy"
+
+
 class PdfArtifact(BaseModel):
     path: Path
     filename: str
@@ -72,7 +77,7 @@ class PdfQueueTimeoutError(TimeoutError):
 
 
 PdfEvent = Annotated[
-    PdfQueued | PdfProgress | PdfDone | PdfError,
+    PdfQueued | PdfProgress | PdfDone | PdfError | PdfBusy,
     Field(discriminator="type"),
 ]
 
@@ -264,8 +269,8 @@ async def acquire_pdf_render_slot(
         raise PdfQueueTimeoutError from e
 
 
-def pdf_queue_timeout_event() -> PdfError:
-    return PdfError(detail="Timed out waiting for a PDF render slot. Please try again.")
+def pdf_queue_timeout_event() -> PdfBusy:
+    return PdfBusy()
 
 
 async def _stream_pdf_to_file(page: Page, dest: Path) -> AsyncGenerator[int]:

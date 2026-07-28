@@ -329,7 +329,8 @@
     "trimTooShort": "החיתוך קצר מדי"
   },
   "pdf": {
-    "queued": "ממתין בתור...",
+    "queued": "ממתין למחולל PDF פנוי. בזמן עומס גבוה זה עשוי להימשך עד דקה...",
+    "highLoad": "הייצוא לא התחיל בגלל עומס גבוה. שום דבר לא השתבש. אפשר לנסות שוב.",
     "loadingProgress": "@:common.loadingAlbum ({done}/{total})",
     "renderingSingle": "מייצר PDF...",
     "renderingChapters": "מייצר קובצי PDF לפרקים... {done}/{total}",
