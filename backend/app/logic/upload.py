@@ -13,6 +13,7 @@ from app.models.upload import TripChoice, TripMeta, UploadResult
 from app.models.user import PSUser
 
 __all__ = [
+    "MAX_ARCHIVE_UNCOMPRESSED_BYTES",
     "TripMeta",
     "UploadResult",
     "extract_and_scan",
@@ -24,7 +25,7 @@ __all__ = [
 # Python 3.12+ zipfile already detects quoted-overlap zip bombs (CVE-2024-0450).
 # These limits guard against decompression bombs and excessive file counts.
 _MAX_FILES = 50_000
-_MAX_TOTAL_BYTES = 20 * 1024 * 1024 * 1024  # 20 GB uncompressed
+MAX_ARCHIVE_UNCOMPRESSED_BYTES = 20 * 1024 * 1024 * 1024
 
 _INNER_MIMES = {"image/jpeg", "video/mp4", "application/json", "text/plain"}
 _HEADER_BYTES = 2048
@@ -118,7 +119,7 @@ def _validated_entries(zf: zipfile.ZipFile, dest: Path) -> list[zipfile.ZipInfo]
             msg = f"Path traversal detected: {info.filename}"
             raise zipfile.BadZipFile(msg) from None
         total += info.file_size
-        if total > _MAX_TOTAL_BYTES:
+        if total > MAX_ARCHIVE_UNCOMPRESSED_BYTES:
             raise zipfile.BadZipFile("ZIP uncompressed size exceeds limit")
     return entries
 
