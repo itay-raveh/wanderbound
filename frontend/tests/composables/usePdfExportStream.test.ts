@@ -46,9 +46,7 @@ describe("usePdfExportStream", () => {
     await flushPromises();
 
     expect(pdf.state.value).toBe("running");
-    expect(pdf.progress.value.message).toBe(
-      "Waiting for an available PDF worker. During high demand, this can take up to one minute...",
-    );
+    expect(pdf.progress.value.message).toBe("Waiting for a PDF worker...");
 
     finishWaiting();
     await flushPromises();
@@ -56,8 +54,7 @@ describe("usePdfExportStream", () => {
     expect(pdf.state.value).toBe("idle");
     expect(notifyCreate).toHaveBeenCalledWith({
       type: "info",
-      message:
-        "Your export wasn't started because demand is high. Nothing went wrong. Please try again.",
+      message: "High demand. Nothing went wrong. Please try again.",
     });
   });
 });

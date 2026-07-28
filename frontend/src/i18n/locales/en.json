@@ -329,8 +329,8 @@
     "trimTooShort": "Trim too short"
   },
   "pdf": {
-    "queued": "Waiting for an available PDF worker. During high demand, this can take up to one minute...",
-    "highLoad": "Your export wasn't started because demand is high. Nothing went wrong. Please try again.",
+    "queued": "Waiting for a PDF worker...",
+    "highLoad": "High demand. Nothing went wrong. Please try again.",
     "loadingProgress": "@:common.loadingAlbum ({done}/{total})",
     "renderingSingle": "Generating PDF...",
     "renderingChapters": "Generating chapter PDFs... {done}/{total}",
