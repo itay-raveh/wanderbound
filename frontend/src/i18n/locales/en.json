@@ -329,7 +329,8 @@
     "trimTooShort": "Trim too short"
   },
   "pdf": {
-    "queued": "Waiting to start...",
+    "queued": "Waiting for a PDF worker...",
+    "highLoad": "High demand. Nothing went wrong. Please try again.",
     "loadingProgress": "@:common.loadingAlbum ({done}/{total})",
     "renderingSingle": "Generating PDF...",
     "renderingChapters": "Generating chapter PDFs... {done}/{total}",

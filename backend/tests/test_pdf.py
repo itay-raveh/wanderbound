@@ -5,6 +5,8 @@ from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
 
+import pytest
+
 from app.api.v1.routes import health
 from app.core.config import get_settings
 from app.logic import pdf, pdf_chapters
@@ -76,6 +78,43 @@ def test_print_url_omits_chapter_for_full_album() -> None:
     )
 
 
+def test_render_capacity_uses_one_slot_per_available_cpu() -> None:
+    assert pdf.render_capacity(0) == 1
+    assert pdf.render_capacity(1) == 1
+    assert pdf.render_capacity(4) == 4
+
+
+async def test_render_queue_stops_waiting_after_one_minute(monkeypatch: Any) -> None:
+    class Clock:
+        now = 0.0
+
+        def time(self) -> float:
+            return self.now
+
+    class UnavailableLock:
+        async def __aenter__(self) -> bool:
+            return False
+
+        async def __aexit__(self, *_args: object) -> None:
+            return None
+
+    clock = Clock()
+
+    async def advance(seconds: float) -> None:
+        clock.now += seconds
+
+    monkeypatch.setattr(pdf.asyncio, "get_running_loop", lambda: clock)
+    monkeypatch.setattr(pdf.asyncio, "sleep", advance)
+    monkeypatch.setattr(pdf, "try_advisory_lock", lambda _name: UnavailableLock())
+    monkeypatch.setattr(pdf, "_max_concurrent", 1)
+
+    with pytest.raises(TimeoutError):
+        async with pdf.render_pdf_slot():
+            pytest.fail("queue acquired unavailable capacity")
+
+    assert clock.now == 60
+
+
 async def test_browser_manager_shares_browser_until_last_lease_closes(
     monkeypatch: Any,
 ) -> None:
@@ -125,6 +164,30 @@ async def test_browser_manager_probe_is_healthy_without_idle_runtime(
     assert len(runtimes) == 1
     assert not runtimes[0].chromium.browsers[0].is_connected()
     assert runtimes[0].stopped
+
+
+async def test_render_album_pdf_stream_reports_high_load_without_rendering(
+    session: Any,
+    monkeypatch: Any,
+) -> None:
+    async def capacity_timeout(
+        _aid: str,
+        _span_name: str,
+    ) -> AbstractAsyncContextManager[None]:
+        raise pdf.PdfQueueTimeoutError
+
+    monkeypatch.setattr(pdf, "acquire_pdf_render_slot", capacity_timeout)
+
+    events = await collect_async(
+        pdf.render_album_pdf_stream(
+            object(),
+            session,
+            "trip-1",
+            session_cookie="session-cookie",
+        )
+    )
+
+    assert events == [pdf.PdfQueued(), pdf.PdfBusy()]
 
 
 async def test_render_album_chapters_zip_stream_creates_zip_artifact(

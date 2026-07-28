@@ -10,7 +10,11 @@ export interface PolledExportHandle {
   state: Ref<ExportState>;
 }
 
-type EventAction = { loading: string } | { done: string } | { error: string };
+type EventAction =
+  | { loading: string }
+  | { done: string }
+  | { error: string }
+  | { info: string };
 
 type StringOrGetter = string | (() => string);
 function resolve(v: StringOrGetter): string {
@@ -72,9 +76,13 @@ export function usePolledExportDownload<T>(
           showLoading(action.loading);
         } else if ("done" in action) {
           downloadToken = action.done;
-        } else {
+        } else if ("error" in action) {
           state.value = "error";
           Notify.create({ type: "negative", message: action.error });
+          return;
+        } else {
+          state.value = "idle";
+          Notify.create({ type: "info", message: action.info });
           return;
         }
       }
