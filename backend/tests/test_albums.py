@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from types import SimpleNamespace
@@ -39,6 +40,15 @@ def _assert_step_layout(
     assert data["cover"] == cover
     assert data["pages"] == pages
     assert data["unused"] == unused
+
+
+@asynccontextmanager
+async def _browser_lease() -> AsyncIterator[object]:
+    yield object()
+
+
+def _browser_manager() -> SimpleNamespace:
+    return SimpleNamespace(acquire=_browser_lease)
 
 
 class TestReadAlbum:
@@ -837,10 +847,21 @@ class TestGenerateChapterPdf:
             ],
         )
         captured: dict[str, object] = {}
+        lease_active = False
+
+        @asynccontextmanager
+        async def browser_lease() -> AsyncIterator[object]:
+            nonlocal lease_active
+            lease_active = True
+            try:
+                yield object()
+            finally:
+                lease_active = False
 
         async def render_zip(
             *args: object, **kwargs: object
         ) -> AsyncIterator[PdfEvent]:
+            assert lease_active
             captured["args"] = args
             captured["kwargs"] = kwargs
             download_id = "zip-token"
@@ -849,7 +870,7 @@ class TestGenerateChapterPdf:
         monkeypatch.setattr(
             app.state,
             "browser_manager",
-            SimpleNamespace(get=AsyncMock(return_value=object())),
+            SimpleNamespace(acquire=browser_lease),
             raising=False,
         )
         with patch(
@@ -862,6 +883,7 @@ class TestGenerateChapterPdf:
         args = captured["args"]
         assert isinstance(args, tuple)
         assert args[3] == ["first", "second"]
+        assert not lease_active
 
     async def test_generate_chapters_pdf_uses_selected_chapters_in_album_order(
         self,
@@ -914,7 +936,7 @@ class TestGenerateChapterPdf:
         monkeypatch.setattr(
             app.state,
             "browser_manager",
-            SimpleNamespace(get=AsyncMock(return_value=object())),
+            _browser_manager(),
             raising=False,
         )
         with patch(
@@ -953,7 +975,7 @@ class TestGenerateChapterPdf:
         monkeypatch.setattr(
             app.state,
             "browser_manager",
-            SimpleNamespace(get=AsyncMock(return_value=object())),
+            _browser_manager(),
             raising=False,
         )
 
@@ -985,7 +1007,7 @@ class TestGenerateChapterPdf:
         monkeypatch.setattr(
             app.state,
             "browser_manager",
-            SimpleNamespace(get=AsyncMock(return_value=object())),
+            _browser_manager(),
             raising=False,
         )
 

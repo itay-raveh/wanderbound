@@ -2,11 +2,54 @@ import zipfile
 from collections.abc import AsyncGenerator
 from contextlib import AbstractAsyncContextManager, asynccontextmanager
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 
+from app.api.v1.routes import health
 from app.core.config import get_settings
 from app.logic import pdf, pdf_chapters
 from tests.factories import collect_async
+
+
+class FakeBrowser:
+    def __init__(self) -> None:
+        self.closed = False
+
+    def is_connected(self) -> bool:
+        return not self.closed
+
+    async def close(self) -> None:
+        self.closed = True
+
+
+class FakeChromium:
+    def __init__(self) -> None:
+        self.browsers: list[FakeBrowser] = []
+
+    async def launch(self, *, args: list[str]) -> FakeBrowser:
+        assert args == ["--use-gl=angle", "--no-sandbox"]
+        browser = FakeBrowser()
+        self.browsers.append(browser)
+        return browser
+
+
+class FakePlaywright:
+    def __init__(self) -> None:
+        self.chromium = FakeChromium()
+        self.stopped = False
+
+    async def stop(self) -> None:
+        self.stopped = True
+
+
+class FakePlaywrightStarter:
+    def __init__(self, runtimes: list[FakePlaywright]) -> None:
+        self._runtimes = runtimes
+
+    async def start(self) -> FakePlaywright:
+        runtime = FakePlaywright()
+        self._runtimes.append(runtime)
+        return runtime
 
 
 def write_fake_pdf(dest: Path, chapter: str | None) -> int:
@@ -31,6 +74,57 @@ def test_print_url_omits_chapter_for_full_album() -> None:
         pdf._print_url("https://frontend.example", "trip-1", dark=True, chapter=None)
         == "https://frontend.example/print/trip-1?dark=true"
     )
+
+
+async def test_browser_manager_shares_browser_until_last_lease_closes(
+    monkeypatch: Any,
+) -> None:
+    runtimes: list[FakePlaywright] = []
+    monkeypatch.setattr(
+        pdf,
+        "async_playwright",
+        lambda: FakePlaywrightStarter(runtimes),
+    )
+    manager = pdf.BrowserManager()
+
+    first_lease = manager.acquire()
+    first_browser = await first_lease.__aenter__()
+    second_lease = manager.acquire()
+    second_browser = await second_lease.__aenter__()
+
+    assert first_browser is second_browser
+    assert len(runtimes) == 1
+    await first_lease.__aexit__(None, None, None)
+    assert first_browser.is_connected()
+    assert not runtimes[0].stopped
+
+    await second_lease.__aexit__(None, None, None)
+    assert not first_browser.is_connected()
+    assert runtimes[0].stopped
+
+
+async def test_browser_manager_probe_is_healthy_without_idle_runtime(
+    monkeypatch: Any,
+) -> None:
+    runtimes: list[FakePlaywright] = []
+    monkeypatch.setattr(
+        pdf,
+        "async_playwright",
+        lambda: FakePlaywrightStarter(runtimes),
+    )
+    manager = pdf.BrowserManager()
+
+    await manager.probe()
+
+    request = SimpleNamespace(
+        app=SimpleNamespace(
+            state=SimpleNamespace(browser_manager=manager),
+        )
+    )
+    assert health._check_playwright(request)
+    assert len(runtimes) == 1
+    assert not runtimes[0].chromium.browsers[0].is_connected()
+    assert runtimes[0].stopped
 
 
 async def test_render_album_chapters_zip_stream_creates_zip_artifact(
