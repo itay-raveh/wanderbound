@@ -40,6 +40,26 @@ def _user() -> User:
     return user
 
 
+async def _persisted_run(
+    session: AsyncSession,
+    album_ids: list[str] | None = None,
+) -> tuple[User, ProcessingOperation]:
+    user = User(
+        id=42,
+        google_sub="google-42",
+        first_name="Test",
+        locale="en-US",
+        unit_is_km=True,
+        temperature_is_celsius=True,
+        album_ids=album_ids or ["trip-1"],
+    )
+    session.add(user)
+    await session.flush()
+    operation = await create_processing_operation(session, uid=42, upload_generation=1)
+    await session.commit()
+    return user, operation
+
+
 def test_processing_workflow_payload_is_json_serializable() -> None:
     payload = processing_workflow_payload(_operation(), _user())
 
@@ -106,19 +126,7 @@ def test_start_processing_workflow_uses_operation_workflow_id(
 async def test_processing_succeeds_when_one_hash_enqueue_fails(
     session: AsyncSession,
 ) -> None:
-    user = User(
-        id=42,
-        google_sub="google-42",
-        first_name="Test",
-        locale="en-US",
-        unit_is_km=True,
-        temperature_is_celsius=True,
-        album_ids=["trip-1", "trip-2"],
-    )
-    session.add(user)
-    await session.flush()
-    operation = await create_processing_operation(session, uid=42, upload_generation=1)
-    await session.commit()
+    user, operation = await _persisted_run(session, ["trip-1", "trip-2"])
 
     async def fake_run_processing(
         _http: object, _user: User, **_kwargs: object
@@ -173,19 +181,7 @@ async def test_processing_succeeds_when_one_hash_enqueue_fails(
 async def test_run_processing_workflow_payload_marks_failed_on_error_event(
     session: AsyncSession,
 ) -> None:
-    user = User(
-        id=42,
-        google_sub="google-42",
-        first_name="Test",
-        locale="en-US",
-        unit_is_km=True,
-        temperature_is_celsius=True,
-        album_ids=["trip-1"],
-    )
-    session.add(user)
-    await session.flush()
-    operation = await create_processing_operation(session, uid=42, upload_generation=1)
-    await session.commit()
+    user, operation = await _persisted_run(session)
 
     async def fake_run_processing(
         _http: object, _user: User, **_kwargs: object
@@ -219,19 +215,7 @@ async def test_run_processing_workflow_payload_marks_failed_on_error_event(
 async def test_run_processing_workflow_payload_marks_failed_when_processing_raises(
     session: AsyncSession,
 ) -> None:
-    user = User(
-        id=42,
-        google_sub="google-42",
-        first_name="Test",
-        locale="en-US",
-        unit_is_km=True,
-        temperature_is_celsius=True,
-        album_ids=["trip-1"],
-    )
-    session.add(user)
-    await session.flush()
-    operation = await create_processing_operation(session, uid=42, upload_generation=1)
-    await session.commit()
+    user, operation = await _persisted_run(session)
 
     async def fake_run_processing(
         _http: object, _user: User, **_kwargs: object
@@ -264,18 +248,7 @@ async def test_run_processing_workflow_payload_marks_failed_when_processing_rais
 async def test_recovered_failed_processing_run_does_not_duplicate_error_event(
     session: AsyncSession,
 ) -> None:
-    user = User(
-        id=42,
-        google_sub="google-42",
-        first_name="Test",
-        locale="en-US",
-        unit_is_km=True,
-        temperature_is_celsius=True,
-        album_ids=["trip-1"],
-    )
-    session.add(user)
-    await session.flush()
-    operation = await create_processing_operation(session, uid=42, upload_generation=1)
+    user, operation = await _persisted_run(session)
     operation.status = "running"
     session.add(operation)
     await session.flush()
@@ -323,19 +296,7 @@ async def test_run_processing_workflow_payload_exits_when_user_was_deleted(
 async def test_run_processing_workflow_payload_preserves_stale_operation(
     session: AsyncSession,
 ) -> None:
-    user = User(
-        id=42,
-        google_sub="google-42",
-        first_name="Test",
-        locale="en-US",
-        unit_is_km=True,
-        temperature_is_celsius=True,
-        album_ids=["trip-1"],
-    )
-    session.add(user)
-    await session.flush()
-    operation = await create_processing_operation(session, uid=42, upload_generation=1)
-    await session.commit()
+    user, operation = await _persisted_run(session)
 
     async def fake_run_processing(
         _http: object, _user: User, **kwargs: object
@@ -364,18 +325,7 @@ async def test_run_processing_workflow_payload_preserves_stale_operation(
 async def test_run_processing_workflow_payload_exits_when_operation_already_stale(
     session: AsyncSession,
 ) -> None:
-    user = User(
-        id=42,
-        google_sub="google-42",
-        first_name="Test",
-        locale="en-US",
-        unit_is_km=True,
-        temperature_is_celsius=True,
-        album_ids=["trip-1"],
-    )
-    session.add(user)
-    await session.flush()
-    operation = await create_processing_operation(session, uid=42, upload_generation=1)
+    user, operation = await _persisted_run(session)
     operation.status = "stale"
     session.add(operation)
     await session.commit()
@@ -405,19 +355,7 @@ async def test_run_processing_workflow_payload_exits_when_operation_already_stal
 async def test_recovered_processing_run_skips_nondeterministic_persisted_events(
     session: AsyncSession,
 ) -> None:
-    user = User(
-        id=42,
-        google_sub="google-42",
-        first_name="Test",
-        locale="en-US",
-        unit_is_km=True,
-        temperature_is_celsius=True,
-        album_ids=["trip-1"],
-    )
-    session.add(user)
-    await session.flush()
-    operation = await create_processing_operation(session, uid=42, upload_generation=1)
-    await session.commit()
+    user, operation = await _persisted_run(session)
 
     run_count = 0
 
@@ -452,19 +390,7 @@ async def test_recovered_processing_run_skips_nondeterministic_persisted_events(
 async def test_processing_save_guard_marks_operation_succeeded_in_save_transaction(
     session: AsyncSession,
 ) -> None:
-    user = User(
-        id=42,
-        google_sub="google-42",
-        first_name="Test",
-        locale="en-US",
-        unit_is_km=True,
-        temperature_is_celsius=True,
-        album_ids=["trip-1"],
-    )
-    session.add(user)
-    await session.flush()
-    operation = await create_processing_operation(session, uid=42, upload_generation=1)
-    await session.commit()
+    user, operation = await _persisted_run(session)
 
     async def fake_run_processing(
         _http: object, _user: User, **kwargs: object

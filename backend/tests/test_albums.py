@@ -42,6 +42,29 @@ def _assert_step_layout(
     assert data["unused"] == unused
 
 
+async def _save_chapters(
+    session: AsyncSession,
+    signed_album: AlbumScenario,
+    album_routes: AlbumRoutes,
+    chapter_ids: list[str],
+) -> None:
+    for step_id in range(1, len(chapter_ids) + 1):
+        await insert_step(session, signed_album.uid, step_id=step_id)
+    await album_routes.update_album_ok(
+        chapters=[
+            {
+                "id": chapter_id,
+                "title": chapter_id.title(),
+                "subtitle": "",
+                "step_ids": [step_id],
+                "front_cover_photo": "front.jpg",
+                "back_cover_photo": "back.jpg",
+            }
+            for step_id, chapter_id in enumerate(chapter_ids, start=1)
+        ]
+    )
+
+
 @asynccontextmanager
 async def _browser_lease() -> AsyncIterator[object]:
     yield object()
@@ -824,28 +847,7 @@ class TestGenerateChapterPdf:
         album_routes: AlbumRoutes,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        await insert_step(session, signed_album.uid, step_id=1)
-        await insert_step(session, signed_album.uid, step_id=2)
-        await album_routes.update_album_ok(
-            chapters=[
-                {
-                    "id": "first",
-                    "title": "First",
-                    "subtitle": "",
-                    "step_ids": [1],
-                    "front_cover_photo": "front.jpg",
-                    "back_cover_photo": "back.jpg",
-                },
-                {
-                    "id": "second",
-                    "title": "Second",
-                    "subtitle": "",
-                    "step_ids": [2],
-                    "front_cover_photo": "front.jpg",
-                    "back_cover_photo": "back.jpg",
-                },
-            ],
-        )
+        await _save_chapters(session, signed_album, album_routes, ["first", "second"])
         captured: dict[str, object] = {}
         lease_active = False
 
@@ -892,36 +894,8 @@ class TestGenerateChapterPdf:
         album_routes: AlbumRoutes,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        await insert_step(session, signed_album.uid, step_id=1)
-        await insert_step(session, signed_album.uid, step_id=2)
-        await insert_step(session, signed_album.uid, step_id=3)
-        await album_routes.update_album_ok(
-            chapters=[
-                {
-                    "id": "first",
-                    "title": "First",
-                    "subtitle": "",
-                    "step_ids": [1],
-                    "front_cover_photo": "front.jpg",
-                    "back_cover_photo": "back.jpg",
-                },
-                {
-                    "id": "second",
-                    "title": "Second",
-                    "subtitle": "",
-                    "step_ids": [2],
-                    "front_cover_photo": "front.jpg",
-                    "back_cover_photo": "back.jpg",
-                },
-                {
-                    "id": "third",
-                    "title": "Third",
-                    "subtitle": "",
-                    "step_ids": [3],
-                    "front_cover_photo": "front.jpg",
-                    "back_cover_photo": "back.jpg",
-                },
-            ],
+        await _save_chapters(
+            session, signed_album, album_routes, ["first", "second", "third"]
         )
         captured: dict[str, object] = {}
 
@@ -959,19 +933,7 @@ class TestGenerateChapterPdf:
         album_routes: AlbumRoutes,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        await insert_step(session, signed_album.uid, step_id=1)
-        await album_routes.update_album_ok(
-            chapters=[
-                {
-                    "id": "first",
-                    "title": "First",
-                    "subtitle": "",
-                    "step_ids": [1],
-                    "front_cover_photo": "front.jpg",
-                    "back_cover_photo": "back.jpg",
-                }
-            ],
-        )
+        await _save_chapters(session, signed_album, album_routes, ["first"])
         monkeypatch.setattr(
             app.state,
             "browser_manager",
@@ -991,19 +953,7 @@ class TestGenerateChapterPdf:
         album_routes: AlbumRoutes,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        await insert_step(session, signed_album.uid, step_id=1)
-        await album_routes.update_album_ok(
-            chapters=[
-                {
-                    "id": "first",
-                    "title": "First",
-                    "subtitle": "",
-                    "step_ids": [1],
-                    "front_cover_photo": "front.jpg",
-                    "back_cover_photo": "back.jpg",
-                }
-            ],
-        )
+        await _save_chapters(session, signed_album, album_routes, ["first"])
         monkeypatch.setattr(
             app.state,
             "browser_manager",

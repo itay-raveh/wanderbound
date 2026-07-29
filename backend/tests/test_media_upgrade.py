@@ -1108,15 +1108,22 @@ class TestRunMatching:
 
 class TestRunUpgrade:
     @pytest.mark.parametrize(
-        ("google_width", "google_height"),
-        [(1200, 800), (800, 600)],
+        ("google_width", "google_height", "downloads"),
+        [
+            (1200, 800, False),
+            (800, 600, False),
+            (1600, 900, True),
+            (None, None, True),
+        ],
     )
-    async def test_skips_non_larger_picker_metadata_without_downloading(
+    async def test_downloads_only_when_picker_metadata_may_be_larger(
         self,
         tmp_path: Path,
         monkeypatch: pytest.MonkeyPatch,
-        google_width: int,
-        google_height: int,
+        google_width: int | None,
+        google_height: int | None,
+        *,
+        downloads: bool,
     ) -> None:
         download_and_replace = AsyncMock(return_value=True)
         monkeypatch.setattr(
@@ -1159,63 +1166,18 @@ class TestRunUpgrade:
             )
         ]
 
-        download_and_replace.assert_not_awaited()
+        if downloads:
+            download_and_replace.assert_awaited_once()
+        else:
+            download_and_replace.assert_not_awaited()
         persist_upgrade.assert_awaited_once()
         cleanup_picker_sessions.assert_awaited_once()
         assert not (tmp_path / ".upgrade-tmp").exists()
-        assert events[-1] == UpgradeCompleted(replaced=0, skipped=1, failed=0)
-
-    @pytest.mark.parametrize(
-        ("google_width", "google_height"),
-        [(1600, 900), (None, None)],
-    )
-    async def test_downloads_when_picker_metadata_may_be_larger(
-        self,
-        tmp_path: Path,
-        monkeypatch: pytest.MonkeyPatch,
-        google_width: int | None,
-        google_height: int | None,
-    ) -> None:
-        download_and_replace = AsyncMock(return_value=True)
-        monkeypatch.setattr(
-            "app.logic.media_upgrade.pipeline._download_and_replace",
-            download_and_replace,
+        assert events[-1] == UpgradeCompleted(
+            replaced=int(downloads),
+            skipped=int(not downloads),
+            failed=0,
         )
-        monkeypatch.setattr(
-            "app.logic.media_upgrade.pipeline._persist_upgrade", AsyncMock()
-        )
-        monkeypatch.setattr(
-            "app.logic.media_upgrade.pipeline._cleanup_picker_sessions", AsyncMock()
-        )
-        match = MatchResult(
-            local_name="photo.jpg", google_id="google-photo", distance=0
-        )
-
-        events = [
-            event
-            async for event in run_upgrade(
-                clients=AsyncMock(),
-                uid=1,
-                aid="album",
-                album_dir=tmp_path,
-                matches=[match],
-                google_items_by_id={
-                    "google-photo": _make_item(
-                        "google-photo",
-                        _match_dt(10).isoformat(),
-                        width=google_width,
-                        height=google_height,
-                    )
-                },
-                upgrade_candidates={"photo.jpg"},
-                local_dimensions={"photo.jpg": (1200, 800)},
-                tokens=_test_token,
-                session_ids=[],
-            )
-        ]
-
-        download_and_replace.assert_awaited_once()
-        assert events[-1] == UpgradeCompleted(replaced=1, skipped=0, failed=0)
 
     async def test_serializes_upgrade_file_lifecycles_with_two_gib_limit(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
