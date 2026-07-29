@@ -171,6 +171,39 @@ def _layout_names(layout: StepMediaLayout) -> set[str]:
     return names
 
 
+def step_media_rows(
+    uid: int,
+    aid: str,
+    step_id: int,
+    pages: list[StepPageLayout],
+    unused: list[str],
+) -> list[StepPageMedia | StepUnusedMedia]:
+    page_rows = [
+        StepPageMedia(
+            uid=uid,
+            aid=aid,
+            step_id=step_id,
+            page_index=page_index,
+            position_index=position_index,
+            media_name=media_name,
+            page_kind=page.kind,
+        )
+        for page_index, page in enumerate(pages)
+        for position_index, media_name in enumerate(page.media)
+    ]
+    unused_rows = [
+        StepUnusedMedia(
+            uid=uid,
+            aid=aid,
+            step_id=step_id,
+            position_index=position_index,
+            media_name=media_name,
+        )
+        for position_index, media_name in enumerate(unused)
+    ]
+    return [*page_rows, *unused_rows]
+
+
 async def replace_step_media_layout(
     session: AsyncSession,
     uid: int,
@@ -197,29 +230,8 @@ async def replace_step_media_layout(
     )
     step.cover_media_name = layout.cover
     session.add(step)
-    for page_index, page in enumerate(layout.pages):
-        for position_index, media_name in enumerate(page.media):
-            session.add(
-                StepPageMedia(
-                    uid=uid,
-                    aid=aid,
-                    step_id=step_id,
-                    page_index=page_index,
-                    position_index=position_index,
-                    media_name=media_name,
-                    page_kind=page.kind,
-                )
-            )
-    for position_index, media_name in enumerate(layout.unused):
-        session.add(
-            StepUnusedMedia(
-                uid=uid,
-                aid=aid,
-                step_id=step_id,
-                position_index=position_index,
-                media_name=media_name,
-            )
-        )
+    for row in step_media_rows(uid, aid, step_id, layout.pages, layout.unused):
+        session.add(row)
 
     await session.commit()
     await session.refresh(step)

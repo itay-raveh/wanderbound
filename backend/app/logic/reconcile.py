@@ -14,6 +14,7 @@ from app.core.http_clients import HttpClients
 from app.core.worker_threads import run_sync
 from app.logic.layout import Layout
 from app.logic.layout.media import Media, media_limiter, normalize_name
+from app.logic.step_media import step_media_rows
 from app.logic.trip_processing import (
     DbRow,
     PhaseUpdate,
@@ -34,11 +35,7 @@ from app.logic.trip_processing import (
     track_iter,
 )
 from app.models.album import Album
-from app.models.album_media import (
-    AlbumMedia,
-    StepPageMedia,
-    StepUnusedMedia,
-)
+from app.models.album_media import AlbumMedia
 from app.models.polarsteps import PSStep
 from app.models.step import Step, StepPageLayout, StepRead
 from app.models.user import User
@@ -293,29 +290,7 @@ def _step_read_to_rows(step: StepRead) -> list[DbRow]:
             cover_media_name=step.cover,
         )
     ]
-    rows.extend(
-        StepPageMedia(
-            uid=step.uid,
-            aid=step.aid,
-            step_id=step.id,
-            page_index=page_index,
-            position_index=position_index,
-            media_name=media_name,
-            page_kind=page.kind,
-        )
-        for page_index, page in enumerate(step.pages)
-        for position_index, media_name in enumerate(page.media)
-    )
-    rows.extend(
-        StepUnusedMedia(
-            uid=step.uid,
-            aid=step.aid,
-            step_id=step.id,
-            position_index=position_index,
-            media_name=media_name,
-        )
-        for position_index, media_name in enumerate(step.unused)
-    )
+    rows.extend(step_media_rows(step.uid, step.aid, step.id, step.pages, step.unused))
     return rows
 
 
