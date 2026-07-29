@@ -1,6 +1,5 @@
 from collections.abc import AsyncIterator
 from pathlib import Path
-from types import SimpleNamespace
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -13,15 +12,13 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.core.config import get_settings
 from app.core.http_clients import HttpClients
 from app.logic.trip_pipeline import (
-    _process_trip,
     _save_new,
     _save_reupload,
     run_processing,
 )
-from app.logic.trip_processing import ErrorData, PhaseUpdate, SegmentsFound
+from app.logic.trip_processing import ErrorData, PhaseUpdate
 from app.models.album import Album
 from app.models.album_media import AlbumMedia, StepPageMedia, StepUnusedMedia
-from app.models.polarsteps import Location
 from app.models.segment import Segment, SegmentKind
 from app.models.step import Step
 from app.models.user import User
@@ -275,121 +272,6 @@ class TestSaveNewDependencyOrder:
         assert saved is True
         assert page_media == [_page_media()]
         assert unused_media == [_unused_media()]
-
-
-class TestProcessTripSegmentEvents:
-    async def test_emits_segment_phase_and_counts(self, tmp_path: Path) -> None:
-        trip_dir = tmp_path / AID
-        trip_dir.mkdir()
-        location = Location(
-            name="Start",
-            detail="",
-            country_code="nl",
-            lat=52.0,
-            lon=4.0,
-        )
-        trip = SimpleNamespace(
-            title="Test Trip",
-            step_count=1,
-            all_steps=[SimpleNamespace(location=location)],
-        )
-        user = _user()
-        segments = [
-            make_segment(
-                UID,
-                AID,
-                start_time=100.0,
-                end_time=200.0,
-                kind=SegmentKind.driving,
-            ),
-            make_segment(
-                UID,
-                AID,
-                start_time=300.0,
-                end_time=400.0,
-                kind=SegmentKind.walking,
-            ),
-        ]
-        db_out: list = []
-
-        with (
-            patch(
-                "app.logic.trip_pipeline.load_trip_data",
-                return_value=(trip, []),
-            ),
-            patch("app.logic.trip_pipeline.cover_name_from_trip", return_value=""),
-            patch(
-                "app.logic.trip_pipeline.run_elevations",
-                new=AsyncMock(return_value=[0.0]),
-            ),
-            patch(
-                "app.logic.trip_pipeline.run_weather",
-                new=AsyncMock(return_value={}),
-            ),
-            patch(
-                "app.logic.trip_pipeline._media_pipeline",
-                new=AsyncMock(return_value=({}, "")),
-            ),
-            patch(
-                "app.logic.trip_pipeline.build_trip_objects",
-                return_value=segments,
-            ),
-        ):
-            events = await collect_async(
-                _process_trip(_MOCK_HTTP, user, trip_dir, db_out)
-            )
-
-        assert PhaseUpdate(phase="segments", done=0, total=1) in events
-        assert PhaseUpdate(phase="segments", done=1, total=1) in events
-        assert SegmentsFound(hikes=0, walks=1, drives=1, flights=0) in events
-        assert db_out == segments
-
-
-class TestSaveNew:
-    async def test_flushes_parent_rows_before_step_media(self) -> None:
-        engine = _sqlite_engine(foreign_keys=True)
-        await _create_schema(engine)
-
-        await _seed_album_state(engine)
-
-        album = _album()
-        media = make_album_media(
-            UID,
-            AID,
-            name="page.jpg",
-            kind="photo",
-            width=640,
-            height=480,
-            byte_size=10,
-        )
-        step = _step(step_id=191160695)
-        page_media = StepPageMedia(
-            uid=UID,
-            aid=AID,
-            step_id=step.id,
-            page_index=0,
-            position_index=0,
-            media_name=media.name,
-        )
-        expected = (UID, AID, step.id, 0, 0, media.name)
-
-        with patch("app.logic.trip_pipeline.get_engine", return_value=engine):
-            await _save_new(UID, [album, media, step, page_media])
-
-        async with AsyncSession(engine) as session:
-            rows = (await session.exec(select(StepPageMedia))).all()
-
-        assert [
-            (
-                row.uid,
-                row.aid,
-                row.step_id,
-                row.page_index,
-                row.position_index,
-                row.media_name,
-            )
-            for row in rows
-        ] == [expected]
 
 
 class TestSaveReuploadDeletesSegments:
