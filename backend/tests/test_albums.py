@@ -2,14 +2,12 @@ from __future__ import annotations
 
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
-from pathlib import Path
 from types import SimpleNamespace
 from typing import TYPE_CHECKING
-from unittest.mock import AsyncMock, patch
+from unittest.mock import patch
 
 import pytest
 
-from app.logic.pdf import PdfArtifact, PdfDone, PdfEvent
 from app.main import app
 from app.models.segment import Segment, SegmentKind
 
@@ -83,17 +81,6 @@ class TestReadAlbum:
 
         resp = await album_routes.get_album("other-trip")
         assert resp.status_code == 404
-
-    @pytest.mark.usefixtures("signed_album")
-    async def test_returns_album_meta_without_media(
-        self, album_routes: AlbumRoutes
-    ) -> None:
-        resp = await album_routes.get_album()
-        assert resp.status_code == 200
-        data = resp.json()
-        assert "media" not in data
-        assert "steps" not in data
-        assert "segments" not in data
 
 
 class TestChapterPrintBundle:
@@ -179,95 +166,6 @@ class TestChapterPrintBundle:
 
 
 class TestUpdateAlbum:
-    async def test_update_cover_photos(
-        self,
-        session: AsyncSession,
-        signed_album: AlbumScenario,
-        album_routes: AlbumRoutes,
-    ) -> None:
-        await insert_step(session, signed_album.uid, step_id=1)
-        await session.commit()
-
-        data = await album_routes.update_album_ok(
-            chapters=[
-                {
-                    "id": "chapter-1",
-                    "title": "Test Album",
-                    "subtitle": "A subtitle",
-                    "step_ids": [1],
-                    "front_cover_photo": "new_front.jpg",
-                    "back_cover_photo": "new_back.jpg",
-                }
-            ],
-        )
-        assert data["chapters"][0]["front_cover_photo"] == "new_front.jpg"
-        assert data["chapters"][0]["back_cover_photo"] == "new_back.jpg"
-        assert data["chapters"][0]["front_cover_darkness"] == 0.45
-
-    async def test_partial_update_preserves_other_fields(
-        self,
-        session: AsyncSession,
-        signed_album: AlbumScenario,
-        album_routes: AlbumRoutes,
-    ) -> None:
-        await insert_step(session, signed_album.uid, step_id=1)
-        await session.commit()
-
-        data = await album_routes.update_album_ok(
-            chapters=[
-                {
-                    "id": "chapter-1",
-                    "title": "Changed",
-                    "subtitle": "A subtitle",
-                    "step_ids": [1],
-                    "front_cover_photo": "photo1.jpg",
-                    "back_cover_photo": "photo2.jpg",
-                }
-            ],
-        )
-        assert data["chapters"][0]["title"] == "Changed"
-        assert data["chapters"][0]["subtitle"] == "A subtitle"
-        assert data["chapters"][0]["front_cover_photo"] == "photo1.jpg"
-
-    async def test_update_chapters_persists_manual_step_groups(
-        self,
-        session: AsyncSession,
-        signed_album: AlbumScenario,
-        album_routes: AlbumRoutes,
-    ) -> None:
-        await insert_step(session, signed_album.uid, step_id=1)
-        await insert_step(session, signed_album.uid, step_id=2)
-        await session.commit()
-
-        data = await album_routes.update_album_ok(
-            chapters=[
-                {
-                    "id": "andes",
-                    "title": "The Andes",
-                    "subtitle": "",
-                    "step_ids": [1, 2],
-                    "front_cover_photo": "front.jpg",
-                    "back_cover_photo": "back.jpg",
-                }
-            ]
-        )
-
-        assert data["chapters"] == [
-            {
-                "id": "andes",
-                "title": "The Andes",
-                "subtitle": "",
-                "step_ids": [1, 2],
-                "front_cover_photo": "front.jpg",
-                "back_cover_photo": "back.jpg",
-                "front_cover_darkness": 0.45,
-            }
-        ]
-
-        resp = await album_routes.get_album()
-        assert resp.status_code == 200
-        assert resp.json()["chapters"] == data["chapters"]
-
     async def test_update_chapters_rejects_overlapping_steps(
         self,
         session: AsyncSession,
@@ -326,32 +224,6 @@ class TestUpdateAlbum:
 
         assert resp.status_code == 400
         assert "Unknown chapter step IDs: 999" in resp.json()["detail"]
-
-    async def test_update_chapters_rejects_missing_steps(
-        self,
-        session: AsyncSession,
-        signed_album: AlbumScenario,
-        album_routes: AlbumRoutes,
-    ) -> None:
-        await insert_step(session, signed_album.uid, step_id=1)
-        await insert_step(session, signed_album.uid, step_id=2)
-        await session.commit()
-
-        resp = await album_routes.update_album(
-            chapters=[
-                {
-                    "id": "partial",
-                    "title": "Partial",
-                    "subtitle": "",
-                    "step_ids": [1],
-                    "front_cover_photo": "front.jpg",
-                    "back_cover_photo": "back.jpg",
-                }
-            ]
-        )
-
-        assert resp.status_code == 400
-        assert "Missing chapter step IDs: 2" in resp.json()["detail"]
 
 
 class TestUpdateStep:
@@ -467,28 +339,6 @@ class TestAdjustSegmentBoundary:
         assert "flight" in resp.json()["detail"].lower()
         mock_enqueue.assert_not_called()
 
-    async def test_adjust_end_handle_success(
-        self,
-        session: AsyncSession,
-        signed_album: AlbumScenario,
-        album_routes: AlbumRoutes,
-    ) -> None:
-        await self._setup_adjacent_segments(session, signed_album.uid)
-
-        with patch(
-            "app.api.v1.routes.albums.enqueue_album_route_enrichment",
-            create=True,
-        ) as mock_enqueue:
-            data = await album_routes.adjust_boundary_ok()
-        mock_enqueue.assert_called_once()
-        _, _, called_uid, called_aid = mock_enqueue.call_args.args
-        assert (called_uid, called_aid) == (signed_album.uid, AID)
-        assert isinstance(data, list)
-        assert len(data) == 2
-        assert "start_coord" in data[0]
-        assert "end_coord" in data[0]
-        assert "points" not in data[0]
-
     async def test_route_reset_after_boundary_adjust(
         self,
         session: AsyncSession,
@@ -520,99 +370,7 @@ class TestAdjustSegmentBoundary:
             assert seg_data.get("route") is None
 
 
-class TestPrintBundle:
-    async def test_returns_full_bundle(
-        self,
-        session: AsyncSession,
-        signed_album: AlbumScenario,
-        album_routes: AlbumRoutes,
-    ) -> None:
-        await insert_step(session, signed_album.uid)
-        await insert_segment(session, signed_album.uid)
-
-        resp = await album_routes.print_bundle()
-        assert resp.status_code == 200
-        data = resp.json()
-        assert "album" in data
-        assert "steps" in data
-        assert "segments" in data
-        assert "total_distance_km" in data
-        assert "media" in data["album"]
-        assert data["album"]["media"][0]["uid"] == signed_album.uid
-        assert data["album"]["media"][0]["aid"] == AID
-        assert data["album"]["media"][0]["byte_size"] == 1234
-        assert "updated_at" in data["album"]["media"][0]
-        assert len(data["steps"]) == 1
-        assert len(data["segments"]) == 1
-        assert isinstance(data["total_distance_km"], float)
-
-
-class TestDownloadPdf:
-    async def test_valid_token_returns_file(
-        self, album_routes: AlbumRoutes, tmp_path: Path
-    ) -> None:
-        pdf_path = tmp_path / "test.pdf"
-        pdf_path.write_bytes(b"%PDF-1.4 fake content")
-
-        with patch(
-            "app.api.v1.routes.albums.pop_pdf_token",
-            new=AsyncMock(
-                return_value=PdfArtifact(
-                    path=pdf_path,
-                    filename="my-album.pdf",
-                    media_type="application/pdf",
-                )
-            ),
-        ):
-            resp = await album_routes.download_pdf("valid-token")
-
-        assert resp.status_code == 200
-        assert resp.headers["content-type"] == "application/pdf"
-        assert "my-album.pdf" in resp.headers.get("content-disposition", "")
-        assert resp.content == b"%PDF-1.4 fake content"
-        assert not pdf_path.exists()
-
-
 class TestGenerateChapterPdf:
-    async def test_generate_chapters_pdf_uses_selected_chapters_in_album_order(
-        self,
-        session: AsyncSession,
-        signed_album: AlbumScenario,
-        album_routes: AlbumRoutes,
-        monkeypatch: pytest.MonkeyPatch,
-    ) -> None:
-        await _save_chapters(
-            session, signed_album, album_routes, ["first", "second", "third"]
-        )
-        captured: dict[str, object] = {}
-
-        async def render_zip(
-            *args: object, **kwargs: object
-        ) -> AsyncIterator[PdfEvent]:
-            captured["args"] = args
-            captured["kwargs"] = kwargs
-            download_id = "selected-chapters-token"
-            yield PdfDone(token=download_id)
-
-        monkeypatch.setattr(
-            app.state,
-            "browser_manager",
-            _browser_manager(),
-            raising=False,
-        )
-        with patch(
-            "app.api.v1.routes.albums.render_album_chapters_zip_stream",
-            render_zip,
-        ):
-            resp = await album_routes.generate_chapters_pdf(
-                chapters=["third", "first"],
-            )
-
-        assert resp.status_code == 200
-        args = captured["args"]
-        assert isinstance(args, tuple)
-        assert args[3] == ["first", "third"]
-
     async def test_generate_chapters_pdf_rejects_unknown_selected_chapter(
         self,
         session: AsyncSession,

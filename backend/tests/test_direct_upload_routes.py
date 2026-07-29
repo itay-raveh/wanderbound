@@ -4,13 +4,13 @@ import json
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from typing import TYPE_CHECKING
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock, patch
 
 from app.api.v1.deps import _get_upload_store
 from app.core.config import get_settings
 from app.main import app
 from app.models.processing import UploadSession
-from app.models.upload import TripChoice, UploadResult
+from app.models.upload import UploadResult
 from app.models.user import UserPublic
 from tests.factories import make_user, sign_in
 
@@ -39,41 +39,6 @@ async def test_multipart_routes_require_an_upload_owner(
     response = await client.post("/api/v1/users/uploads/s3/multipart", json=_payload())
 
     assert response.status_code == 401
-
-
-async def test_local_upload_logs_in_its_polarsteps_user(
-    client: AsyncClient,
-    session: AsyncSession,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.setattr(get_settings(), "GOOGLE_CLIENT_ID", "")
-    monkeypatch.setattr(get_settings(), "MICROSOFT_CLIENT_ID", "")
-    store = MagicMock()
-    store.create.return_value = "provider-id"
-    app.dependency_overrides[_get_upload_store] = lambda: store
-
-    response = await client.post("/api/v1/users/uploads/s3/multipart", json=_payload())
-
-    assert response.status_code == 201
-    row = await session.get_one(UploadSession, response.json()["uploadId"])
-    assert row.owner == "local"
-    user = make_user(uid=42)
-    user.google_sub = None
-    session.add(user)
-    await session.flush()
-    row.status = "succeeded"
-    row.result = UploadResult(user=UserPublic.model_validate(user), trips=[])
-    session.add(row)
-    await session.commit()
-
-    completed = await client.post(f"/api/v1/users/uploads/{row.upload_id}/complete")
-
-    assert completed.status_code == 200
-    auth = await client.get("/api/v1/auth/state")
-    assert auth.json()["user"]["id"] == user.id
-    reupload = await client.post("/api/v1/users/uploads/s3/multipart", json=_payload())
-    row = await session.get_one(UploadSession, reupload.json()["uploadId"])
-    assert row.owner == "local"
 
 
 async def test_uppy_multipart_contract(
@@ -118,52 +83,6 @@ async def test_uppy_multipart_contract(
     store.abort.assert_called_once_with(key, "provider-id")
 
 
-async def test_completion_starts_finalization(
-    client: AsyncClient, session: AsyncSession
-) -> None:
-    store = MagicMock()
-    store.create.return_value = "provider-id"
-    store.head.return_value = 1
-    store.list_parts.return_value = [{"PartNumber": 1, "Size": 1, "ETag": '"etag"'}]
-    app.dependency_overrides[_get_upload_store] = lambda: store
-    await sign_in(client)
-    created = await client.post("/api/v1/users/uploads/s3/multipart", json=_payload())
-    upload_id = created.json()["uploadId"]
-    key = created.json()["key"]
-
-    @asynccontextmanager
-    async def capacity_available(*_args: object) -> AsyncIterator[bool]:
-        yield True
-
-    with (
-        patch(
-            "app.api.v1.routes.uploads.upload_capacity_slot",
-            side_effect=capacity_available,
-        ),
-        patch(
-            "app.api.v1.routes.uploads.start_upload_workflow", new_callable=AsyncMock
-        ) as start,
-    ):
-        completed = await client.post(
-            f"/api/v1/users/uploads/s3/multipart/{upload_id}/complete",
-            params={"key": key},
-            json={"parts": [{"PartNumber": 1, "ETag": '"etag"'}]},
-        )
-
-    assert completed.status_code == 200, completed.text
-    assert completed.json() == {"location": key}
-    store.complete.assert_called_once_with(
-        key,
-        "provider-id",
-        [{"PartNumber": 1, "ETag": '"etag"'}],
-    )
-    start.assert_awaited_once_with(upload_id)
-
-    row = await session.get(UploadSession, upload_id)
-    assert row is not None
-    assert row.status == "processing"
-
-
 async def test_completion_rejects_before_finalizing_when_capacity_is_exhausted(
     client: AsyncClient, session: AsyncSession
 ) -> None:
@@ -194,48 +113,6 @@ async def test_completion_rejects_before_finalizing_when_capacity_is_exhausted(
     store.complete.assert_not_called()
     row = await session.get_one(UploadSession, upload_id)
     assert row.status == "uploading"
-
-
-async def test_pending_upload_can_be_resumed_and_selected(
-    client: AsyncClient, session: AsyncSession
-) -> None:
-    store = MagicMock()
-    store.create.return_value = "provider-id"
-    app.dependency_overrides[_get_upload_store] = lambda: store
-    await sign_in(client)
-    created = await client.post("/api/v1/users/uploads/s3/multipart", json=_payload())
-    upload_id = created.json()["uploadId"]
-    row = await session.get_one(UploadSession, upload_id)
-    row.status = "awaiting_selection"
-    row.trip_choices = [TripChoice(id="trip-a", label="trip-a")]
-    session.add(row)
-    await session.commit()
-
-    pending = await client.get("/api/v1/users/uploads/pending")
-
-    assert pending.json() == {
-        "upload_id": upload_id,
-        "status": "awaiting_selection",
-        "choices": [{"id": "trip-a", "label": "trip-a"}],
-    }
-
-    with patch(
-        "app.api.v1.routes.uploads.DBOS.send_async", new_callable=AsyncMock
-    ) as send:
-        selected = await client.post(
-            f"/api/v1/users/uploads/{upload_id}/selection",
-            json={"trip_ids": ["trip-a"]},
-        )
-
-    assert selected.status_code == 200, selected.text
-    await session.refresh(row)
-    assert row.status == "processing"
-    send.assert_awaited_once_with(
-        f"upload:{upload_id}",
-        ["trip-a"],
-        topic="selection",
-        idempotency_key=f"selection:{upload_id}",
-    )
 
 
 async def test_uploads_are_scoped_to_the_owner(

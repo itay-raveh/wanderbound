@@ -9,7 +9,7 @@ import {
 } from "@/composables/useTextLayout";
 import { isPortrait } from "@/utils/media";
 
-export interface IndexedPage {
+interface IndexedPage {
   originalIdx: number;
   page: StepPageLayout;
 }
@@ -23,7 +23,7 @@ type PlannedStepPage =
       page: StepPageLayout;
     };
 
-export type StepPagePlan = {
+type StepPagePlan = {
   sidebarLines: JustifiedLine[];
   continuationPages: JustifiedLine[][];
   continuationPhotos: string[];

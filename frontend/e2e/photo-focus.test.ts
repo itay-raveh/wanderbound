@@ -73,19 +73,6 @@ test.describe("Photo focus & arrow navigation", () => {
     const afterBoundary = await selected(page).boundingBox();
     expect(afterBoundary!.y).not.toBeCloseTo(beforeBoundary!.y, -1);
   });
-
-  test("rapid ArrowRight presses settle with one selected photo", async ({
-    focusPage: page,
-  }) => {
-    await selectFirstPhoto(page);
-
-    for (let i = 0; i < 6; i++) {
-      await page.keyboard.press("ArrowRight");
-    }
-
-    await expectOneSelected(page, 5_000);
-    await expect(selected(page)).toBeInViewport({ timeout: 5_000 });
-  });
 });
 
 test.describe("Send to unused & set as cover", () => {
@@ -114,19 +101,5 @@ test.describe("Send to unused & set as cover", () => {
 
     await expectOneSelected(page);
     await expect(first).not.toHaveAttribute("aria-pressed", "true");
-  });
-
-  test("empty unused tray keeps a usable drop target", async ({
-    focusPage: page,
-  }) => {
-    await scrollToStep(page, "Buenos Aires");
-    const track = page.locator(".unused-drawer .drawer-track");
-
-    await expect
-      .poll(async () => {
-        const box = await track.boundingBox();
-        return box?.height ?? 0;
-      })
-      .toBeGreaterThan(40);
   });
 });

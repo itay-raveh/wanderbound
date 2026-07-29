@@ -24,7 +24,7 @@ export type ChapterRenderGroup = {
   sections: Section[];
 };
 
-export type EditorItem =
+type EditorItem =
   | {
       type: "header";
       key: string;
@@ -67,7 +67,7 @@ export type EditorItem =
     }
   | { type: "step-add-zone"; key: string; step: Step };
 
-export type PhysicalRenderItem =
+type PhysicalRenderItem =
   | Exclude<EditorItem, { type: "step-add-zone" | "panorama-spread" }>
   | {
       type: "panorama-spread-left" | "panorama-spread-right";

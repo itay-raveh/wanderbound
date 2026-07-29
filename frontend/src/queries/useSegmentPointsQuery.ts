@@ -11,8 +11,8 @@ import { readSegmentPoints, type Segment } from "@/client";
 import { queryKeys, STALE_TIME } from "./keys";
 import { useAlbum } from "@/composables/useAlbum";
 
-export const ROUTE_REFETCH_MS = 60_000;
-export const ROUTE_REFETCH_LIMIT = 10;
+const ROUTE_REFETCH_MS = 60_000;
+const ROUTE_REFETCH_LIMIT = 10;
 
 function hasUnmatchedRoute(segments: Segment[] | undefined): boolean {
   return !!segments?.some(

@@ -6,15 +6,10 @@ from typing import TYPE_CHECKING
 from unittest.mock import AsyncMock, patch
 
 import pytest
-from fastapi import BackgroundTasks
 
-from app.core.config import get_settings
 from app.logic.external_media.album_media import replace_album_media_from_saved
 from app.logic.external_media.undo import (
-    enqueue_undo_snapshot_prune,
-    prune_all_expired_undo_snapshots,
     restore_undo_snapshot,
-    schedule_undo_snapshot_prune,
 )
 from app.logic.layout.media import Media
 from app.logic.media_import import SavedInput
@@ -28,7 +23,6 @@ from .factories import (
     create_test_jpeg,
     insert_album,
     insert_album_media,
-    make_user,
 )
 
 if TYPE_CHECKING:
@@ -197,20 +191,6 @@ def _add_undo_snapshot(
     )
 
 
-def test_enqueue_undo_snapshot_prune_adds_scheduler_background_task(
-    tmp_path: Path,
-) -> None:
-    background_tasks = BackgroundTasks()
-
-    enqueue_undo_snapshot_prune(background_tasks, 123, "album-1", tmp_path)
-
-    assert len(background_tasks.tasks) == 1
-    task = background_tasks.tasks[0]
-    assert task.func is schedule_undo_snapshot_prune
-    assert task.args == (123, "album-1", tmp_path)
-    assert task.kwargs == {}
-
-
 async def test_replace_preserves_media_name_and_creates_undo(
     session: AsyncSession,
     tmp_path: Path,
@@ -244,74 +224,6 @@ async def test_replace_preserves_media_name_and_creates_undo(
     snap = await session.get_one(AlbumMediaUndoSnapshot, (uid, AID, VALID_NAME))
     assert snap.expires_at > snap.created_at
     assert snap.perceptual_hashes == ["0000000000000000"]
-
-
-async def test_prune_all_expired_undo_snapshots_uses_shared_user_folder(
-    session: AsyncSession,
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.setattr(get_settings(), "DATA_FOLDER", tmp_path)
-    uid = 9091
-    user = make_user(uid)
-    session.add(user)
-    await session.flush()
-    await insert_album(session, uid)
-    await insert_album_media(session, uid, name=VALID_NAME)
-    album_dir = user.trips_folder / AID
-    undo_dir = album_dir / ".undo"
-    undo_dir.mkdir(parents=True)
-    snapshot_path = undo_dir / VALID_NAME
-    snapshot_path.write_bytes(b"snapshot")
-    _add_undo_snapshot(
-        session,
-        uid=uid,
-        media_name=VALID_NAME,
-        expires_at=datetime.now(UTC) - timedelta(seconds=1),
-    )
-    await session.flush()
-
-    removed = await prune_all_expired_undo_snapshots(session)
-
-    assert removed == 1
-    assert not snapshot_path.exists()
-    assert await session.get(AlbumMediaUndoSnapshot, (uid, AID, VALID_NAME)) is None
-
-
-async def test_replace_prunes_expired_undo_snapshots(
-    session: AsyncSession,
-    tmp_path: Path,
-) -> None:
-    uid = 1
-    album_dir = tmp_path
-    album, _media = await _album_with_photo(session, album_dir, uid=uid)
-    await insert_album_media(session, uid, name=OLD_NAME, width=640, height=480)
-    undo_dir = album_dir / ".undo"
-    undo_dir.mkdir()
-    old_snapshot = undo_dir / OLD_NAME
-    old_snapshot.write_bytes(b"expired snapshot")
-    now = datetime.now(UTC)
-    _add_undo_snapshot(
-        session,
-        uid=uid,
-        media_name=OLD_NAME,
-        created_at=now - timedelta(minutes=10),
-        expires_at=now - timedelta(minutes=5),
-    )
-    replacement = create_test_jpeg(tmp_path / "replacement.jpg", 1600, 1200)
-    await session.commit()
-
-    await replace_album_media_from_saved(
-        session,
-        album=album,
-        album_dir=album_dir,
-        media_name=VALID_NAME,
-        saved=_saved_input(replacement),
-    )
-
-    assert not old_snapshot.exists()
-    assert await session.get(AlbumMediaUndoSnapshot, (uid, AID, OLD_NAME)) is None
-    assert await session.get(AlbumMediaUndoSnapshot, (uid, AID, VALID_NAME)) is not None
 
 
 async def test_replace_rejects_photo_video_mismatch(

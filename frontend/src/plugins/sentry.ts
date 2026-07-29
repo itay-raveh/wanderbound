@@ -14,7 +14,7 @@ const SENTRY_APPLICATION_KEY = "wanderbound";
 const SENTRY_TRACE_PROPAGATION_TARGETS = [/^\/api\//];
 const PRESIGNED_URL_PARAMETER = "x-amz-signature";
 
-export function isSensitiveUploadUrl(value: unknown): boolean {
+function isSensitiveUploadUrl(value: unknown): boolean {
   if (typeof value !== "string") return false;
   try {
     const url = new URL(value, window.location.origin);
