@@ -134,41 +134,9 @@ async def match_album_segment_routes(http: HttpClients, uid: int, aid: str) -> N
                     return
 
                 async with AsyncSession(get_engine()) as session:
-                    snapshots = await _unmatched_snapshots(session, uid, aid)
-                    if not snapshots:
-                        stats = RouteEnrichmentStats()
-                        _set_route_span_data(span, stats, result="empty")
-                        _log_complete(uid, aid, started, stats)
-                        return
-
-                    pairs = [(coords, profile) for _, coords, profile in snapshots]
-                    with start_span(
-                        "route_enrichment.match",
-                        "Match segment routes",
-                        **{
-                            "app.workflow": "route_enrichment",
-                            "user.id": uid,
-                            "album.id": aid,
-                            "route.candidates": len(snapshots),
-                        },
-                    ):
-                        routes, route_stats = await match_segments_with_stats(
-                            http.mapbox_matching,
-                            http.mapbox_directions,
-                            pairs,
-                        )
-
-                    stats = RouteEnrichmentStats(candidates=len(snapshots))
-                    stats.route_requests = route_stats.requests
-                    stats.matching_requests = route_stats.matching_requests
-                    stats.directions_requests = route_stats.directions_requests
-                    for (key, _, _), route in zip(snapshots, routes, strict=True):
-                        if route:
-                            stats.matched += 1
-                            stats.updated += await _write_route(session, key, route)
-                    await session.commit()
-                    _set_route_span_data(span, stats, result="completed")
-                    _log_complete(uid, aid, started, stats)
+                    await _match_routes_in_session(
+                        http, session, uid, aid, span, started
+                    )
     except Exception:
         logger.exception(
             "route_enrichment.failed",
@@ -176,6 +144,51 @@ async def match_album_segment_routes(http: HttpClients, uid: int, aid: str) -> N
             album_id=aid,
             duration_ms=_duration_ms(started),
         )
+
+
+async def _match_routes_in_session(  # noqa: PLR0913
+    http: HttpClients,
+    session: AsyncSession,
+    uid: int,
+    aid: str,
+    span: Span,
+    started: float,
+) -> None:
+    snapshots = await _unmatched_snapshots(session, uid, aid)
+    if not snapshots:
+        stats = RouteEnrichmentStats()
+        _set_route_span_data(span, stats, result="empty")
+        _log_complete(uid, aid, started, stats)
+        return
+
+    pairs = [(coords, profile) for _, coords, profile in snapshots]
+    with start_span(
+        "route_enrichment.match",
+        "Match segment routes",
+        **{
+            "app.workflow": "route_enrichment",
+            "user.id": uid,
+            "album.id": aid,
+            "route.candidates": len(snapshots),
+        },
+    ):
+        routes, route_stats = await match_segments_with_stats(
+            http.mapbox_matching,
+            http.mapbox_directions,
+            pairs,
+        )
+
+    stats = RouteEnrichmentStats(candidates=len(snapshots))
+    stats.route_requests = route_stats.requests
+    stats.matching_requests = route_stats.matching_requests
+    stats.directions_requests = route_stats.directions_requests
+    for (key, _, _), route in zip(snapshots, routes, strict=True):
+        if route:
+            stats.matched += 1
+            stats.updated += await _write_route(session, key, route)
+    await session.commit()
+    _set_route_span_data(span, stats, result="completed")
+    _log_complete(uid, aid, started, stats)
 
 
 def _duration_ms(started: float) -> int:

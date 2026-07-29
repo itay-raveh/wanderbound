@@ -326,7 +326,58 @@ def _print_url(
     return f"{frontend_url.rstrip('/')}/print/{quote(aid)}?{urlencode(query)}"
 
 
-async def render_pdf_file(  # noqa: C901, PLR0913, PLR0915
+async def _load_print_page(
+    page: Page,
+    url: str,
+    aid: str,
+    *,
+    dark: bool,
+) -> AsyncGenerator[PdfProgress]:
+    started, finished = 0, 0
+
+    def _on_request(_: object) -> None:
+        nonlocal started
+        started += 1
+
+    def _on_finished(_: object) -> None:
+        nonlocal finished
+        finished += 1
+
+    page.on("request", _on_request)
+    page.on("requestfinished", _on_finished)
+    page.on("requestfailed", _on_finished)
+    await page.emulate_media(media="print")
+    with start_span(
+        "pdf.load_page",
+        "Load print page",
+        **{"app.workflow": "pdf", "album.id": aid, "pdf.dark": dark},
+    ) as span:
+        await page.goto(url, wait_until="domcontentloaded")
+        logger.info("pdf.dom_loaded", album_id=aid)
+        loop = asyncio.get_running_loop()
+        deadline = loop.time() + 60
+        last_counts = (-1, -1)
+        while True:
+            ready = await page.evaluate("window.__PRINT_READY__ === true")
+            counts = (finished, started)
+            if counts != last_counts or ready:
+                last_counts = counts
+                yield PdfProgress(phase="loading", done=finished, total=started)
+            if ready:
+                break
+            if loop.time() > deadline:
+                raise TimeoutError("Timed out waiting for album to load")
+            await asyncio.sleep(0.5)
+        set_span_data(
+            span,
+            **{
+                "browser.request.started": started,
+                "browser.request.finished": finished,
+            },
+        )
+
+
+async def render_pdf_file(  # noqa: PLR0913
     browser: Browser,
     aid: str,
     dest: Path,
@@ -369,53 +420,9 @@ async def render_pdf_file(  # noqa: C901, PLR0913, PLR0915
                 error_type=type(err).__name__,
             ),
         )
-        started, finished = 0, 0
-
-        def _on_request(_: object) -> None:
-            nonlocal started
-            started += 1
-
-        def _on_finished(_: object) -> None:
-            nonlocal finished
-            finished += 1
-
-        page.on("request", _on_request)
-        page.on("requestfinished", _on_finished)
-        page.on("requestfailed", _on_finished)
-        await page.emulate_media(media="print")
         url = _print_url(frontend_url, aid, dark=dark, chapter=chapter)
-        with start_span(
-            "pdf.load_page",
-            "Load print page",
-            **{"app.workflow": "pdf", "album.id": aid, "pdf.dark": dark},
-        ) as span:
-            await page.goto(url, wait_until="domcontentloaded")
-            logger.info("pdf.dom_loaded", album_id=aid)
-            loop = asyncio.get_running_loop()
-            deadline = loop.time() + 60
-            last_counts = (-1, -1)
-            while True:
-                ready = await page.evaluate("window.__PRINT_READY__ === true")
-                counts = (finished, started)
-                if counts != last_counts or ready:
-                    last_counts = counts
-                    yield PdfProgress(
-                        phase="loading",
-                        done=finished,
-                        total=started,
-                    )
-                if ready:
-                    break
-                if loop.time() > deadline:
-                    raise TimeoutError("Timed out waiting for album to load")
-                await asyncio.sleep(0.5)
-            set_span_data(
-                span,
-                **{
-                    "browser.request.started": started,
-                    "browser.request.finished": finished,
-                },
-            )
+        async for progress in _load_print_page(page, url, aid, dark=dark):
+            yield progress
 
         yield PdfProgress(phase="rendering", done=0)
         size = 0

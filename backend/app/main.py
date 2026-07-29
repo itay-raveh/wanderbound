@@ -113,6 +113,30 @@ async def _cleanup_tasks(tasks: list[asyncio.Task[None] | None]) -> None:
 
 
 @asynccontextmanager
+async def _dbos_lifespan(
+    upload_store: UploadStoreService,
+) -> AsyncGenerator[None]:
+    async with try_advisory_lock("dbos-admin") as admin_lock_acquired:
+        admin_state = WorkflowAdminState(
+            has_admin_server=(settings.DBOS_RUN_ADMIN_SERVER and admin_lock_acquired)
+        )
+        await launch_dbos(settings, run_admin_server=admin_state.has_admin_server)
+        await _reconcile_media_hashes()
+
+        async def promote_to_admin() -> None:
+            logger.info("workflow.admin_promoted")
+            destroy_dbos()
+            await launch_dbos(settings, run_admin_server=True)
+
+        tasks = _launch_background_tasks(admin_state, upload_store, promote_to_admin)
+        try:
+            yield
+        finally:
+            await _cleanup_tasks(tasks)
+            destroy_dbos()
+
+
+@asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
     settings.USERS_FOLDER.mkdir(parents=True, exist_ok=True)
     await cleanup_orphaned_tmp(settings.USERS_FOLDER)
@@ -138,32 +162,8 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
         set_processing_workflow_http_clients(http)
         set_route_enrichment_http_clients(http)
         try:
-            async with try_advisory_lock("dbos-admin") as admin_lock_acquired:
-                admin_state = WorkflowAdminState(
-                    has_admin_server=(
-                        settings.DBOS_RUN_ADMIN_SERVER and admin_lock_acquired
-                    )
-                )
-                await launch_dbos(
-                    settings, run_admin_server=admin_state.has_admin_server
-                )
-                await _reconcile_media_hashes()
-
-                async def promote_to_admin() -> None:
-                    logger.info("workflow.admin_promoted")
-                    destroy_dbos()
-                    await launch_dbos(settings, run_admin_server=True)
-
-                tasks = _launch_background_tasks(
-                    admin_state,
-                    upload_store,
-                    promote_to_admin,
-                )
-                try:
-                    yield
-                finally:
-                    await _cleanup_tasks(tasks)
-                    destroy_dbos()
+            async with _dbos_lifespan(upload_store):
+                yield
         finally:
             upload_store.close()
             set_route_enrichment_http_clients(None)

@@ -5,6 +5,7 @@ import socket
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
+from functools import partial
 from typing import Protocol
 from urllib.parse import urlparse
 from urllib.request import Request, urlopen
@@ -170,39 +171,47 @@ async def workflow_admin_election_once(
     await recover_once()
 
 
+async def _recover_once(settings: WorkflowRecoverySettings) -> None:
+    async with AsyncSession(get_engine(), expire_on_commit=False) as session:
+        recovered = await recover_dead_workflow_executors(session, settings)
+        await session.commit()
+        if recovered:
+            logger.info("workflow.recovered", recovered_workflow_count=len(recovered))
+
+
+async def _hold_admin_lock(
+    settings: WorkflowRecoverySettings,
+    state: WorkflowAdminState,
+    promote_to_admin: Callable[[], Awaitable[None]],
+) -> None:
+    recover_once = partial(_recover_once, settings)
+    await workflow_admin_election_once(
+        state,
+        lock_acquired=True,
+        promote_to_admin=promote_to_admin,
+        recover_once=recover_once,
+    )
+    while True:
+        await asyncio.sleep(settings.DBOS_RECOVERY_INTERVAL_SECONDS)
+        await workflow_admin_election_once(
+            state,
+            lock_acquired=True,
+            promote_to_admin=promote_to_admin,
+            recover_once=recover_once,
+        )
+
+
 async def workflow_admin_election_loop(
     settings: WorkflowRecoverySettings,
     state: WorkflowAdminState,
     *,
     promote_to_admin: Callable[[], Awaitable[None]],
 ) -> None:
-    async def recover_once() -> None:
-        async with AsyncSession(get_engine(), expire_on_commit=False) as session:
-            recovered = await recover_dead_workflow_executors(session, settings)
-            await session.commit()
-            if recovered:
-                logger.info(
-                    "workflow.recovered", recovered_workflow_count=len(recovered)
-                )
-
     while True:
         try:
             async with try_advisory_lock("dbos-admin") as acquired:
                 if acquired:
-                    await workflow_admin_election_once(
-                        state,
-                        lock_acquired=True,
-                        promote_to_admin=promote_to_admin,
-                        recover_once=recover_once,
-                    )
-                    while True:
-                        await asyncio.sleep(settings.DBOS_RECOVERY_INTERVAL_SECONDS)
-                        await workflow_admin_election_once(
-                            state,
-                            lock_acquired=True,
-                            promote_to_admin=promote_to_admin,
-                            recover_once=recover_once,
-                        )
+                    await _hold_admin_lock(settings, state, promote_to_admin)
         except asyncio.CancelledError:
             raise
         except Exception as exc:  # noqa: BLE001
