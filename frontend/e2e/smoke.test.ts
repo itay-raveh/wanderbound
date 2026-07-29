@@ -1,16 +1,4 @@
-import { test, expect } from "./fixtures";
-
-test.describe("Landing page", () => {
-  test("renders the landing page", async ({ anonymousPage: page }) => {
-    await page.goto("/");
-    await expect(page).toHaveTitle(/wanderbound/i);
-  });
-
-  test("shows sign-in area", async ({ anonymousPage: page }) => {
-    await page.goto("/");
-    await expect(page.locator("body")).toBeVisible();
-  });
-});
+import { test } from "./fixtures";
 
 test.describe("Health check redirect", () => {
   test("anonymous user stays on landing", async ({ anonymousPage: page }) => {

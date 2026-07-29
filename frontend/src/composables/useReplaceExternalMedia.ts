@@ -2,13 +2,14 @@ import { client } from "@/client/client.gen";
 import type { AlbumMedia } from "@/client";
 import { useAlbum } from "@/composables/useAlbum";
 import { useGooglePhotos } from "@/composables/useGooglePhotos";
+import { useGooglePhotosPicker } from "@/composables/useGooglePhotosPicker";
+import { useMediaOperationState } from "@/composables/useMediaOperationState";
 import { usePhotoFocus } from "@/composables/usePhotoFocus";
 import { t } from "@/i18n";
 import { invalidateAlbumKey, queryKeys } from "@/queries/keys";
 import { useQueryCache } from "@pinia/colada";
 import { computed, ref } from "vue";
 import { useI18n } from "vue-i18n";
-import { sleep } from "@/utils/async";
 import { GOOGLE_REPLACEMENT_MAX_ITEMS } from "@/utils/externalMediaLimits";
 import { isVideo, mediaUrl, posterPath } from "@/utils/media";
 
@@ -55,23 +56,20 @@ export interface ReplacementReviewState {
   blockedReason: string | null;
 }
 
-const POLL_INTERVAL_MS = 2000;
-const PICKER_TIMEOUT_MS = 10 * 60 * 1000;
-
 export function useReplaceExternalMedia() {
   const { t: translate } = useI18n();
   const { albumId, mediaByName } = useAlbum();
   const cache = useQueryCache();
   const googlePhotos = useGooglePhotos();
+  const operation = useMediaOperationState<ReplacePhase>("idle", "error");
+  const picker = useGooglePhotosPicker(googlePhotos, {
+    blocked: t("mediaImport.errors.popupBlocked"),
+    loading: translate("mediaImport.authorizing"),
+    timeout: translate("mediaImport.errors.selectionTimeout"),
+  });
   const photoFocus = usePhotoFocus();
 
-  const phase = ref<ReplacePhase>("idle");
-  const errorDetail = ref<string | null>(null);
   const review = ref<ReplacementReviewState | null>(null);
-
-  let controller: AbortController | null = null;
-  let activePopup: Window | null = null;
-  let activeSessionId: string | null = null;
 
   const selectedMediaName = computed(() => photoFocus.focusedPhotoId.value);
   const selectedMedia = computed(() =>
@@ -84,12 +82,11 @@ export function useReplaceExternalMedia() {
     return isVideo(selectedMediaName.value) ? "video" : "photo";
   });
   const isBusy = computed(() =>
-    ["authorizing", "picking", "replacing"].includes(phase.value),
+    ["authorizing", "picking", "replacing"].includes(operation.phase.value),
   );
 
   function setError(message: string) {
-    phase.value = "error";
-    errorDetail.value = message;
+    operation.setError(message);
   }
 
   function cleanupReview() {
@@ -98,41 +95,10 @@ export function useReplaceExternalMedia() {
   }
 
   function reset() {
-    controller?.abort();
-    controller = null;
-    errorDetail.value = null;
+    operation.abort();
+    operation.clearError();
     cleanupReview();
-    try {
-      activePopup?.close();
-    } catch {
-      /* Cross-origin opener policy can block this. */
-    }
-    activePopup = null;
-    if (activeSessionId)
-      googlePhotos.closeSession(activeSessionId).catch(() => {});
-    activeSessionId = null;
-  }
-
-  function openPopup(): Window {
-    const width = Math.min(screen.availWidth - 100, 1200);
-    const height = Math.min(screen.availHeight - 100, 900);
-    const left =
-      ((screen as { availLeft?: number }).availLeft ?? 0) +
-      (screen.availWidth - width) / 2;
-    const top =
-      ((screen as { availTop?: number }).availTop ?? 0) +
-      (screen.availHeight - height) / 2;
-    const popup = window.open(
-      "about:blank",
-      "google-photos",
-      `width=${width},height=${height},left=${left},top=${top}`,
-    );
-    if (!popup) throw new Error(t("mediaImport.errors.popupBlocked"));
-    popup.document.title = "Google Photos";
-    popup.document.body.style.cssText =
-      "font-family:system-ui;display:grid;place-items:center;height:100vh;margin:0;color:#666";
-    popup.document.body.textContent = translate("mediaImport.authorizing");
-    return popup;
+    picker.cleanup();
   }
 
   async function prepareDeviceReview(
@@ -147,7 +113,7 @@ export function useReplaceExternalMedia() {
       return null;
     }
     cleanupReview();
-    errorDetail.value = null;
+    operation.clearError();
 
     try {
       const replacement = await readPreviewInfo(file);
@@ -174,7 +140,7 @@ export function useReplaceExternalMedia() {
         warnings,
         blockedReason,
       };
-      phase.value = "review";
+      operation.phase.value = "review";
       return review.value;
     } catch {
       setError(translate("externalMedia.review.errors.previewFailed"));
@@ -189,8 +155,8 @@ export function useReplaceExternalMedia() {
       setError(currentReview.blockedReason);
       return null;
     }
-    controller = new AbortController();
-    phase.value = "replacing";
+    const signal = operation.begin();
+    operation.phase.value = "replacing";
     try {
       const form = new FormData();
       form.set("media_name", currentReview.mediaName);
@@ -202,28 +168,23 @@ export function useReplaceExternalMedia() {
           method: "POST",
           credentials: "include",
           body: form,
-          signal: controller.signal,
+          signal,
         },
       );
       if (!res.ok) throw new Error(statusMessage(res.status));
       const replacement = (await res.json()) as AlbumMedia;
       await invalidateQueries();
-      phase.value = "done";
+      operation.phase.value = "done";
       const result = replacementResult(
         currentReview.mediaName,
         currentReview.current,
         replacement,
       );
       cleanupReview();
-      phase.value = "idle";
+      operation.phase.value = "idle";
       return result;
     } catch (err) {
-      if (err instanceof DOMException && err.name === "AbortError") return null;
-      setError(
-        err instanceof Error
-          ? err.message
-          : translate("externalMedia.replace.error"),
-      );
+      operation.fail(err, translate("externalMedia.replace.error"));
       return null;
     }
   }
@@ -237,26 +198,20 @@ export function useReplaceExternalMedia() {
       setError(translate("externalMedia.replace.noSelection"));
       return null;
     }
-    controller = new AbortController();
-    const signal = controller.signal;
-    errorDetail.value = null;
+    const signal = operation.begin();
     try {
-      activePopup = openPopup();
-      if (!googlePhotos.isConnected.value) {
-        phase.value = "authorizing";
-        await googlePhotos.authorize(activePopup, signal);
+      picker.open();
+      if (!picker.isConnected.value) {
+        operation.phase.value = "authorizing";
+        await picker.authorize(signal);
       }
-      phase.value = "picking";
-      const session = await googlePhotos.createPickerSession(
-        activePopup,
-        signal,
-        { maxItemCount: GOOGLE_REPLACEMENT_MAX_ITEMS },
-      );
-      activeSessionId = session.sessionId;
-      activePopup.location.href = `${session.pickerUri}/autoclose`;
-      await pollUntilReady(session.sessionId, signal);
+      operation.phase.value = "picking";
+      const sessionId = await picker.pick(signal, {
+        maxItemCount: GOOGLE_REPLACEMENT_MAX_ITEMS,
+        checkAbortedAfterPoll: true,
+      });
 
-      phase.value = "replacing";
+      operation.phase.value = "replacing";
       onRequestStart?.();
       const baseUrl = client.getConfig().baseUrl ?? "";
       const res = await fetch(
@@ -268,38 +223,25 @@ export function useReplaceExternalMedia() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             media_name: mediaName,
-            session_id: session.sessionId,
+            session_id: sessionId,
           }),
         },
       );
       if (!res.ok) throw new Error(statusMessage(res.status));
       const replacement = (await res.json()) as AlbumMedia;
       await invalidateQueries();
-      phase.value = "done";
-      phase.value = "idle";
+      operation.phase.value = "done";
+      operation.phase.value = "idle";
       return replacementResult(
         mediaName,
         albumMediaMetadata(previous),
         replacement,
       );
     } catch (err) {
-      if (err instanceof DOMException && err.name === "AbortError") return null;
-      setError(
-        err instanceof Error
-          ? err.message
-          : translate("externalMedia.replace.error"),
-      );
+      operation.fail(err, translate("externalMedia.replace.error"));
       return null;
     } finally {
-      try {
-        activePopup?.close();
-      } catch {
-        /* Cross-origin opener policy can block this. */
-      }
-      activePopup = null;
-      if (activeSessionId)
-        googlePhotos.closeSession(activeSessionId).catch(() => {});
-      activeSessionId = null;
+      picker.cleanup();
     }
   }
 
@@ -311,38 +253,22 @@ export function useReplaceExternalMedia() {
     );
   }
 
-  async function pollUntilReady(
-    sessionId: string,
-    signal: AbortSignal,
-  ): Promise<void> {
-    const deadline = Date.now() + PICKER_TIMEOUT_MS;
-    while (!signal.aborted) {
-      if (Date.now() > deadline) {
-        throw new Error(translate("mediaImport.errors.selectionTimeout"));
-      }
-      const result = await googlePhotos.pollSession(sessionId);
-      signal.throwIfAborted();
-      if (result.ready) return;
-      await sleep(POLL_INTERVAL_MS, signal);
-    }
-  }
-
   function cancelReview() {
     cleanupReview();
-    if (phase.value === "review") phase.value = "idle";
+    if (operation.phase.value === "review") operation.phase.value = "idle";
   }
 
   function cancel() {
-    phase.value = "idle";
+    operation.cancel();
     reset();
   }
 
   return {
-    phase,
-    errorDetail,
+    phase: operation.phase,
+    errorDetail: operation.errorDetail,
     review,
     isBusy,
-    googlePhotosState: googlePhotos.state,
+    googlePhotosState: picker.state,
     selectedMedia,
     selectedMediaName,
     prepareDeviceReview,
@@ -353,7 +279,7 @@ export function useReplaceExternalMedia() {
   };
 }
 
-export function replacementInvalidationKeys(aid: string) {
+function replacementInvalidationKeys(aid: string) {
   return [
     queryKeys.album(aid),
     queryKeys.media(aid),

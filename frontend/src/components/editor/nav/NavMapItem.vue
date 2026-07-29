@@ -69,6 +69,7 @@ const emit = defineEmits<{
 
 <style lang="scss" scoped>
 @use "nav-item";
+@use "nav-toggle";
 
 .map-item {
   position: relative;
@@ -112,31 +113,7 @@ const emit = defineEmits<{
 }
 
 .map-action {
-  appearance: none;
-  background: none;
-  border: none;
-  cursor: pointer;
-  flex-shrink: 0;
-  padding: var(--gap-sm);
-  border-radius: var(--radius-sm);
-  color: var(--text-faint);
-  transition:
-    color var(--duration-fast),
-    background var(--duration-fast);
-
-  &:hover {
-    color: var(--q-primary);
-    background: color-mix(in srgb, var(--q-primary) 10%, transparent);
-  }
-
-  &:active {
-    background: color-mix(in srgb, var(--q-primary) 16%, transparent);
-  }
-
-  &:focus-visible {
-    outline: 0.125rem solid var(--q-primary);
-    outline-offset: 1px;
-  }
+  @include nav-toggle.nav-toggle(1);
 }
 
 @media (hover: none) {
@@ -149,20 +126,10 @@ const emit = defineEmits<{
   .map-target {
     padding-inline-end: 6.25rem;
   }
-
-  .map-action {
-    min-width: 2.75rem;
-    min-height: 2.75rem;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: var(--gap-md-lg);
-  }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .map-actions,
-  .map-action {
+  .map-actions {
     transition: none;
   }
 }

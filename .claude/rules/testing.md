@@ -1,65 +1,46 @@
-# Testing Philosophy
+---
+paths:
+  - "backend/tests/**/*.py"
+  - "frontend/tests/**/*.ts"
+  - "frontend/e2e/**/*.ts"
+---
 
-"Write tests. Not too many. Mostly integration."
+# Test policy
 
-Every test must earn its place. Prefer confidence per test over coverage
-percentage.
+Tests are permanent code. Add one only when it is the cheapest reliable way to
+detect a distinct, high-impact regression. Coverage percentage, implementation
+complexity, and the existence of a code path do not justify a test.
 
-## Layer Choice
+## Admission rule
 
-- Unit tests are for pure computation, edge-heavy transformations, parsing,
-  formatting, payload builders, layout math, and small deterministic helpers.
-- Backend integration tests are the default for API, database, filesystem,
-  transaction, and data-flow boundaries.
-- Frontend integration tests are for composables, Pinia Colada cache behavior,
-  component interactions, and API hooks with MSW.
-- E2E tests are for user interaction, async timing, DOM focus, scrolling,
-  keyboard handling, file picker or popup behavior, and multi-component
-  workflows that cannot be covered cheaply below.
+A test must protect at least one of these risks:
 
-Avoid tests that only prove wiring, initial state, library behavior, generated
-client behavior, mock behavior, or log output. If a test needs more mocks than
-assertions, it is probably at the wrong layer.
+- authentication, authorization, or another security boundary;
+- data loss, corruption, cross-user leakage, or transaction atomicity;
+- an external API, migration, file format, or compatibility contract;
+- an edge-heavy domain algorithm whose required behavior needs examples;
+- concurrency, cancellation, retry, or recovery behavior;
+- browser behavior that cannot be tested more cheaply below E2E;
+- recurrence of a real defect with meaningful user impact.
 
-Do not assert exact internal tuning defaults such as concurrency, timeout,
-retry, batch-size, or cache-capacity values. Inject configuration when needed
-to exercise behavior. Exact assertions remain appropriate for external
-contracts and user-visible requirements.
+If two tests protect the same risk, keep the cheaper and more direct one. New
+tests should replace overlapping coverage instead of adding another layer.
 
-## Conventions
+Do not test wiring, static rendering, CRUD happy paths, library or generated
+client behavior, logs, metrics, mocks, private call sequences, internal
+defaults, or exact tuning values. If a test needs more mocks than assertions,
+delete it or move the assertion to a real boundary.
 
-- Frontend integration: Vitest + MSW. Do not mock Vue internals.
-- Backend integration: FastAPI `AsyncClient` with in-memory async SQLite and
-  transaction rollback.
-- E2E: Playwright route handlers for mocked API. Assert user-observable behavior,
-  not implementation details.
-- Snapshot tests are only for serialized contract boundaries. Never snapshot DOM.
+## Layer choice
 
-## Helper Libraries
+- Unit: pure, edge-heavy computation and transformations.
+- Backend integration: API, database, filesystem, transaction, and data flow.
+- Frontend integration: composables, cache behavior, and component interaction.
+- E2E: browser-only interaction, timing, focus, scrolling, popups, upload, and
+  print integration.
 
-Use plain fixtures and typed builders first.
+After a bug fix, add a regression test only when the admission rule is met. It
+must fail without the fix and live at the lowest layer that reproduces it.
 
-- Do not add `factory_boy`, `pytest-factoryboy`, `polyfactory`, or `Faker`
-  unless model creation remains noisy after local builders are split.
-- Do not add `@pinia/testing` unless a store-heavy component test needs action
-  stubbing that the current Pinia setup cannot express cleanly.
-- Do not add Testing Library or `user-event` unless Vue Test Utils tests keep
-  asserting implementation details that Playwright cannot cover more cheaply.
-
-## Structure
-
-- Keep shared setup in `support/` modules or focused fixtures.
-- Let fixtures do setup and teardown. Use plain builder functions for data.
-- Prefer one state-changing action per helper.
-- Move repeated E2E route stubs into Playwright support files.
-- Move files into `unit/` and `integration/` directories only after helper
-  boundaries are stable enough to avoid churn.
-
-After bugfixes, write a regression test that fails without the fix and passes
-with it. Choose the layer that would have caught the original bug.
-
-Run scoped tests:
-
-- Python changes: `mise run test:backend`
-- Vue/TS changes: `mise run test:frontend`
-- API contract or cross-cutting changes: `mise run test:e2e`
+Run `mise run test:backend`, `mise run test:frontend`, or `mise run test:e2e`
+for the affected layer.

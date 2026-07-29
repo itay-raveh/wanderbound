@@ -3,6 +3,7 @@ import shutil
 import time
 from collections import defaultdict
 from collections.abc import AsyncIterator, Awaitable, Callable
+from dataclasses import dataclass
 from pathlib import Path
 
 import structlog
@@ -44,6 +45,15 @@ logger = structlog.get_logger(__name__)
 
 _POLARSTEPS_METADATA = {"trip.json", "locations.json"}
 SaveGuard = Callable[[AsyncSession], Awaitable[bool]]
+
+
+@dataclass
+class _ProcessingState:
+    existing_albums: dict[str, Album]
+    existing_media: dict[str, list[AlbumMedia]]
+    existing_steps: dict[str, list[StepRead]]
+    all_objects: list[DbRow]
+    reconciled_aids: set[str]
 
 
 def _cleanup_metadata(user_folder: Path, trip_dirs: list[Path]) -> None:
@@ -329,7 +339,45 @@ async def _processing_should_continue(
     return False
 
 
-async def run_processing(  # noqa: C901
+async def _process_trips(
+    http: HttpClients,
+    user: User,
+    trip_dirs: list[Path],
+    state: _ProcessingState,
+) -> AsyncIterator[ProcessingEvent]:
+    for trip_idx, trip_dir in enumerate(trip_dirs):
+        aid = trip_dir.name
+        yield TripStart(trip_index=trip_idx)
+
+        if aid not in state.existing_albums:
+            async for event in _process_trip(http, user, trip_dir, state.all_objects):
+                yield event
+            continue
+
+        with start_span(
+            "processing.reconcile_trip",
+            "Reconcile trip",
+            **{
+                "app.workflow": "processing",
+                "user.id": user.id,
+                "album.id": aid,
+                "existing_step.count": len(state.existing_steps.get(aid, [])),
+            },
+        ):
+            async for event in reconcile_trip(
+                http,
+                user,
+                trip_dir,
+                state.existing_albums[aid],
+                state.existing_steps.get(aid, []),
+                state.all_objects,
+                state.existing_media.get(aid, []),
+            ):
+                yield event
+        state.reconciled_aids.add(aid)
+
+
+async def run_processing(
     http: HttpClients,
     user: User,
     *,
@@ -356,36 +404,21 @@ async def run_processing(  # noqa: C901
         },
     ):
         existing_albums, existing_media, existing_steps = await _load_existing(user)
+        processing_state = _ProcessingState(
+            existing_albums,
+            existing_media,
+            existing_steps,
+            all_objects,
+            reconciled_aids,
+        )
         try:
-            for trip_idx, trip_dir in enumerate(trip_dirs):
-                aid = trip_dir.name
-                yield TripStart(trip_index=trip_idx)
-
-                if aid in existing_albums:
-                    with start_span(
-                        "processing.reconcile_trip",
-                        "Reconcile trip",
-                        **{
-                            "app.workflow": "processing",
-                            "user.id": user.id,
-                            "album.id": aid,
-                            "existing_step.count": len(existing_steps.get(aid, [])),
-                        },
-                    ):
-                        async for event in reconcile_trip(
-                            http,
-                            user,
-                            trip_dir,
-                            existing_albums[aid],
-                            existing_steps.get(aid, []),
-                            all_objects,
-                            existing_media.get(aid, []),
-                        ):
-                            yield event
-                    reconciled_aids.add(aid)
-                else:
-                    async for event in _process_trip(http, user, trip_dir, all_objects):
-                        yield event
+            async for event in _process_trips(
+                http,
+                user,
+                trip_dirs,
+                processing_state,
+            ):
+                yield event
         except Exception:
             logger.exception("processing.failed", user_id=user.id)
             yield ErrorData()

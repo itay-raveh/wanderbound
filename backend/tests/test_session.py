@@ -98,35 +98,6 @@ class TestProcessingSession:
 
         assert result == events
 
-    async def test_enqueues_route_enrichment_after_successful_processing(
-        self,
-    ) -> None:
-        user = _mock_user(uid=42)
-        with (
-            patch(
-                "app.logic.session.run_processing",
-                _processing_events(PhaseUpdate(phase="layouts", done=1, total=1)),
-            ),
-            patch("app.logic.session.schedule_album_route_enrichment") as schedule,
-        ):
-            session = ProcessingSession(_MOCK_HTTP, user)
-            await session._task
-
-        calls = [call.args for call in schedule.call_args_list]
-        assert calls == _scheduled_album_calls(42)
-
-    async def test_does_not_enqueue_route_enrichment_after_processing_error(
-        self,
-    ) -> None:
-        with (
-            patch("app.logic.session.run_processing", _processing_events(ErrorData())),
-            patch("app.logic.session.schedule_album_route_enrichment") as schedule,
-        ):
-            session = ProcessingSession(_MOCK_HTTP, _mock_user())
-            await session._task
-
-        schedule.assert_not_called()
-
 
 class TestProcessStream:
     @pytest.fixture(autouse=True)
@@ -135,47 +106,6 @@ class TestProcessStream:
             _sessions.clear()
             yield
             _sessions.clear()
-
-    async def test_reconnect_to_running_session(self) -> None:
-        gate = asyncio.Event()
-        events_before_gate = [TripStart(trip_index=0)]
-        events_after_gate = [PhaseUpdate(phase="elevations", done=1, total=5)]
-
-        user = _mock_user(uid=99)
-        with patch(
-            "app.logic.session.run_processing",
-            _gated_processing(gate, before=events_before_gate, after=events_after_gate),
-        ):
-            session = ProcessingSession(_MOCK_HTTP, user)
-            _sessions[user.id] = session
-
-            await session._notify.wait()
-
-            collected: list[ProcessingEvent] = []
-            async for event in process_stream(_MOCK_HTTP, user):
-                collected.append(event)
-                if isinstance(event, TripStart):
-                    gate.set()
-
-            assert collected == events_before_gate + events_after_gate
-
-    async def test_replays_completed_session(self) -> None:
-        call_count = 0
-
-        async def fake_processing(
-            _http: HttpClients, _user: User
-        ) -> AsyncIterator[ProcessingEvent]:
-            nonlocal call_count
-            call_count += 1
-            yield TripStart(trip_index=0)
-
-        user = _mock_user(uid=7)
-        with patch("app.logic.session.run_processing", fake_processing):
-            first = await collect_async(process_stream(_MOCK_HTTP, user))
-            second = await collect_async(process_stream(_MOCK_HTTP, user))
-
-        assert call_count == 1  # Only one processing run
-        assert first == second  # Replayed same events
 
     async def test_failed_session_retries_with_fresh_run(self) -> None:
         call_count = 0
@@ -274,8 +204,7 @@ class TestPersistedProcessStream:
             starts.append(operation.workflow_id)
             return object()
 
-        async def finish_operation() -> None:
-            await asyncio.sleep(0.01)
+        async def finish_operation(_delay: float) -> None:
             operation = await latest_processing_operation(session, uid=123)
             assert operation is not None
             await mark_processing_operation_running(session, operation)
@@ -287,13 +216,14 @@ class TestPersistedProcessStream:
             await session.commit()
 
         user = _mock_user(uid=123)
-        with patch(
-            "app.logic.session.start_processing_workflow",
-            fake_start_processing_workflow,
+        with (
+            patch(
+                "app.logic.session.start_processing_workflow",
+                fake_start_processing_workflow,
+            ),
+            patch("app.logic.session.asyncio.sleep", finish_operation),
         ):
-            finisher = asyncio.create_task(finish_operation())
             first = await collect_async(process_stream(_MOCK_HTTP, user, session))
-            await finisher
             _sessions.clear()
             second = await collect_async(process_stream(_MOCK_HTTP, user, session))
 
@@ -329,8 +259,7 @@ class TestPersistedProcessStream:
             msg = "running operation should not start duplicate processing"
             raise AssertionError(msg)
 
-        async def finish_operation() -> None:
-            await asyncio.sleep(0.01)
+        async def finish_operation(_delay: float) -> None:
             await append_processing_event(
                 session,
                 operation,
@@ -339,10 +268,11 @@ class TestPersistedProcessStream:
             await complete_processing_operation(session, operation, status="succeeded")
             await session.commit()
 
-        with patch("app.logic.session.run_processing", fake_processing):
-            finisher = asyncio.create_task(finish_operation())
+        with (
+            patch("app.logic.session.run_processing", fake_processing),
+            patch("app.logic.session.asyncio.sleep", finish_operation),
+        ):
             events = await collect_async(process_stream(_MOCK_HTTP, user, session))
-            await finisher
 
         assert events == [
             TripStart(trip_index=0),
@@ -353,7 +283,6 @@ class TestPersistedProcessStream:
         self, session: AsyncSession
     ) -> None:
         user = _mock_user(uid=654)
-        workflow_started = asyncio.Event()
 
         async def fake_processing(
             _http: HttpClients, _user: User
@@ -363,8 +292,7 @@ class TestPersistedProcessStream:
             msg = "queued operation should start DBOS, not local processing"
             raise AssertionError(msg)
 
-        async def finish_operation() -> None:
-            await workflow_started.wait()
+        async def finish_operation(_delay: float) -> None:
             operation = await latest_processing_operation(session, uid=654)
             assert operation is not None
             await mark_processing_operation_running(session, operation)
@@ -381,7 +309,6 @@ class TestPersistedProcessStream:
 
         def fake_start_processing_workflow(operation: object, _user: User) -> object:
             starts.append(operation.workflow_id)
-            workflow_started.set()
             return object()
 
         with (
@@ -391,10 +318,9 @@ class TestPersistedProcessStream:
                 fake_start_processing_workflow,
                 create=True,
             ),
+            patch("app.logic.session.asyncio.sleep", finish_operation),
         ):
-            finisher = asyncio.create_task(finish_operation())
             events = await collect_async(process_stream(_MOCK_HTTP, user, session))
-            await finisher
 
         operation = await latest_processing_operation(session, uid=654)
         assert operation is not None

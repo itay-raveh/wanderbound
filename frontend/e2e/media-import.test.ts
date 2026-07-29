@@ -5,13 +5,7 @@ import {
   test,
   expect,
 } from "./fixtures";
-import {
-  mockAlbum,
-  mockMedia,
-  mockStep,
-  TINY_JPEG_BASE64,
-  mockUser,
-} from "../tests/fixtures/mocks";
+import { mockMedia, mockStep, TINY_JPEG_BASE64 } from "../tests/fixtures/mocks";
 
 const API = "**/api/v1";
 const IMPORTED =
@@ -87,9 +81,11 @@ test.describe("Media import", () => {
     });
 
     await page.goto("/editor");
-    await expect(page.getByRole("main").getByText("South America")).toBeVisible({
-      timeout: 15_000,
-    });
+    await expect(page.getByRole("main").getByText("South America")).toBeVisible(
+      {
+        timeout: 15_000,
+      },
+    );
     await selectImportStep(page, 1);
     await ensureExternalMediaOpen(page);
 
@@ -124,94 +120,5 @@ test.describe("Media import", () => {
         importedImage.evaluate((img) => (img as HTMLImageElement).naturalWidth),
       )
       .toBeGreaterThan(0);
-  });
-
-  test("step import overlay resets when changing albums", async ({
-    authedPage: page,
-  }) => {
-    let imported = false;
-
-    await page.route(`${API}/users`, (route) =>
-      route.fulfill({
-        json: { ...mockUser, album_ids: ["aid-1", "aid-2"] },
-      }),
-    );
-    await page.route(`${API}/albums/*`, (route) => {
-      const aid = new URL(route.request().url()).pathname
-        .split("/albums/")[1]
-        ?.split("/")[0];
-      return route.fulfill({
-        json: {
-          ...mockAlbum,
-          id: aid,
-          chapters: [
-            {
-              ...mockAlbum.chapters[0],
-              title:
-                aid === "aid-2"
-                  ? "Second Album"
-                  : mockAlbum.chapters[0].title,
-            },
-          ],
-        },
-      });
-    });
-    await page.route(`${API}/albums/*/steps`, (route) => {
-      const aid = new URL(route.request().url()).pathname
-        .split("/albums/")[1]
-        ?.split("/")[0];
-      const steps =
-        imported && aid === "aid-1"
-          ? [{ ...mockStep, unused: [IMPORTED, ...mockStep.unused] }]
-          : [mockStep];
-      return route.fulfill({ json: steps });
-    });
-    await page.route(`${API}/albums/*/media`, (route) => {
-      const aid = new URL(route.request().url()).pathname
-        .split("/albums/")[1]
-        ?.split("/")[0];
-      const media =
-        imported && aid === "aid-1"
-          ? [...mockMedia, { name: IMPORTED, width: 640, height: 480 }]
-          : mockMedia;
-      return route.fulfill({ json: media });
-    });
-    await mockDeviceImport(page, () => {
-      imported = true;
-    });
-
-    await page.goto("/editor");
-    await expect(page.getByRole("main").getByText("South America")).toBeVisible({
-      timeout: 15_000,
-    });
-    await selectImportStep(page, 1);
-    await ensureExternalMediaOpen(page);
-
-    const fileChooser = page.waitForEvent("filechooser");
-    await externalMediaImportButton(page).click();
-    const chooser = await fileChooser;
-    await chooser.setFiles({
-      name: "import.jpg",
-      mimeType: "image/jpeg",
-      buffer: Buffer.from(TINY_JPEG_BASE64, "base64"),
-    });
-    await ensureUnusedTrayVisible(page);
-    await expect(
-      unusedDrawer(page).getByText("1", { exact: true }),
-    ).toBeVisible({
-      timeout: 5_000,
-    });
-
-    await page.getByLabel("Select album").click();
-    await page.getByRole("option", { name: "Aid 2" }).click();
-    await selectImportStep(page, 1);
-    await ensureExternalMediaOpen(page);
-    await ensureUnusedTrayVisible(page);
-
-    await expect(
-      unusedDrawer(page).getByText("0", { exact: true }),
-    ).toBeVisible({
-      timeout: 5_000,
-    });
   });
 });

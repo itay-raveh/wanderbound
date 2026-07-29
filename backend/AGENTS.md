@@ -1,20 +1,21 @@
 # Backend
 
-Routes handle HTTP concerns only. Logic modules own business rules. Services wrap external APIs.
+HTTP routes translate requests and responses. Logic modules own domain rules,
+services wrap external APIs, and `logic/workflows/` owns durable DBOS work.
 
-## Non-Obvious Constraints
+## Constraints
 
-- GPS segments are precomputed at user creation and stored in DB. Albums read
-  segments from DB, not by recomputing on demand.
-- PDF rendering uses Playwright Chrome, waits for `window.__PRINT_READY__ === true`,
-  streams via CDP, and is memory-concurrency limited.
-- `PydanticJSON` columns round-trip through Pydantic validation and render as
-  `sa.JSON()` in Alembic.
-- External API clients are built by `lifespan_clients()`, stored on
-  `app.state.http`, and injected into routes via `HttpClientsDep`. Services take
-  explicit `httpx.AsyncClient` params - no module-level client accessors.
-- Composite PKs on segment: `(uid, aid, start_time, end_time)`.
+- Use `pathlib`, not `os` or `os.path`.
+- The runtime is Python 3.14. `except A, B:` is valid syntax.
+- GPS segments are created during trip processing and stored in the database.
+  Albums must not recompute them on demand.
+- Segments use the composite key `(uid, aid, start_time, end_time)`.
+- `PydanticJSON` validates JSON values on database round trips and must render
+  as `sa.JSON()` in Alembic migrations.
 - PostgreSQL enums are managed by `alembic-postgresql-enum`. Do not hand-edit
   generated enum DDL.
-- Tests use FastAPI `AsyncClient` with in-memory async SQLite and transaction
-  rollback.
+- External HTTP clients come from `lifespan_clients()`, live on
+  `app.state.http`, and are injected through `HttpClientsDep`. Services receive
+  clients explicitly.
+- PDF rendering waits for `window.__PRINT_READY__ === true` and streams through
+  CDP under a memory-concurrency limit.

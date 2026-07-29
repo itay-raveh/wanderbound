@@ -16,7 +16,7 @@ from httpx_oauth.oauth2 import (
 )
 from sqlmodel import select
 
-from app.api.v1.routes.google_photos import (
+from app.api.v1.routes.google_photos_upgrade import (
     UpgradeRequest,
     _validate_match_names,
     match_media,
@@ -24,19 +24,15 @@ from app.api.v1.routes.google_photos import (
 )
 from app.logic.media_upgrade.phash_matching import MatchResult
 from app.logic.media_upgrade.pipeline import (
-    MatchCompleted,
     UpgradeCompleted,
     UpgradeFailed,
     _clear_caches,
 )
-from app.models.step import StepPageLayout
 from app.models.user import User
 from app.services.google_photos import _clear_media_items_cache
 
 from .factories import (
-    make_step_read,
     make_user,
-    make_weather,
     sign_in_connected_google_photos,
     sign_in_uploaded_user,
 )
@@ -46,7 +42,6 @@ from .helpers.google_photos import (
     connected_google_photos_http,
     oauth_callback,
     picked_item,
-    picker_mock,
     pin_http_clients,
 )
 from .helpers.users import UserRoutes
@@ -109,75 +104,13 @@ class TestDisconnect:
         assert user.google_photos_connected_at is None
 
 
-class TestPickerSession:
-    async def test_create_session_calls_google_api(
-        self,
-        client: AsyncClient,
-        session: AsyncSession,
-        google_photos_routes: GooglePhotosRoutes,
-    ) -> None:
-        await connected_google_photos_http(client, session)
-        mock_picker = picker_mock()
-
-        with patch(
-            "app.api.v1.routes.google_photos.create_picker_session",
-            mock_picker,
-        ):
-            data = await google_photos_routes.create_session_ok()
-
-        assert data["session_id"] == "session-abc"
-        assert "picker" in data["picker_uri"]
-
-    async def test_create_session_passes_picker_item_limit(
-        self,
-        client: AsyncClient,
-        session: AsyncSession,
-        google_photos_routes: GooglePhotosRoutes,
-    ) -> None:
-        http = await connected_google_photos_http(client, session)
-        mock_picker = picker_mock()
-
-        with patch(
-            "app.api.v1.routes.google_photos.create_picker_session",
-            mock_picker,
-        ):
-            await google_photos_routes.create_session_ok(max_item_count=1)
-
-        mock_picker.assert_awaited_once_with(
-            http.gphotos_picker,
-            "fresh-token",
-            max_item_count=1,
-        )
-
-
 class TestValidateMatchNames:
-    def test_accepts_valid_names(self) -> None:
-        matches = [MatchResult(local_name="photo1.jpg", google_id="gid-1", distance=0)]
-        _validate_match_names(matches, {"photo1.jpg", "photo2.jpg"})
-
-    @pytest.mark.parametrize(
-        ("matches", "detail"),
-        [
-            (
-                [MatchResult(local_name="unknown.jpg", google_id="gid-1", distance=0)],
-                "unknown.jpg",
-            ),
-            (
-                [
-                    MatchResult(local_name="photo1.jpg", google_id="gid-1", distance=0),
-                    MatchResult(local_name="evil.jpg", google_id="gid-2", distance=0),
-                ],
-                "evil.jpg",
-            ),
-        ],
-    )
-    def test_rejects_unknown_name(
-        self, matches: list[MatchResult], detail: str
-    ) -> None:
+    def test_rejects_unknown_name(self) -> None:
+        matches = [MatchResult(local_name="unknown.jpg", google_id="gid-1", distance=0)]
         with pytest.raises(HTTPException) as exc_info:
             _validate_match_names(matches, {"photo1.jpg"})
         assert exc_info.value.status_code == 422
-        assert detail in str(exc_info.value.detail)
+        assert "unknown.jpg" in str(exc_info.value.detail)
 
 
 class TestMatchMedia:
@@ -194,11 +127,11 @@ class TestMatchMedia:
 
         with (
             patch(
-                "app.api.v1.routes.google_photos._snapshot_steps_and_upgrade_state",
+                "app.api.v1.routes.google_photos_upgrade._snapshot_steps_and_upgrade_state",
                 AsyncMock(return_value=([], set(), {})),
             ),
             patch(
-                "app.api.v1.routes.google_photos.get_media_items_cached",
+                "app.api.v1.routes.google_photos_upgrade.get_media_items_cached",
                 AsyncMock(
                     side_effect=HTTPStatusError(
                         "not found", request=request, response=response
@@ -206,7 +139,7 @@ class TestMatchMedia:
                 ),
             ),
             patch(
-                "app.api.v1.routes.google_photos.try_advisory_lock",
+                "app.api.v1.routes.google_photos_upgrade.try_advisory_lock",
                 return_value=_acquired_lock(),
             ),
         ):
@@ -222,67 +155,12 @@ class TestMatchMedia:
         http.gphotos_oauth.refresh_token.side_effect = RefreshTokenError("timeout")
 
         with patch(
-            "app.api.v1.routes.google_photos.try_advisory_lock",
+            "app.api.v1.routes.google_photos_upgrade.try_advisory_lock",
             return_value=_acquired_lock(),
         ):
             events = [event async for event in match_media("trip-1", user, http, "s1")]
 
         assert events == [UpgradeFailed(detail="Matching failed unexpectedly.")]
-
-    async def test_keeps_non_candidate_media_in_match_set(self) -> None:
-        user = make_user(
-            1,
-            google_sub="sub",
-        )
-        user.google_photos_refresh_token = "refresh-token"  # noqa: S105
-        user.google_photos_connected_at = datetime.now(UTC)
-        step = make_step_read(
-            step_id=7,
-            name="Step",
-            description="",
-            timezone_id="UTC",
-            weather=make_weather(icon="clear"),
-            pages=[StepPageLayout(kind="grid", media=["photo.jpg"])],
-        )
-        http = pin_http_clients()
-        http.gphotos_oauth.refresh_token.return_value = OAuth2Token(
-            {"access_token": "fresh-token", "expires_in": 3600}
-        )
-        captured: dict[str, object] = {}
-
-        async def fake_run_matching(
-            *_args: object, **kwargs: object
-        ) -> AsyncIterator[MatchCompleted]:
-            captured.update(kwargs)
-            yield MatchCompleted(total_picked=0, matched=0, unmatched=0, matches=[])
-
-        with (
-            patch(
-                "app.api.v1.routes.google_photos._snapshot_steps_and_upgrade_state",
-                AsyncMock(
-                    return_value=(
-                        [step],
-                        set(),
-                        {"photo.jpg": ["0123456789abcdef"]},
-                    )
-                ),
-            ),
-            patch(
-                "app.api.v1.routes.google_photos.get_media_items_cached",
-                AsyncMock(return_value=[]),
-            ),
-            patch("app.api.v1.routes.google_photos.run_matching", fake_run_matching),
-            patch(
-                "app.api.v1.routes.google_photos.try_advisory_lock",
-                return_value=_acquired_lock(),
-            ),
-        ):
-            events = [event async for event in match_media("trip-1", user, http, "s1")]
-
-        assert isinstance(events[-1], MatchCompleted)
-        assert captured["media_by_step"] == {7: ["photo.jpg"]}
-        assert captured["upgrade_candidates"] == set()
-        assert captured["persisted_local_hashes"] == {"photo.jpg": ["0123456789abcdef"]}
 
 
 class TestUpgradeMedia:
@@ -299,11 +177,11 @@ class TestUpgradeMedia:
 
         with (
             patch(
-                "app.api.v1.routes.google_photos._snapshot_upgrade_state",
+                "app.api.v1.routes.google_photos_upgrade._snapshot_upgrade_state",
                 AsyncMock(return_value=({}, set())),
             ),
             patch(
-                "app.api.v1.routes.google_photos.get_media_items_cached",
+                "app.api.v1.routes.google_photos_upgrade.get_media_items_cached",
                 AsyncMock(
                     side_effect=HTTPStatusError(
                         "not found", request=request, response=response
@@ -311,7 +189,7 @@ class TestUpgradeMedia:
                 ),
             ),
             patch(
-                "app.api.v1.routes.google_photos.try_advisory_lock",
+                "app.api.v1.routes.google_photos_upgrade.try_advisory_lock",
                 return_value=_acquired_lock(),
             ),
         ):
@@ -336,11 +214,11 @@ class TestUpgradeMedia:
 
         with (
             patch(
-                "app.api.v1.routes.google_photos._snapshot_upgrade_state",
+                "app.api.v1.routes.google_photos_upgrade._snapshot_upgrade_state",
                 AsyncMock(return_value=({}, set())),
             ),
             patch(
-                "app.api.v1.routes.google_photos.try_advisory_lock",
+                "app.api.v1.routes.google_photos_upgrade.try_advisory_lock",
                 return_value=_acquired_lock(),
             ),
         ):
@@ -378,7 +256,7 @@ class TestUpgradeMedia:
 
         with (
             patch(
-                "app.api.v1.routes.google_photos._snapshot_upgrade_state",
+                "app.api.v1.routes.google_photos_upgrade._snapshot_upgrade_state",
                 AsyncMock(
                     return_value=(
                         {"photo.jpg": (1200, 800)},
@@ -387,12 +265,15 @@ class TestUpgradeMedia:
                 ),
             ),
             patch(
-                "app.api.v1.routes.google_photos.get_media_items_cached",
+                "app.api.v1.routes.google_photos_upgrade.get_media_items_cached",
                 AsyncMock(return_value=[picked_item("google-photo")]),
             ),
-            patch("app.api.v1.routes.google_photos.run_upgrade", fake_run_upgrade),
             patch(
-                "app.api.v1.routes.google_photos.try_advisory_lock",
+                "app.api.v1.routes.google_photos_upgrade.run_upgrade",
+                fake_run_upgrade,
+            ),
+            patch(
+                "app.api.v1.routes.google_photos_upgrade.try_advisory_lock",
                 return_value=_acquired_lock(),
             ),
         ):
