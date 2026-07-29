@@ -43,6 +43,8 @@
     "overviewBody": "הפסגה הכי גבוהה, הלילה הכי קר, היום הכי חם, המקום כי רחוק מהבית.",
     "localizationTitle": "עובד בכל שפה",
     "localizationBody": "האלבום הרשמי של {polarsteps} לא תומך בעברית כמו שצריך. אנחנו תומכים במגוון שפות, כולל תמיכה נכונה ביישור ימין-לשמאל.",
+    "selfHostPrompt": "לא רוצים להתחבר? {link}",
+    "selfHostLink": "אפשר לארח את Wanderbound בעצמכם.",
     "openEditor": "לעורך"
   },
   "login": {
