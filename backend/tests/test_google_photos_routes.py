@@ -16,7 +16,7 @@ from httpx_oauth.oauth2 import (
 )
 from sqlmodel import select
 
-from app.api.v1.routes.google_photos import (
+from app.api.v1.routes.google_photos_upgrade import (
     UpgradeRequest,
     _validate_match_names,
     match_media,
@@ -127,11 +127,11 @@ class TestMatchMedia:
 
         with (
             patch(
-                "app.api.v1.routes.google_photos._snapshot_steps_and_upgrade_state",
+                "app.api.v1.routes.google_photos_upgrade._snapshot_steps_and_upgrade_state",
                 AsyncMock(return_value=([], set(), {})),
             ),
             patch(
-                "app.api.v1.routes.google_photos.get_media_items_cached",
+                "app.api.v1.routes.google_photos_upgrade.get_media_items_cached",
                 AsyncMock(
                     side_effect=HTTPStatusError(
                         "not found", request=request, response=response
@@ -139,7 +139,7 @@ class TestMatchMedia:
                 ),
             ),
             patch(
-                "app.api.v1.routes.google_photos.try_advisory_lock",
+                "app.api.v1.routes.google_photos_upgrade.try_advisory_lock",
                 return_value=_acquired_lock(),
             ),
         ):
@@ -155,7 +155,7 @@ class TestMatchMedia:
         http.gphotos_oauth.refresh_token.side_effect = RefreshTokenError("timeout")
 
         with patch(
-            "app.api.v1.routes.google_photos.try_advisory_lock",
+            "app.api.v1.routes.google_photos_upgrade.try_advisory_lock",
             return_value=_acquired_lock(),
         ):
             events = [event async for event in match_media("trip-1", user, http, "s1")]
@@ -177,11 +177,11 @@ class TestUpgradeMedia:
 
         with (
             patch(
-                "app.api.v1.routes.google_photos._snapshot_upgrade_state",
+                "app.api.v1.routes.google_photos_upgrade._snapshot_upgrade_state",
                 AsyncMock(return_value=({}, set())),
             ),
             patch(
-                "app.api.v1.routes.google_photos.get_media_items_cached",
+                "app.api.v1.routes.google_photos_upgrade.get_media_items_cached",
                 AsyncMock(
                     side_effect=HTTPStatusError(
                         "not found", request=request, response=response
@@ -189,7 +189,7 @@ class TestUpgradeMedia:
                 ),
             ),
             patch(
-                "app.api.v1.routes.google_photos.try_advisory_lock",
+                "app.api.v1.routes.google_photos_upgrade.try_advisory_lock",
                 return_value=_acquired_lock(),
             ),
         ):
@@ -214,11 +214,11 @@ class TestUpgradeMedia:
 
         with (
             patch(
-                "app.api.v1.routes.google_photos._snapshot_upgrade_state",
+                "app.api.v1.routes.google_photos_upgrade._snapshot_upgrade_state",
                 AsyncMock(return_value=({}, set())),
             ),
             patch(
-                "app.api.v1.routes.google_photos.try_advisory_lock",
+                "app.api.v1.routes.google_photos_upgrade.try_advisory_lock",
                 return_value=_acquired_lock(),
             ),
         ):
@@ -256,7 +256,7 @@ class TestUpgradeMedia:
 
         with (
             patch(
-                "app.api.v1.routes.google_photos._snapshot_upgrade_state",
+                "app.api.v1.routes.google_photos_upgrade._snapshot_upgrade_state",
                 AsyncMock(
                     return_value=(
                         {"photo.jpg": (1200, 800)},
@@ -265,12 +265,15 @@ class TestUpgradeMedia:
                 ),
             ),
             patch(
-                "app.api.v1.routes.google_photos.get_media_items_cached",
+                "app.api.v1.routes.google_photos_upgrade.get_media_items_cached",
                 AsyncMock(return_value=[picked_item("google-photo")]),
             ),
-            patch("app.api.v1.routes.google_photos.run_upgrade", fake_run_upgrade),
             patch(
-                "app.api.v1.routes.google_photos.try_advisory_lock",
+                "app.api.v1.routes.google_photos_upgrade.run_upgrade",
+                fake_run_upgrade,
+            ),
+            patch(
+                "app.api.v1.routes.google_photos_upgrade.try_advisory_lock",
                 return_value=_acquired_lock(),
             ),
         ):
