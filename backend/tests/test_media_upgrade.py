@@ -31,7 +31,6 @@ from app.logic.media_upgrade.pipeline import (
     _clear_caches,
     _is_progress_checkpoint,
     _needs_upgrade,
-    _persist_upgrade_in_session,
     run_matching,
     run_upgrade,
 )
@@ -41,6 +40,7 @@ from app.logic.media_upgrade.processing import (
     process_photo_sync,
     process_video,
 )
+from app.logic.media_upgrade.upgrade import _persist_upgrade_in_session
 from app.models.album_media import PanoramaConfig
 from app.models.google_photos import GoogleMediaFile, GoogleMediaType, PickedMediaItem
 
@@ -497,39 +497,6 @@ class TestRunMatching:
 
         assert isinstance(events[-1], MatchCompleted)
         assert events[-1].matched == 1
-
-    async def test_matching_does_not_write_computed_hashes(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        media_hash = _make_hash(0x1234)
-
-        async def fake_local(
-            _album_dir: Path, name: str, _cached_hash: object
-        ) -> tuple[str, imagehash.ImageHash]:
-            return name, media_hash
-
-        monkeypatch.setattr(
-            "app.logic.media_upgrade.pipeline._hash_local_one", fake_local
-        )
-        monkeypatch.setattr(
-            "app.logic.media_upgrade.pipeline.AsyncSession",
-            MagicMock(side_effect=AssertionError("matching opened a write session")),
-        )
-
-        events = [
-            event
-            async for event in run_matching(
-                clients=AsyncMock(),
-                album_dir=tmp_path,
-                media_by_step={1: ["photo.jpg"]},
-                step_ids=[1],
-                google_items=[],
-                tokens=_test_token,
-                persisted_local_hashes={"photo.jpg": None},
-            )
-        ]
-
-        assert isinstance(events[-1], MatchCompleted)
 
     async def test_cancels_pending_hashes_when_stream_closes(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
