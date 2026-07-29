@@ -12,7 +12,6 @@ import { createPinia } from "pinia";
 import { PiniaColada } from "@pinia/colada";
 import { Quasar } from "quasar";
 import i18n from "@/i18n";
-import { client } from "@/client/client.gen";
 import type {
   AlbumMedia,
   Location,
@@ -26,9 +25,6 @@ import {
   DEFAULT_MEDIA_RESOLUTION_WARNING_PRESET,
   type MediaResolutionWarningPreset,
 } from "@/utils/photoQuality";
-
-// Set base URL for test API calls (MSW intercepts these).
-client.setConfig({ baseUrl: "http://localhost:8000" });
 
 /**
  * Mount a composable in a minimal app with Pinia + PiniaColada + Quasar.
