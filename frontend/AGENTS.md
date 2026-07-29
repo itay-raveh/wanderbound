@@ -1,34 +1,29 @@
 # Frontend
 
-## Non-Obvious Constraints
+Vue components own presentation, composables own reusable stateful behavior,
+and query modules own Pinia Colada server state.
 
-- `src/client/` is generated from `../backend/openapi.json` by `openapi-ts`.
-  Do not edit it.
-- `dev`, `build`, `test`, and `lint` regenerate stale generated assets through
-  frontend `ensure:*` scripts, so manual regeneration is rarely needed.
-- `lint:frontend` runs `vue-tsc -b` plus eslint. Lint failures may be type
-  failures.
-- `useWindowVirtualizer` is a custom replacement for @tanstack/vue-virtual due
-  to a Vue computed dedup issue.
-- `markRaw()` on immutable query responses prevents expensive Vue deep-proxying.
-  Do not remove it casually.
-- `stripPhotos()` atomically removes photos from all page lists to prevent
-  duplicates during drag-and-drop.
-- `useTextLayout()` resolves zone geometry from `:root` CSS vars via
-  `getComputedStyle`, not DOM containers.
-- Quasar q-select `#option` slots need `v-bind="itemProps"` for click handling.
+## Constraints
+
+- `src/client/` is generated from `../backend/openapi.json`. Do not edit it.
+- Frontend `dev`, `build`, `test`, and `lint` commands run the relevant
+  `ensure:*` generation steps automatically.
+- `mise run lint:frontend` runs type checking and ESLint, so lint failures may
+  be TypeScript failures.
+- `useWindowVirtualizer` works around Vue reactivity problems in the upstream
+  TanStack adapter. Keep the local adapter until its documented upstream issue
+  is resolved.
+- Photo moves must update every page and the unused list atomically. Use the
+  helpers in `useStepLayout.ts` rather than mutating one list independently.
+- `useTextLayout()` derives print geometry from root CSS tokens. Do not replace
+  that geometry with measurements from scaled preview elements.
+- Quasar `q-select` option slots must bind `itemProps` for interaction.
 
 ## CSS
 
-- Use rem, never px, except 1px for hairline borders, outlines, and optical nudges. Photo gaps use mm units for print accuracy.
-- Use semantic CSS var names (--bg, --text, --surface), never --album-* prefix.
-- Use --q-primary for UI accent color. Local per-item variables like country
-  color accents are allowed when semantically scoped.
-- Design tokens are in App.vue `:root`. Dark/light mode key: `"album-dark-mode"` in localStorage.
-- Type scale: `--type-xs` (0.75rem) is the smallest UI size. `--type-3xs` (0.5625rem) is print-only (album pages at A4 scale).
-- RTL flipping: use the `rtl-flip` class (in `quasar-overrides.scss`), not custom `[dir="rtl"]` rules.
-
-## Do NOT
-
-- Use ad-hoc UI accent variables instead of --q-primary
-- Use default exports
+- Design tokens live in `App.vue`. Reuse them instead of copying their values.
+- Use rem for UI dimensions. Use mm for album geometry and photo gaps. One-pixel
+  hairlines and intentional optical nudges are allowed.
+- Use `--q-primary` for the application accent and semantic local variables for
+  domain-specific colors.
+- Use logical properties and the shared `rtl-flip` class for directional icons.
