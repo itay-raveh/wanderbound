@@ -63,7 +63,7 @@ class TestRunMatching:
             raise AssertionError("unreachable")
 
         monkeypatch.setattr(
-            "app.logic.media_upgrade.pipeline._hash_local_one", fake_local
+            "app.logic.media_upgrade.matching._hash_local_one", fake_local
         )
         events = run_matching(
             clients=AsyncMock(),
@@ -101,7 +101,7 @@ class TestRunMatching:
             return item.id, _make_hash(0)
 
         monkeypatch.setattr(
-            "app.logic.media_upgrade.pipeline._hash_candidate_one", fake_candidate
+            "app.logic.media_upgrade.matching._hash_candidate_one", fake_candidate
         )
 
         async def match_once() -> None:
@@ -137,7 +137,7 @@ class TestRunMatching:
         photo = create_test_jpeg(album_dir / "photo.jpg", 800, 600)
         download = AsyncMock(return_value=photo.read_bytes())
         monkeypatch.setattr(
-            "app.logic.media_upgrade.pipeline.download_media_bytes", download
+            "app.logic.media_upgrade.matching.download_media_bytes", download
         )
 
         for width in (800, 801):

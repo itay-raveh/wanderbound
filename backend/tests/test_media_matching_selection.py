@@ -56,10 +56,10 @@ class TestRunMatching:
             return item.id, h
 
         monkeypatch.setattr(
-            "app.logic.media_upgrade.pipeline._hash_local_one", fake_local
+            "app.logic.media_upgrade.matching._hash_local_one", fake_local
         )
         monkeypatch.setattr(
-            "app.logic.media_upgrade.pipeline._hash_candidate_one", fake_candidate
+            "app.logic.media_upgrade.matching._hash_candidate_one", fake_candidate
         )
 
         events = [
@@ -117,10 +117,10 @@ class TestRunMatching:
             return "gp-1", h
 
         monkeypatch.setattr(
-            "app.logic.media_upgrade.pipeline._hash_local_one", fake_local
+            "app.logic.media_upgrade.matching._hash_local_one", fake_local
         )
         monkeypatch.setattr(
-            "app.logic.media_upgrade.pipeline._hash_candidate_one", fake_candidate
+            "app.logic.media_upgrade.matching._hash_candidate_one", fake_candidate
         )
 
         events = [
@@ -186,7 +186,7 @@ class TestRunMatching:
             return url_to_bytes[base_url]
 
         monkeypatch.setattr(
-            "app.logic.media_upgrade.pipeline.download_media_bytes", fake_download
+            "app.logic.media_upgrade.matching.download_media_bytes", fake_download
         )
 
         clients = AsyncMock()

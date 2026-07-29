@@ -53,10 +53,10 @@ class TestRunMatching:
             return item.id, hashes[local_name]
 
         monkeypatch.setattr(
-            "app.logic.media_upgrade.pipeline._hash_local_one", fake_local
+            "app.logic.media_upgrade.matching._hash_local_one", fake_local
         )
         monkeypatch.setattr(
-            "app.logic.media_upgrade.pipeline._hash_candidate_one", fake_candidate
+            "app.logic.media_upgrade.matching._hash_candidate_one", fake_candidate
         )
 
         events = [
@@ -105,10 +105,10 @@ class TestRunMatching:
             return item.id, hashes["second.jpg"]
 
         monkeypatch.setattr(
-            "app.logic.media_upgrade.pipeline._hash_local_one", fake_local
+            "app.logic.media_upgrade.matching._hash_local_one", fake_local
         )
         monkeypatch.setattr(
-            "app.logic.media_upgrade.pipeline._hash_candidate_one", fake_candidate
+            "app.logic.media_upgrade.matching._hash_candidate_one", fake_candidate
         )
 
         events = [
