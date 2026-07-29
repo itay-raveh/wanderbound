@@ -5,8 +5,6 @@ OAuth2 authorize/callback, Picker session management, and upgrade SSE.
 
 from __future__ import annotations
 
-import base64
-import hashlib
 import secrets
 from collections.abc import AsyncIterable
 from contextlib import suppress
@@ -15,7 +13,7 @@ from typing import Annotated
 
 import httpx
 import structlog
-from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from fastapi.responses import RedirectResponse
 from fastapi.sse import EventSourceResponse
 from httpx_oauth.oauth2 import (
@@ -24,7 +22,6 @@ from httpx_oauth.oauth2 import (
     RefreshTokenError,
     RevokeTokenError,
 )
-from itsdangerous import BadSignature, SignatureExpired, URLSafeTimedSerializer
 from pydantic import BaseModel, Field
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -59,6 +56,14 @@ from app.services.google_photos import (
 )
 
 from ..deps import HttpClientsDep, SessionDep, UserDep, album_dir as _album_dir
+from .google_photos_oauth import (
+    clear_oauth_cookie as _clear_oauth_cookie,
+    code_challenge as _code_challenge,
+    decode_oauth_cookie as _decode_oauth_cookie,
+    decode_state as _decode_state,
+    encode_state as _encode_state,
+    issue_oauth_cookie as _issue_oauth_cookie,
+)
 
 logger = structlog.get_logger(__name__)
 
@@ -76,82 +81,7 @@ def _http_status_code(exc: Exception) -> int | None:
     return exc.response.status_code if isinstance(exc, httpx.HTTPStatusError) else None
 
 
-# ---------------------------------------------------------------------------
-# OAuth transient state: signed cookie (carries csrf + PKCE verifier) +
-# signed state param (carries csrf, nonce, redirect_uri). Callback validates
-# both signatures and double-submits csrf across cookie/state.
-#
-# Pattern: NextAuth-style separate signed cookie for OAuth state + OWASP
-# signed double-submit. PKCE S256 per RFC 7636.
-# ---------------------------------------------------------------------------
-
 _OAUTH_COOKIE = "gphotos_oauth"
-_OAUTH_COOKIE_PATH = "/api/v1/google-photos/callback"
-_STATE_TTL_S = 600
-
-
-def _state_serializer() -> URLSafeTimedSerializer:
-    return URLSafeTimedSerializer(get_settings().SECRET_KEY, salt="gphotos-oauth-state")
-
-
-def _oauth_cookie_serializer() -> URLSafeTimedSerializer:
-    return URLSafeTimedSerializer(
-        get_settings().SECRET_KEY, salt="gphotos-oauth-cookie"
-    )
-
-
-def _code_challenge(verifier: str) -> str:
-    """Derive the PKCE S256 challenge from a verifier (RFC 7636)."""
-    digest = hashlib.sha256(verifier.encode("ascii")).digest()
-    return base64.urlsafe_b64encode(digest).rstrip(b"=").decode("ascii")
-
-
-def _issue_oauth_cookie(response: Response) -> tuple[str, str]:
-    """Issue the signed OAuth cookie carrying csrf + PKCE verifier.
-
-    Verifier is 86 chars via ``secrets.token_urlsafe(64)`` - within the
-    RFC 7636 [43, 128] range and using the url-safe alphabet (subset of
-    the unreserved chars the RFC permits).
-    """
-    csrf = secrets.token_urlsafe(32)
-    verifier = secrets.token_urlsafe(64)
-    signed = _oauth_cookie_serializer().dumps({"csrf": csrf, "verifier": verifier})
-    response.set_cookie(
-        _OAUTH_COOKIE,
-        signed,
-        max_age=_STATE_TTL_S,
-        httponly=True,
-        secure=get_settings().ENVIRONMENT != "local",
-        samesite="lax",
-        path=_OAUTH_COOKIE_PATH,
-    )
-    return csrf, verifier
-
-
-def _decode_oauth_cookie(raw: str | None) -> dict[str, str] | None:
-    if raw is None:
-        return None
-    try:
-        return _oauth_cookie_serializer().loads(raw, max_age=_STATE_TTL_S)
-    except BadSignature, SignatureExpired:
-        return None
-
-
-def _clear_oauth_cookie(response: Response) -> None:
-    response.delete_cookie(_OAUTH_COOKIE, path=_OAUTH_COOKIE_PATH)
-
-
-def _encode_state(csrf: str, nonce: str, redirect_uri: str) -> str:
-    return _state_serializer().dumps(
-        {"csrf": csrf, "nonce": nonce, "redirect_uri": redirect_uri}
-    )
-
-
-def _decode_state(token: str) -> dict[str, str] | None:
-    try:
-        return _state_serializer().loads(token, max_age=_STATE_TTL_S)
-    except BadSignature, SignatureExpired:
-        return None
 
 
 def _validate_match_names(matches: list[MatchResult], valid_names: set[str]) -> None:
