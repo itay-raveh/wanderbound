@@ -1,20 +1,21 @@
-import type { StepRead as Step } from "@/client";
-import { client } from "@/client/client.gen";
-import { useGooglePhotos } from "@/composables/useGooglePhotos";
 import { t } from "@/i18n";
-import { invalidateAlbumKey, queryKeys } from "@/queries/keys";
 import { EXTERNAL_MEDIA_IMPORT_MAX_ITEMS } from "@/utils/externalMediaLimits";
-import {
-  closeGooglePhotosPopup,
-  closeGooglePhotosSessions,
-  openGooglePhotosPopup,
-  waitForGooglePhotosSelection,
-} from "@/utils/googlePhotosPicker";
 import { useQueryCache } from "@pinia/colada";
 import { computed, nextTick, ref } from "vue";
-import { readImportStream } from "./useMediaImport";
+import {
+  applyImportResult,
+  invalidateExternalMediaQueries,
+  runGoogleImportStream,
+  uploadDeviceFiles,
+  type ExternalImportTarget,
+  type ImportCompleted,
+} from "./externalMediaImport";
+import { useGooglePhotos } from "./useGooglePhotos";
+import { useGooglePhotosPicker } from "./useGooglePhotosPicker";
+import { useMediaOperationState } from "./useMediaOperationState";
 
-type ExternalImportContext = "step" | "cover";
+export type { ExternalImportTarget } from "./externalMediaImport";
+
 type AddPhase =
   | "idle"
   | "authorizing"
@@ -24,19 +25,9 @@ type AddPhase =
   | "done"
   | "error";
 
-export interface ExternalImportTarget {
-  context: ExternalImportContext;
-  stepId?: number;
-}
-
 interface ImportProgress {
   done: number;
   total: number;
-}
-
-interface ImportCompleted {
-  type: "import_completed";
-  names: string[];
 }
 
 const DONE_RESET_MS = 2500;
@@ -44,86 +35,53 @@ const DONE_RESET_MS = 2500;
 export function useAddExternalMedia(albumId: () => string) {
   const cache = useQueryCache();
   const googlePhotos = useGooglePhotos();
-  const phase = ref<AddPhase>("idle");
+  const operation = useMediaOperationState<AddPhase>("idle", "error");
+  const picker = useGooglePhotosPicker(googlePhotos, {
+    blocked: t("mediaImport.errors.popupBlocked"),
+    loading: t("mediaImport.authorizing"),
+    timeout: t("mediaImport.errors.selectionTimeout"),
+  });
   const progress = ref<ImportProgress>({ done: 0, total: 0 });
   const importedCount = ref(0);
-  const errorDetail = ref<string | null>(null);
-
-  let controller: AbortController | null = null;
   let resetTimer: ReturnType<typeof setTimeout> | null = null;
-  let activePopup: Window | null = null;
-  let activeSessionId: string | null = null;
 
   const isBusy = computed(() =>
-    ["authorizing", "picking", "uploading", "processing"].includes(phase.value),
+    ["authorizing", "picking", "uploading", "processing"].includes(
+      operation.phase.value,
+    ),
   );
 
   function reset() {
-    controller?.abort();
-    controller = null;
+    operation.abort();
+    operation.clearError();
     progress.value = { done: 0, total: 0 };
     importedCount.value = 0;
-    errorDetail.value = null;
-    closeGooglePhotosPopup(activePopup);
-    activePopup = null;
-    closeGooglePhotosSessions(
-      googlePhotos.closeSession,
-      activeSessionId ? [activeSessionId] : [],
-    );
-    activeSessionId = null;
+    picker.cleanup();
   }
 
-  function openPopup(): Window {
-    return openGooglePhotosPopup({
-      blockedMessage: t("mediaImport.errors.popupBlocked"),
-      loadingText: t("mediaImport.authorizing"),
-    });
+  function begin(): AbortSignal {
+    if (resetTimer !== null) {
+      clearTimeout(resetTimer);
+      resetTimer = null;
+    }
+    reset();
+    return operation.begin();
   }
 
-  async function invalidateAlbumQueries(target: ExternalImportTarget) {
-    const aid = albumId();
-    await Promise.all(
-      externalMediaInvalidationKeys(aid, target).map((key) =>
-        cache.invalidateQueries(invalidateAlbumKey(key)),
-      ),
-    );
-  }
-
-  function applyImportResult(
+  async function complete(
     result: ImportCompleted,
     target: ExternalImportTarget,
   ) {
-    if (target.context !== "step" || target.stepId == null) return;
-    const key = queryKeys.steps(albumId());
-    const steps = cache.getQueryData<Step[]>(key);
-    if (!steps) return;
-    const imported = result.names.filter((name) =>
-      steps.every((step) => !step.unused.includes(name)),
-    );
-    if (imported.length === 0) return;
-    const next = steps.map((step) =>
-      step.id === target.stepId
-        ? { ...step, unused: [...imported, ...step.unused] }
-        : step,
-    );
-    cache.setQueryData(key, next);
-  }
-
-  function finish(count: number) {
-    importedCount.value = count;
-    phase.value = "done";
+    applyImportResult(cache, albumId(), result, target);
+    await nextTick();
+    await invalidateExternalMediaQueries(cache, albumId(), target);
+    importedCount.value = result.names.length;
+    operation.phase.value = "done";
     resetTimer = setTimeout(() => {
-      phase.value = "idle";
+      operation.phase.value = "idle";
       reset();
       resetTimer = null;
     }, DONE_RESET_MS);
-  }
-
-  function fail(err: unknown) {
-    if (err instanceof DOMException && err.name === "AbortError") return;
-    phase.value = "error";
-    errorDetail.value =
-      err instanceof Error ? err.message : t("mediaImport.error");
   }
 
   async function importDevice(
@@ -133,176 +91,74 @@ export function useAddExternalMedia(albumId: () => string) {
     const selected = Array.from(files);
     if (selected.length === 0) return;
     if (selected.length > EXTERNAL_MEDIA_IMPORT_MAX_ITEMS) {
-      phase.value = "error";
-      errorDetail.value = t("mediaImport.errors.tooMany");
+      operation.setError(t("mediaImport.errors.tooMany"));
       return;
     }
 
-    if (resetTimer !== null) clearTimeout(resetTimer);
-    reset();
-    phase.value = "uploading";
+    const signal = begin();
+    operation.phase.value = "uploading";
     progress.value = { done: 0, total: 1 };
-    controller = new AbortController();
-
     try {
       const result = await uploadDeviceFiles(
+        albumId(),
         selected,
         target,
-        controller.signal,
-      );
-      phase.value = "processing";
-      applyImportResult(result, target);
-      await nextTick();
-      await invalidateAlbumQueries(target);
-      finish(result.names.length);
-      return result;
-    } catch (err) {
-      fail(err);
-    }
-  }
-
-  function uploadDeviceFiles(
-    files: File[],
-    target: ExternalImportTarget,
-    signal: AbortSignal,
-  ): Promise<ImportCompleted> {
-    const form = new FormData();
-    form.set("context", target.context);
-    if (target.stepId != null) form.set("step_id", String(target.stepId));
-    for (const file of files) form.append("files", file);
-
-    const baseUrl = client.getConfig().baseUrl ?? "";
-    return fetch(
-      `${baseUrl}/api/v1/albums/${albumId()}/external-media/add/device`,
-      {
-        method: "POST",
-        credentials: "include",
-        body: form,
         signal,
-      },
-    ).then(async (res) => {
-      if (!res.ok) throw new Error(statusMessage(res.status));
-      return (await res.json()) as ImportCompleted;
-    });
+      );
+      operation.phase.value = "processing";
+      await complete(result, target);
+      return result;
+    } catch (error) {
+      operation.fail(error, t("mediaImport.error"));
+    }
   }
 
   async function importGoogle(
     target: ExternalImportTarget,
   ): Promise<ImportCompleted | undefined> {
-    if (resetTimer !== null) clearTimeout(resetTimer);
-    reset();
-    controller = new AbortController();
-    const signal = controller.signal;
-
+    const signal = begin();
     try {
-      activePopup = openPopup();
-      if (!googlePhotos.isConnected.value) {
-        phase.value = "authorizing";
-        await googlePhotos.authorize(activePopup, signal);
+      picker.open();
+      if (!picker.isConnected.value) {
+        operation.phase.value = "authorizing";
+        await picker.authorize(signal);
       }
-      phase.value = "picking";
-      const session = await googlePhotos.createPickerSession(
-        activePopup,
-        signal,
-        { maxItemCount: EXTERNAL_MEDIA_IMPORT_MAX_ITEMS },
-      );
-      activeSessionId = session.sessionId;
-      activePopup.location.href = `${session.pickerUri}/autoclose`;
-      await waitForGooglePhotosSelection(
-        googlePhotos.pollSession,
-        session.sessionId,
-        signal,
-        t("mediaImport.errors.selectionTimeout"),
-        { checkAbortedAfterPoll: true },
-      );
-
-      phase.value = "processing";
+      operation.phase.value = "picking";
+      const sessionId = await picker.pick(signal, {
+        maxItemCount: EXTERNAL_MEDIA_IMPORT_MAX_ITEMS,
+        checkAbortedAfterPoll: true,
+      });
+      operation.phase.value = "processing";
       const result = await runGoogleImportStream(
-        session.sessionId,
+        albumId(),
+        sessionId,
         target,
         signal,
+        (done, total) => (progress.value = { done, total }),
       );
-      applyImportResult(result, target);
-      await nextTick();
-      await invalidateAlbumQueries(target);
-      finish(result.names.length);
+      await complete(result, target);
       return result;
-    } catch (err) {
-      fail(err);
+    } catch (error) {
+      operation.fail(error, t("mediaImport.error"));
     } finally {
-      closeGooglePhotosPopup(activePopup);
-      activePopup = null;
-      closeGooglePhotosSessions(
-        googlePhotos.closeSession,
-        activeSessionId ? [activeSessionId] : [],
-      );
-      activeSessionId = null;
+      picker.cleanup();
     }
   }
 
-  async function runGoogleImportStream(
-    sessionId: string,
-    target: ExternalImportTarget,
-    signal: AbortSignal,
-  ): Promise<ImportCompleted> {
-    const baseUrl = client.getConfig().baseUrl ?? "";
-    const res = await fetch(
-      `${baseUrl}/api/v1/albums/${albumId()}/external-media/add/google`,
-      {
-        method: "POST",
-        credentials: "include",
-        signal,
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          context: target.context,
-          step_id: target.stepId,
-          session_id: sessionId,
-        }),
-      },
-    );
-    if (!res.ok || !res.body) throw new Error(statusMessage(res.status));
-
-    return readImportStream(res.body, (event) => {
-      progress.value = { done: event.done, total: event.total };
-    });
-  }
-
   function cancel() {
-    phase.value = "idle";
+    operation.cancel();
     reset();
   }
 
   return {
-    phase,
+    phase: operation.phase,
     progress,
     importedCount,
-    errorDetail,
+    errorDetail: operation.errorDetail,
     isBusy,
-    googlePhotosState: googlePhotos.state,
+    googlePhotosState: picker.state,
     importDevice,
     importGoogle,
     cancel,
   };
-}
-
-function externalMediaInvalidationKeys(
-  aid: string,
-  target: ExternalImportTarget,
-) {
-  const keys: Array<
-    | ReturnType<typeof queryKeys.album>
-    | ReturnType<typeof queryKeys.media>
-    | ReturnType<typeof queryKeys.steps>
-    | ReturnType<typeof queryKeys.printBundles>
-  > = [queryKeys.album(aid), queryKeys.media(aid)];
-  if (target.context === "step") keys.push(queryKeys.steps(aid));
-  keys.push(queryKeys.printBundles(aid));
-  return keys;
-}
-
-function statusMessage(statusCode: number): string {
-  if (statusCode === 400) return t("mediaImport.errors.badFile");
-  if (statusCode === 403) return t("mediaImport.errors.googleUnavailable");
-  if (statusCode === 413) return t("mediaImport.errors.tooLarge");
-  return t("mediaImport.error");
 }
