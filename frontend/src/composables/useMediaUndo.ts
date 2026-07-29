@@ -200,7 +200,7 @@ function formatNumber(value: number, locale: string) {
   return new Intl.NumberFormat(locale).format(value);
 }
 
-export function mediaUndoInvalidationKeys(aid: string) {
+function mediaUndoInvalidationKeys(aid: string) {
   return [
     queryKeys.album(aid),
     queryKeys.media(aid),

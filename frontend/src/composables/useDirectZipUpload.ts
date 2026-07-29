@@ -65,7 +65,7 @@ async function claimCompletedUpload(
   throw new UploadIngestionError("upload_failed");
 }
 
-export async function followUploadIngestion(
+async function followUploadIngestion(
   uploadId: string,
   signal: AbortSignal,
   onProgress: (event: UploadProgressUpdate) => void,

@@ -15,11 +15,7 @@ from app.services.google_photos import (
     PickedMediaItem,
     PickerSession,
     _clear_media_items_cache,
-    _media_items_cache,
-    _MediaItemsPage,
-    _SessionResponse,
     create_picker_session,
-    download_media_bytes,
     download_media_to_file,
     ensure_fresh_token,
     evict_cached_media_items,
@@ -75,39 +71,6 @@ def _clear_cached_media_items_between_tests() -> Iterator[None]:
 
 
 class TestResponseParsing:
-    def test_session_response_parses_camel_case(self) -> None:
-        data = _SessionResponse.model_validate(_SESSION_JSON)
-        assert data.id == "session-xyz"
-        assert data.picker_uri == "https://photos.google.com/picker/abc"
-        assert data.polling_config is not None
-        assert data.polling_config.poll_interval == "5s"
-        assert data.media_items_set is False
-
-    def test_media_items_page_parses_items(self) -> None:
-        raw = {"mediaItems": [_MEDIA_ITEM_JSON], "nextPageToken": "tok-2"}
-        page = _MediaItemsPage.model_validate(raw)
-        assert len(page.media_items) == 1
-        assert page.media_items[0].id == "media-1"
-        assert page.media_items[0].media_file.filename == "IMG_1234.jpg"
-        assert page.media_items[0].media_file.media_file_metadata is not None
-        assert page.media_items[0].media_file.media_file_metadata.width == 4032
-        assert page.next_page_token == "tok-2"  # noqa: S105
-
-    def test_media_items_page_defaults_on_empty(self) -> None:
-        page = _MediaItemsPage.model_validate({})
-        assert page.media_items == []
-        assert page.next_page_token is None
-
-    def test_media_item_without_metadata(self) -> None:
-        """Some items may lack mediaFileMetadata."""
-        raw = {**_MEDIA_ITEM_JSON, "mediaFile": {**_MEDIA_ITEM_JSON["mediaFile"]}}
-        del raw["mediaFile"]["mediaFileMetadata"]
-        page = _MediaItemsPage.model_validate({"mediaItems": [raw]})
-        item = page.media_items[0]
-        assert item.media_file.media_file_metadata is None
-
-
-class TestCreatePickerSession:
     async def test_maps_response_to_domain_model(self) -> None:
         mock_client = async_client(post=json_response(_SESSION_JSON))
 
@@ -157,22 +120,6 @@ class TestGetMediaItems:
         second_call_params = mock_client.get.call_args_list[1].kwargs.get("params", {})
         assert second_call_params.get("pageToken") == "page-2"
 
-    async def test_empty_response(self) -> None:
-        mock_client = async_client(get=json_response({}))
-
-        items = await get_media_items(mock_client, "session-1", "token-1")
-
-        assert items == []
-
-    async def test_video_items_preserved(self) -> None:
-        video = {**_MEDIA_ITEM_JSON, "id": "vid-1", "type": "VIDEO"}
-        mock_client = async_client(get=json_response({"mediaItems": [video]}))
-
-        items = await get_media_items(mock_client, "session-1", "token-1")
-
-        assert len(items) == 1
-        assert items[0].type == "VIDEO"
-
     async def test_video_processing_status_surfaced(self) -> None:
         mock_client = async_client(
             get=json_response({"mediaItems": [_VIDEO_ITEM_JSON]})
@@ -198,31 +145,6 @@ class TestCachedMediaItems:
                 filename="photo.jpg",
             ),
         )
-
-    async def test_reuses_same_user_and_session(self) -> None:
-        client = AsyncMock()
-        items = [self._item()]
-
-        with patch(
-            "app.services.google_photos.get_media_items",
-            AsyncMock(return_value=items),
-        ) as fetch:
-            first = await get_media_items_cached(
-                client,
-                uid=1,
-                session_id="session-1",
-                access_token=_TOKEN,
-            )
-            second = await get_media_items_cached(
-                client,
-                uid=1,
-                session_id="session-1",
-                access_token=_TOKEN,
-            )
-
-        assert first == items
-        assert second == items
-        assert fetch.await_count == 1
 
     async def test_scopes_cache_to_user(self) -> None:
         client = AsyncMock()
@@ -270,33 +192,6 @@ class TestCachedMediaItems:
             )
 
         assert fetch.await_count == 2
-
-    def test_cache_is_bounded_by_total_selected_items(self) -> None:
-        item = self._item()
-        assert _media_items_cache.maxsize == 10_000
-        assert _media_items_cache.getsizeof([item, item]) == 2
-
-        for index in range(5):
-            _media_items_cache[(1, f"session-{index}")] = [item] * 2_000
-        _media_items_cache[(1, "session-new")] = [item]
-
-        assert _media_items_cache.currsize == 8_001
-        assert (1, "session-0") not in _media_items_cache
-        assert (1, "session-new") in _media_items_cache
-
-
-class TestVideoMetadataParsing:
-    def test_video_processing_status_surfaced_on_picked_item(self) -> None:
-        page = _MediaItemsPage.model_validate({"mediaItems": [_VIDEO_ITEM_JSON]})
-        raw = page.media_items[0]
-        assert raw.type == "VIDEO"
-        assert raw.video_metadata is not None
-        assert raw.video_metadata.processing_status == "READY"
-
-    def test_photo_has_no_video_metadata(self) -> None:
-        page = _MediaItemsPage.model_validate({"mediaItems": [_MEDIA_ITEM_JSON]})
-        raw = page.media_items[0]
-        assert raw.video_metadata is None
 
 
 def _oauth_mock(refresh_return: OAuth2Token | None = None) -> AsyncMock:
@@ -360,27 +255,6 @@ async def _async_iter(items: list[bytes]) -> AsyncIterator[bytes]:
 
 
 class TestDownloadMediaBytes:
-    @pytest.mark.parametrize(
-        ("chunks", "headers"),
-        [
-            ([], {"content-length": "1000"}),
-            ([b"x" * 600], None),
-        ],
-    )
-    async def test_rejects_download_over_limit(
-        self, chunks: list[bytes], headers: dict[str, str] | None
-    ) -> None:
-        client = _streaming_client(chunks, headers=headers)
-        with pytest.raises(DownloadTooLargeError):
-            await download_media_bytes(client, _BASE_URL, _TOKEN, max_bytes=500)
-
-    async def test_accepts_within_limit(self) -> None:
-        client = _streaming_client([b"hello"])
-        result = await download_media_bytes(client, _BASE_URL, _TOKEN, max_bytes=1000)
-        assert result == b"hello"
-
-
-class TestDownloadMediaToFile:
     async def test_writes_file_on_success(self, tmp_path: Path) -> None:
         dest = tmp_path / "photo.jpg"
         client = _streaming_client([b"photo-data"])

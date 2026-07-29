@@ -60,13 +60,13 @@ type MatchEvent =
 
 type ConfirmAction = "confirm" | "selectMore";
 
-export function hasReachedGoogleUpgradeSessionLimit(
+function hasReachedGoogleUpgradeSessionLimit(
   sessionIds: readonly unknown[],
 ): boolean {
   return sessionIds.length >= GOOGLE_UPGRADE_MAX_SESSION_IDS;
 }
 
-export function googleUpgradeRequestLimitError(
+function googleUpgradeRequestLimitError(
   sessionIds: readonly unknown[],
   matches: readonly unknown[],
 ): UpgradeErrorKey | null {
@@ -423,7 +423,7 @@ export function useMediaUpgrade() {
   };
 }
 
-export function mediaUpgradeInvalidationKeys(aid: string) {
+function mediaUpgradeInvalidationKeys(aid: string) {
   return [
     queryKeys.album(aid),
     queryKeys.media(aid),

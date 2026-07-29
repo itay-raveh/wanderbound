@@ -285,7 +285,7 @@ export function useAddExternalMedia(albumId: () => string) {
   };
 }
 
-export function externalMediaInvalidationKeys(
+function externalMediaInvalidationKeys(
   aid: string,
   target: ExternalImportTarget,
 ) {

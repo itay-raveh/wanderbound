@@ -326,7 +326,7 @@ export function useReplaceExternalMedia() {
   };
 }
 
-export function replacementInvalidationKeys(aid: string) {
+function replacementInvalidationKeys(aid: string) {
   return [
     queryKeys.album(aid),
     queryKeys.media(aid),

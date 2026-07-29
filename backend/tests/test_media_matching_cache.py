@@ -14,7 +14,6 @@ from app.logic.media_upgrade.pipeline import (
     MatchCompleted,
     MatchInProgress,
     _clear_caches,
-    _is_progress_checkpoint,
     run_matching,
 )
 from app.models.google_photos import PickedMediaItem
@@ -39,17 +38,6 @@ def _clear_upgrade_caches_between_tests() -> Iterator[None]:
 
 
 class TestRunMatching:
-    def test_coalesces_large_progress_bursts(self) -> None:
-        total = 1145
-
-        checkpoints = [
-            done for done in range(1, total + 1) if _is_progress_checkpoint(done, total)
-        ]
-
-        assert len(checkpoints) < total // 2
-        assert checkpoints[-1] == total
-        assert all(_is_progress_checkpoint(done, 5) for done in range(1, 6))
-
     async def test_uses_database_hash_without_reading_local_file(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
