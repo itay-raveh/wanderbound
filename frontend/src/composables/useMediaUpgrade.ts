@@ -20,11 +20,16 @@ import {
 import { useQueryCache } from "@pinia/colada";
 import { invalidateAlbumKey, queryKeys } from "@/queries/keys";
 import { MEDIA_UPGRADE_ONBOARDED_KEY } from "@/utils/storage-keys";
-import { sleep } from "@/utils/async";
 import {
   GOOGLE_UPGRADE_MAX_MATCHES,
   GOOGLE_UPGRADE_MAX_SESSION_IDS,
 } from "@/utils/externalMediaLimits";
+import {
+  closeGooglePhotosPopup,
+  closeGooglePhotosSessions,
+  openGooglePhotosPopup,
+  waitForGooglePhotosSelection,
+} from "@/utils/googlePhotosPicker";
 
 type UpgradePhase =
   | "idle"
@@ -44,8 +49,6 @@ interface UpgradeProgress {
   skipped?: number;
 }
 
-const POLL_INTERVAL_MS = 2000;
-const PICKER_TIMEOUT_MS = 10 * 60 * 1000;
 const DONE_RESET_MS = 3000;
 
 type MatchEvent =
@@ -110,25 +113,10 @@ export function useMediaUpgrade() {
   }
 
   function openPopup(): Window {
-    const width = Math.min(screen.availWidth - 100, 1200);
-    const height = Math.min(screen.availHeight - 100, 900);
-    const left =
-      ((screen as { availLeft?: number }).availLeft ?? 0) +
-      (screen.availWidth - width) / 2;
-    const top =
-      ((screen as { availTop?: number }).availTop ?? 0) +
-      (screen.availHeight - height) / 2;
-    const popup = window.open(
-      "about:blank",
-      "google-photos",
-      `width=${width},height=${height},left=${left},top=${top}`,
-    );
-    if (!popup) throw new Error(UPGRADE_ERRORS.popupBlocked);
-    popup.document.title = "Google Photos";
-    popup.document.body.style.cssText =
-      "font-family:system-ui;display:grid;place-items:center;height:100vh;margin:0;color:#666";
-    popup.document.body.textContent = t("upgrade.authorizing");
-    return popup;
+    return openGooglePhotosPopup({
+      blockedMessage: UPGRADE_ERRORS.popupBlocked,
+      loadingText: t("upgrade.authorizing"),
+    });
   }
 
   async function start(albumId: string) {
@@ -176,7 +164,12 @@ export function useMediaUpgrade() {
       activePopup.location.href = pickerUri + "/autoclose";
 
       // Step 4: Poll until ready
-      await pollUntilReady(sessionId, signal);
+      await waitForGooglePhotosSelection(
+        gp.pollSession,
+        sessionId,
+        signal,
+        UPGRADE_ERRORS.selectionTimeout,
+      );
       if (signal.aborted) return;
 
       // Step 5-6: Match-confirm loop (supports "select more" rounds)
@@ -211,7 +204,12 @@ export function useMediaUpgrade() {
         phase.value = "picking";
         activePopup.location.href = next.pickerUri + "/autoclose";
 
-        await pollUntilReady(currentSessionId, signal);
+        await waitForGooglePhotosSelection(
+          gp.pollSession,
+          currentSessionId,
+          signal,
+          UPGRADE_ERRORS.selectionTimeout,
+        );
         if (signal.aborted) return;
       }
 
@@ -235,15 +233,9 @@ export function useMediaUpgrade() {
       phase.value = "error";
       errorDetail.value = (err as Error).message;
     } finally {
-      try {
-        activePopup?.close();
-      } catch {
-        /* COOP may block */
-      }
+      closeGooglePhotosPopup(activePopup);
       activePopup = null;
-      for (const sid of sessionIds) {
-        gp.closeSession(sid).catch(() => {});
-      }
+      closeGooglePhotosSessions(gp.closeSession, sessionIds);
       sessionIds.length = 0;
     }
   }
@@ -279,14 +271,8 @@ export function useMediaUpgrade() {
   function cancel() {
     controller?.abort();
     confirmReject?.(new DOMException("Cancelled", "AbortError"));
-    try {
-      activePopup?.close();
-    } catch {
-      /* COOP may block */
-    }
-    for (const sid of sessionIds) {
-      gp.closeSession(sid).catch(() => {});
-    }
+    closeGooglePhotosPopup(activePopup);
+    closeGooglePhotosSessions(gp.closeSession, sessionIds);
     if (resetTimer !== null) {
       clearTimeout(resetTimer);
       resetTimer = null;
@@ -309,25 +295,6 @@ export function useMediaUpgrade() {
         { once: true },
       );
     });
-  }
-
-  async function pollUntilReady(
-    sessionId: string,
-    signal: AbortSignal,
-  ): Promise<void> {
-    // Google sets COOP on the Picker page, which severs the opener
-    // reference and makes popup.closed return true even while the
-    // picker is still open.  Rely solely on the backend poll and
-    // the cancel button for user-initiated cancellation.
-    const deadline = Date.now() + PICKER_TIMEOUT_MS;
-    while (!signal.aborted) {
-      if (Date.now() > deadline) {
-        throw new Error(UPGRADE_ERRORS.selectionTimeout);
-      }
-      const result = await gp.pollSession(sessionId);
-      if (result.ready) return;
-      await sleep(POLL_INTERVAL_MS, signal);
-    }
   }
 
   async function runMatchStream(

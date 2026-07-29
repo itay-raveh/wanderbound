@@ -3,8 +3,13 @@ import { client } from "@/client/client.gen";
 import { useGooglePhotos } from "@/composables/useGooglePhotos";
 import { t } from "@/i18n";
 import { invalidateAlbumKey, queryKeys } from "@/queries/keys";
-import { sleep } from "@/utils/async";
 import { EXTERNAL_MEDIA_IMPORT_MAX_ITEMS } from "@/utils/externalMediaLimits";
+import {
+  closeGooglePhotosPopup,
+  closeGooglePhotosSessions,
+  openGooglePhotosPopup,
+  waitForGooglePhotosSelection,
+} from "@/utils/googlePhotosPicker";
 import { useQueryCache } from "@pinia/colada";
 import { computed, nextTick, ref } from "vue";
 import { readImportStream } from "./useMediaImport";
@@ -34,8 +39,6 @@ interface ImportCompleted {
   names: string[];
 }
 
-const POLL_INTERVAL_MS = 2000;
-const PICKER_TIMEOUT_MS = 10 * 60 * 1000;
 const DONE_RESET_MS = 2500;
 
 export function useAddExternalMedia(albumId: () => string) {
@@ -61,37 +64,20 @@ export function useAddExternalMedia(albumId: () => string) {
     progress.value = { done: 0, total: 0 };
     importedCount.value = 0;
     errorDetail.value = null;
-    try {
-      activePopup?.close();
-    } catch {
-      /* Cross-origin opener policy can block this. */
-    }
+    closeGooglePhotosPopup(activePopup);
     activePopup = null;
-    if (activeSessionId)
-      googlePhotos.closeSession(activeSessionId).catch(() => {});
+    closeGooglePhotosSessions(
+      googlePhotos.closeSession,
+      activeSessionId ? [activeSessionId] : [],
+    );
     activeSessionId = null;
   }
 
   function openPopup(): Window {
-    const width = Math.min(screen.availWidth - 100, 1200);
-    const height = Math.min(screen.availHeight - 100, 900);
-    const left =
-      ((screen as { availLeft?: number }).availLeft ?? 0) +
-      (screen.availWidth - width) / 2;
-    const top =
-      ((screen as { availTop?: number }).availTop ?? 0) +
-      (screen.availHeight - height) / 2;
-    const popup = window.open(
-      "about:blank",
-      "google-photos",
-      `width=${width},height=${height},left=${left},top=${top}`,
-    );
-    if (!popup) throw new Error(t("mediaImport.errors.popupBlocked"));
-    popup.document.title = "Google Photos";
-    popup.document.body.style.cssText =
-      "font-family:system-ui;display:grid;place-items:center;height:100vh;margin:0;color:#666";
-    popup.document.body.textContent = t("mediaImport.authorizing");
-    return popup;
+    return openGooglePhotosPopup({
+      blockedMessage: t("mediaImport.errors.popupBlocked"),
+      loadingText: t("mediaImport.authorizing"),
+    });
   }
 
   async function invalidateAlbumQueries(target: ExternalImportTarget) {
@@ -222,7 +208,13 @@ export function useAddExternalMedia(albumId: () => string) {
       );
       activeSessionId = session.sessionId;
       activePopup.location.href = `${session.pickerUri}/autoclose`;
-      await pollUntilReady(session.sessionId, signal);
+      await waitForGooglePhotosSelection(
+        googlePhotos.pollSession,
+        session.sessionId,
+        signal,
+        t("mediaImport.errors.selectionTimeout"),
+        { checkAbortedAfterPoll: true },
+      );
 
       phase.value = "processing";
       const result = await runGoogleImportStream(
@@ -238,30 +230,13 @@ export function useAddExternalMedia(albumId: () => string) {
     } catch (err) {
       fail(err);
     } finally {
-      try {
-        activePopup?.close();
-      } catch {
-        /* Cross-origin opener policy can block this. */
-      }
+      closeGooglePhotosPopup(activePopup);
       activePopup = null;
-      if (activeSessionId)
-        googlePhotos.closeSession(activeSessionId).catch(() => {});
+      closeGooglePhotosSessions(
+        googlePhotos.closeSession,
+        activeSessionId ? [activeSessionId] : [],
+      );
       activeSessionId = null;
-    }
-  }
-
-  async function pollUntilReady(
-    sessionId: string,
-    signal: AbortSignal,
-  ): Promise<void> {
-    const deadline = Date.now() + PICKER_TIMEOUT_MS;
-    while (!signal.aborted) {
-      if (Date.now() > deadline)
-        throw new Error(t("mediaImport.errors.selectionTimeout"));
-      const result = await googlePhotos.pollSession(sessionId);
-      signal.throwIfAborted();
-      if (result.ready) return;
-      await sleep(POLL_INTERVAL_MS, signal);
     }
   }
 
