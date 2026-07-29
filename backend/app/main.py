@@ -1,6 +1,6 @@
 import asyncio
 import shutil
-from collections.abc import AsyncGenerator
+from collections.abc import AsyncGenerator, Awaitable, Callable
 from contextlib import asynccontextmanager, suppress
 from typing import TYPE_CHECKING
 
@@ -40,7 +40,7 @@ from app.logic.workflows.recovery import (
     workflow_recovery_loop,
 )
 from app.logic.workflows.runtime import destroy_dbos, launch_dbos
-from app.services.upload_store import build_upload_store
+from app.services.upload_store import UploadStoreService, build_upload_store
 
 if TYPE_CHECKING:
     from fastapi.routing import APIRoute
@@ -56,8 +56,64 @@ def custom_generate_unique_id(route: APIRoute) -> str:
     return route.name
 
 
+async def _reconcile_media_hashes() -> None:
+    try:
+        await reconcile_missing_media_hash_backfills()
+    except Exception as exc:
+        logger.exception(
+            "media_hash.backfill_startup_reconciliation_failed",
+            error_type=type(exc).__name__,
+        )
+
+
+def _launch_background_tasks(
+    admin_state: WorkflowAdminState,
+    upload_store: UploadStoreService,
+    promote_to_admin: Callable[[], Awaitable[None]],
+) -> list[asyncio.Task[None] | None]:
+    return [
+        asyncio.create_task(
+            workflow_heartbeat_loop(
+                settings,
+                has_admin_server=lambda: admin_state.has_admin_server,
+            )
+        ),
+        asyncio.create_task(storage_metrics_loop(settings.DATA_FOLDER)),
+        asyncio.create_task(media_hash_reconciliation_loop()),
+        asyncio.create_task(
+            upload_cleanup_loop(upload_store, settings.DATA_FOLDER / "upload-work")
+        ),
+        (
+            asyncio.create_task(workflow_recovery_loop(settings))
+            if admin_state.has_admin_server
+            else None
+        ),
+        (
+            asyncio.create_task(
+                workflow_admin_election_loop(
+                    settings,
+                    admin_state,
+                    promote_to_admin=promote_to_admin,
+                )
+            )
+            if settings.DBOS_RUN_ADMIN_SERVER and not admin_state.has_admin_server
+            else None
+        ),
+    ]
+
+
+async def _cleanup_tasks(tasks: list[asyncio.Task[None] | None]) -> None:
+    for task in tasks:
+        if task is not None:
+            task.cancel()
+    for task in tasks:
+        if task is not None:
+            with suppress(asyncio.CancelledError):
+                await task
+
+
 @asynccontextmanager
-async def lifespan(app: FastAPI) -> AsyncGenerator[None]:  # noqa: PLR0915
+async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
     settings.USERS_FOLDER.mkdir(parents=True, exist_ok=True)
     await cleanup_orphaned_tmp(settings.USERS_FOLDER)
     upload_store = build_upload_store(settings)
@@ -91,76 +147,22 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:  # noqa: PLR0915
                 await launch_dbos(
                     settings, run_admin_server=admin_state.has_admin_server
                 )
-                try:
-                    await reconcile_missing_media_hash_backfills()
-                except Exception as exc:
-                    logger.exception(
-                        "media_hash.backfill_startup_reconciliation_failed",
-                        error_type=type(exc).__name__,
-                    )
+                await _reconcile_media_hashes()
 
                 async def promote_to_admin() -> None:
                     logger.info("workflow.admin_promoted")
                     destroy_dbos()
                     await launch_dbos(settings, run_admin_server=True)
 
-                heartbeat_task = asyncio.create_task(
-                    workflow_heartbeat_loop(
-                        settings,
-                        has_admin_server=lambda: admin_state.has_admin_server,
-                    )
-                )
-                storage_metrics_task = asyncio.create_task(
-                    storage_metrics_loop(settings.DATA_FOLDER)
-                )
-                media_hash_reconciliation_task = asyncio.create_task(
-                    media_hash_reconciliation_loop()
-                )
-                upload_cleanup_task = asyncio.create_task(
-                    upload_cleanup_loop(
-                        upload_store, settings.DATA_FOLDER / "upload-work"
-                    )
-                )
-                recovery_task = (
-                    asyncio.create_task(workflow_recovery_loop(settings))
-                    if admin_state.has_admin_server
-                    else None
-                )
-                election_task = (
-                    asyncio.create_task(
-                        workflow_admin_election_loop(
-                            settings,
-                            admin_state,
-                            promote_to_admin=promote_to_admin,
-                        )
-                    )
-                    if settings.DBOS_RUN_ADMIN_SERVER
-                    and not admin_state.has_admin_server
-                    else None
+                tasks = _launch_background_tasks(
+                    admin_state,
+                    upload_store,
+                    promote_to_admin,
                 )
                 try:
                     yield
                 finally:
-                    storage_metrics_task.cancel()
-                    with suppress(asyncio.CancelledError):
-                        await storage_metrics_task
-                    upload_cleanup_task.cancel()
-                    with suppress(asyncio.CancelledError):
-                        await upload_cleanup_task
-                    media_hash_reconciliation_task.cancel()
-                    with suppress(asyncio.CancelledError):
-                        await media_hash_reconciliation_task
-                    heartbeat_task.cancel()
-                    with suppress(asyncio.CancelledError):
-                        await heartbeat_task
-                    if recovery_task is not None:
-                        recovery_task.cancel()
-                        with suppress(asyncio.CancelledError):
-                            await recovery_task
-                    if election_task is not None:
-                        election_task.cancel()
-                        with suppress(asyncio.CancelledError):
-                            await election_task
+                    await _cleanup_tasks(tasks)
                     destroy_dbos()
         finally:
             upload_store.close()
