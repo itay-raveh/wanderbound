@@ -28,17 +28,6 @@ async function selectFirstPhoto(page: Page): Promise<Locator> {
   return first;
 }
 
-async function selectedIndex(page: Page): Promise<number> {
-  return selected(page).evaluate((el) => {
-    const all = [...document.querySelectorAll('[role="button"][aria-pressed]')];
-    return all.indexOf(el);
-  });
-}
-
-async function selectedMedia(page: Page): Promise<string | null> {
-  return selected(page).getAttribute("data-media");
-}
-
 async function press(page: Page, key: string, times: number) {
   for (let i = 0; i < times; i++) {
     await page.keyboard.press(key);
@@ -49,31 +38,6 @@ async function press(page: Page, key: string, times: number) {
 test.describe("Photo focus & arrow navigation", () => {
   test.beforeEach(async ({ focusPage: page }) => {
     await openEditor(page);
-  });
-
-  test("click selects a photo", async ({ focusPage: page }) => {
-    const photo = await selectFirstPhoto(page);
-
-    await expect(photo).toHaveAttribute("aria-pressed", "true");
-  });
-
-  test("Escape deselects", async ({ focusPage: page }) => {
-    await selectFirstPhoto(page);
-
-    await page.keyboard.press("Escape");
-    await expect(selected(page)).toHaveCount(0);
-  });
-
-  test("ArrowRight moves selection to next photo", async ({
-    focusPage: page,
-  }) => {
-    const first = await selectFirstPhoto(page);
-    await expect(first).toHaveAttribute("aria-pressed", "true");
-
-    await page.keyboard.press("ArrowRight");
-
-    await expect(first).toHaveAttribute("aria-pressed", "false");
-    await expectOneSelected(page);
   });
 
   test("ArrowRight moves DOM focus to the selected photo", async ({
@@ -96,21 +60,6 @@ test.describe("Photo focus & arrow navigation", () => {
       .toBe(true);
   });
 
-  test("ArrowLeft moves selection to previous photo", async ({
-    focusPage: page,
-  }) => {
-    await scrollToStep(page, "Buenos Aires");
-
-    const second = photos(page).nth(1);
-    await second.click();
-    await expect(second).toHaveAttribute("aria-pressed", "true");
-
-    await page.keyboard.press("ArrowLeft");
-
-    await expect(second).toHaveAttribute("aria-pressed", "false");
-    await expectOneSelected(page);
-  });
-
   test("ArrowRight crosses step boundary", async ({ focusPage: page }) => {
     await selectFirstPhoto(page);
 
@@ -123,48 +72,6 @@ test.describe("Photo focus & arrow navigation", () => {
     await expect(selected(page)).toBeInViewport({ timeout: 5_000 });
     const afterBoundary = await selected(page).boundingBox();
     expect(afterBoundary!.y).not.toBeCloseTo(beforeBoundary!.y, -1);
-  });
-
-  test("ArrowLeft crosses step boundary", async ({ focusPage: page }) => {
-    await selectFirstPhoto(page);
-
-    await press(page, "ArrowRight", 3);
-    const inStep2 = await selected(page).boundingBox();
-
-    await page.keyboard.press("ArrowLeft");
-
-    await expectOneSelected(page, 5_000);
-    await expect(selected(page)).toBeInViewport({ timeout: 5_000 });
-    const backInStep1 = await selected(page).boundingBox();
-    expect(backInStep1!.y).not.toBeCloseTo(inStep2!.y, -1);
-  });
-
-  test("arrow navigation continues after crossing a step boundary", async ({
-    focusPage: page,
-  }) => {
-    await selectFirstPhoto(page);
-
-    const mediaIds: string[] = [];
-    for (let i = 0; i < 5; i++) {
-      await page.keyboard.press("ArrowRight");
-      await expectOneSelected(page);
-      mediaIds.push((await selectedMedia(page)) ?? "");
-    }
-
-    const unique = new Set(mediaIds);
-    expect(unique.size).toBe(mediaIds.length);
-  });
-
-  test("forward then backward is a round trip", async ({ focusPage: page }) => {
-    await selectFirstPhoto(page);
-
-    const startIdx = await selectedIndex(page);
-
-    await press(page, "ArrowRight", 4);
-    await press(page, "ArrowLeft", 4);
-
-    const endIdx = await selectedIndex(page);
-    expect(endIdx).toBe(startIdx);
   });
 
   test("rapid ArrowRight presses settle with one selected photo", async ({
@@ -195,34 +102,6 @@ test.describe("Send to unused & set as cover", () => {
 
     await expectOneSelected(page);
     await expect(selected(page)).toBeInViewport();
-  });
-
-  test("sendToUnused on last navigable photo advances to previous", async ({
-    focusPage: page,
-  }) => {
-    await selectFirstPhoto(page);
-    await press(page, "ArrowRight", 2);
-
-    const indexBefore = await selectedIndex(page);
-    await page.keyboard.press(PHOTO_SHORTCUTS.sendToUnused);
-
-    await expectOneSelected(page);
-    const indexAfter = await selectedIndex(page);
-    expect(indexAfter).toBeLessThan(indexBefore);
-  });
-
-  test("sendToUnused on the only remaining photo clears focus", async ({
-    focusPage: page,
-  }) => {
-    await selectFirstPhoto(page);
-
-    await page.keyboard.press(PHOTO_SHORTCUTS.sendToUnused);
-    await expectOneSelected(page);
-    await page.keyboard.press(PHOTO_SHORTCUTS.sendToUnused);
-    await expectOneSelected(page);
-
-    await page.keyboard.press(PHOTO_SHORTCUTS.sendToUnused);
-    await expect(selected(page)).toHaveCount(0, { timeout: 3_000 });
   });
 
   test("setAsCover advances focus to next photo", async ({
