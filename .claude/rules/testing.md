@@ -2,8 +2,33 @@
 
 "Write tests. Not too many. Mostly integration."
 
-Every test must earn its place. Prefer confidence per test over coverage
-percentage.
+Tests are permanent production code with a maintenance cost. Add one only when
+it is the cheapest reliable way to detect a specific, high-impact regression.
+Coverage percentage, implementation complexity, and the existence of a code
+path are not reasons to add tests.
+
+## Admission Rule
+
+A test must protect at least one of these risks:
+
+- authorization, authentication, or another security boundary;
+- data loss, corruption, cross-user leakage, or transaction atomicity;
+- an external API, file-format, migration, or other compatibility contract;
+- an edge-heavy domain algorithm where examples clarify required behavior;
+- concurrency, cancellation, retry, or recovery behavior that has failed or is
+  inherently race-prone;
+- browser behavior that cannot be tested below E2E, such as focus, scrolling,
+  file pickers, popups, or rendering and print integration;
+- a regression for a real defect whose recurrence would have meaningful user
+  impact.
+
+If a test does not clearly fit one of these categories, do not add it. If two
+tests protect the same risk, keep the cheaper and more direct one. New tests
+should replace overlapping coverage instead of accumulating another layer.
+
+Delete tests when their protected behavior moves to a stronger retained test,
+when the implementation they describe disappears, or when they only make a
+refactor harder without detecting a user-visible regression.
 
 ## Layer Choice
 
@@ -17,9 +42,11 @@ percentage.
   keyboard handling, file picker or popup behavior, and multi-component
   workflows that cannot be covered cheaply below.
 
-Avoid tests that only prove wiring, initial state, library behavior, generated
-client behavior, mock behavior, or log output. If a test needs more mocks than
-assertions, it is probably at the wrong layer.
+Do not test wiring, initial state, static rendering, library behavior, generated
+client behavior, model-library parsing, logs, metrics, internal defaults,
+private call sequences, or mocks. Do not add a CRUD happy-path test unless it
+crosses a security, transaction, or compatibility boundary. If a test needs
+more mocks than assertions, delete it or move the assertion to a real boundary.
 
 Do not assert exact internal tuning defaults such as concurrency, timeout,
 retry, batch-size, or cache-capacity values. Inject configuration when needed
@@ -55,8 +82,13 @@ Use plain fixtures and typed builders first.
 - Move files into `unit/` and `integration/` directories only after helper
   boundaries are stable enough to avoid churn.
 
-After bugfixes, write a regression test that fails without the fix and passes
-with it. Choose the layer that would have caught the original bug.
+After a bugfix, add a regression test only when the admission rule is satisfied.
+It must fail without the fix, and it belongs at the lowest layer that reproduces
+the actual failure. A bugfix does not automatically justify a permanent test.
+
+During review, require the author to name the unique regression each new test
+detects and why an existing retained test cannot detect it. Remove the test if
+that answer is vague.
 
 Run scoped tests:
 
