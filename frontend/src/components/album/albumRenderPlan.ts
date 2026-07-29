@@ -24,7 +24,7 @@ export type ChapterRenderGroup = {
   sections: Section[];
 };
 
-type EditorItem =
+export type EditorItem =
   | {
       type: "header";
       key: string;

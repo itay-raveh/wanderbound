@@ -1,0 +1,119 @@
+// :deep needed because page-containers live inside child components
+:deep(.page-container) {
+  width: var(--page-width);
+  height: var(--page-height);
+  background-color: var(--page-bg, var(--bg));
+  font-family: var(--font-album);
+  contain: strict; // strict containment creates a positioning context for ::after
+}
+
+.panorama-spread {
+  width: calc(var(--page-width) * var(--editor-zoom) * 2);
+  margin: 0 auto;
+
+  :deep(.page-container) {
+    margin-inline: 0;
+  }
+}
+
+// Editor mode: zoom shrinks pages for preview.
+// Map pages use a wrapper + transform: scale (zoom breaks Mapbox canvas sizing).
+.album-container:not(.print-mode) {
+  padding: var(--gap-md-lg);
+  overflow-x: auto;
+
+  :deep(.page-container) {
+    zoom: var(--editor-zoom);
+    border: 3px dashed color-mix(in srgb, var(--text) 25%, transparent);
+    margin: 0 auto var(--gap-md-lg);
+
+    &.drag-over {
+      border-color: var(--q-primary);
+    }
+  }
+
+  // Safe margin frame - editor-only visual guide
+  &.has-safe-margin :deep(.page-container)::after {
+    content: "";
+    position: absolute;
+    inset: var(--safe-margin);
+    border: 1px dashed color-mix(in srgb, var(--text) 40%, transparent);
+    pointer-events: none;
+    z-index: 50;
+  }
+
+  // Map wrapper: fixed layout size matching zoomed page dimensions
+  .map-wrapper {
+    position: relative;
+    width: calc(var(--page-width) * var(--editor-zoom));
+    height: calc(var(--page-height) * var(--editor-zoom));
+    margin: 0 auto var(--gap-md-lg);
+    overflow: hidden;
+
+    // Inner page-container: full A4, scaled to fit wrapper.
+    // Absolute positioning + rtl:ignore pins it to top-left regardless
+    // of document direction (RTL block flow would anchor it to the right).
+    :deep(.page-container) {
+      zoom: 1;
+      margin: 0;
+      transform: scale(var(--editor-zoom));
+      content-visibility: visible;
+      /* rtl:begin:ignore */
+      position: absolute;
+      left: 0;
+      top: 0;
+      transform-origin: top left;
+      /* rtl:end:ignore */
+    }
+  }
+}
+
+// Print mode: override contain:strict from base rule - size containment
+// prevents intrinsic sizing that break-after/page relies on.
+.album-container.print-mode :deep(.page-container) {
+  contain: none;
+  overflow: hidden;
+  break-after: page;
+  break-inside: avoid;
+  box-sizing: border-box;
+}
+
+.album-container.print-mode :deep(.mapboxgl-ctrl-logo) {
+  display: none;
+}
+
+.album-container.print-mode .map-wrapper {
+  width: auto;
+  height: auto;
+  overflow: visible;
+  border: none;
+  margin: 0;
+
+  :deep(.page-container) {
+    transform: none;
+  }
+}
+
+@media print {
+  .album-container {
+    padding: 0;
+  }
+
+  :deep(.page-container) {
+    break-after: always;
+    break-inside: avoid;
+    margin: 0;
+  }
+
+  .map-wrapper {
+    width: auto !important;
+    height: auto !important;
+    overflow: visible !important;
+    border: none !important;
+    margin: 0 !important;
+
+    :deep(.page-container) {
+      transform: none !important;
+    }
+  }
+}
