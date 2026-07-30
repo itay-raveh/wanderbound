@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-# FastAPI resolves this annotation when the route is registered.
 from fastapi import Request  # noqa: TC002
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
