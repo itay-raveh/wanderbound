@@ -1,6 +1,9 @@
+from __future__ import annotations
+
+import html
 from typing import TYPE_CHECKING
 
-from starlette.datastructures import URL
+from starlette.datastructures import URL, Headers, MutableHeaders
 from starlette.middleware.gzip import GZipMiddleware
 
 from app.core.config import Settings
@@ -8,6 +11,69 @@ from app.core.config import Settings
 if TYPE_CHECKING:
     from fastapi import FastAPI, Request, Response
     from starlette.middleware.base import RequestResponseEndpoint
+    from starlette.types import ASGIApp, Message, Receive, Scope, Send
+
+
+_PUBLIC_URL_TOKEN = b"__WANDERBOUND_PUBLIC_URL__"
+
+
+class _FrontendMetadataMiddleware:
+    def __init__(self, app: ASGIApp, public_url: str) -> None:
+        self.app = app
+        self.public_url = html.escape(public_url.rstrip("/"), quote=True).encode()
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] != "http" or scope["method"] != "GET":
+            await self.app(scope, receive, send)
+            return
+
+        await self.app(scope, receive, _MetadataResponseSender(send, self.public_url))
+
+
+class _MetadataResponseSender:
+    def __init__(self, send: Send, public_url: bytes) -> None:
+        self.send = send
+        self.public_url = public_url
+        self.response_start: Message | None = None
+        self.body = bytearray()
+        self.is_html = False
+
+    async def __call__(self, message: Message) -> None:
+        if message["type"] == "http.response.start":
+            headers = Headers(raw=message["headers"])
+            self.is_html = headers.get("content-type", "").startswith("text/html")
+            if self.is_html:
+                self.response_start = message
+                return
+
+        elif message["type"] == "http.response.body" and self.is_html:
+            self.body.extend(message.get("body", b""))
+            if message.get("more_body", False):
+                return
+
+            await self._send_rendered()
+            return
+
+        await self.send(message)
+
+    async def _send_rendered(self) -> None:
+        if self.response_start is None:
+            raise RuntimeError("HTML response body arrived before headers")
+
+        rendered = bytes(self.body).replace(_PUBLIC_URL_TOKEN, self.public_url)
+        headers = MutableHeaders(scope=self.response_start)
+        headers["content-length"] = str(len(rendered))
+        for header in ("etag", "last-modified"):
+            if header in headers:
+                del headers[header]
+        await self.send(self.response_start)
+        await self.send(
+            {
+                "type": "http.response.body",
+                "body": rendered,
+                "more_body": False,
+            }
+        )
 
 
 def _content_security_policy(settings: Settings) -> str:
@@ -61,6 +127,11 @@ def _content_security_policy(settings: Settings) -> str:
 
 def install_frontend(app: FastAPI, settings: Settings) -> None:
     content_security_policy = _content_security_policy(settings)
+
+    app.add_middleware(
+        _FrontendMetadataMiddleware,
+        public_url=str(settings.PUBLIC_URL),
+    )
 
     @app.middleware("http")
     async def response_headers(
