@@ -28,6 +28,18 @@ const emit = defineEmits<{
     :to="{ name: 'editor' }"
   />
   <div v-else class="auth-actions column no-wrap items-center">
+    <i18n-t keypath="landing.selfHostPrompt" tag="p" class="self-host-prompt">
+      <template #link>
+        <a
+          href="https://github.com/itay-raveh/wanderbound#self-hosting"
+          target="_blank"
+          rel="noopener"
+          class="self-host-link"
+        >
+          {{ t("landing.selfHostLink") }}
+        </a>
+      </template>
+    </i18n-t>
     <q-btn
       v-if="localLoginEnabled"
       data-test="local-login"
@@ -58,6 +70,30 @@ const emit = defineEmits<{
 <style scoped>
 .auth-actions {
   gap: var(--gap-md-lg);
+}
+
+.self-host-prompt {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: var(--type-sm);
+  text-align: center;
+}
+
+.self-host-link {
+  color: inherit;
+  font-weight: 600;
+  text-underline-offset: 0.15em;
+  transition: color var(--duration-fast);
+
+  &:hover {
+    color: var(--q-primary);
+  }
+
+  &:focus-visible {
+    border-radius: var(--radius-xs);
+    outline: 0.125rem solid var(--q-primary);
+    outline-offset: 0.125rem;
+  }
 }
 
 .demo-btn {

@@ -43,6 +43,8 @@
     "overviewBody": "Highest point, coldest night, hottest day, furthest from home. Your trip on a single page with the countries you visited.",
     "localizationTitle": "Your language, your direction",
     "localizationBody": "Unlike the {polarsteps}' album, we handle Hebrew, Arabic, Japanese and right-to-left layouts. Your album matches your language.",
+    "selfHostPrompt": "Don’t want to sign in? {link}",
+    "selfHostLink": "Self-host Wanderbound.",
     "openEditor": "Open editor"
   },
   "login": {
