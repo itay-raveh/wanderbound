@@ -1,12 +1,17 @@
+from __future__ import annotations
+
 from typing import TYPE_CHECKING
 
+from fastapi import Request  # noqa: TC002
+from fastapi.responses import HTMLResponse
+from fastapi.templating import Jinja2Templates
 from starlette.datastructures import URL
 from starlette.middleware.gzip import GZipMiddleware
 
 from app.core.config import Settings
 
 if TYPE_CHECKING:
-    from fastapi import FastAPI, Request, Response
+    from fastapi import FastAPI, Response
     from starlette.middleware.base import RequestResponseEndpoint
 
 
@@ -61,6 +66,8 @@ def _content_security_policy(settings: Settings) -> str:
 
 def install_frontend(app: FastAPI, settings: Settings) -> None:
     content_security_policy = _content_security_policy(settings)
+    templates = Jinja2Templates(directory=settings.FRONTEND_DIRECTORY)
+    public_url = str(settings.PUBLIC_URL).rstrip("/")
 
     @app.middleware("http")
     async def response_headers(
@@ -77,6 +84,15 @@ def install_frontend(app: FastAPI, settings: Settings) -> None:
         return response
 
     app.add_middleware(GZipMiddleware, minimum_size=256, compresslevel=6)
+
+    @app.get("/", response_class=HTMLResponse, include_in_schema=False)
+    def frontend_index(request: Request) -> Response:
+        return templates.TemplateResponse(
+            request=request,
+            name="index.html",
+            context={"public_url": public_url},
+        )
+
     app.frontend(
         "/",
         directory=settings.FRONTEND_DIRECTORY,
