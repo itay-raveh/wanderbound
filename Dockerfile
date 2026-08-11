@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1
 
-FROM getsentry/sentry-cli:3.6.0 AS sentry-cli
+FROM getsentry/sentry-cli:3.6.2 AS sentry-cli
 
 
 FROM oven/bun:1-debian AS frontend-build
