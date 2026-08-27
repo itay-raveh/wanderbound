@@ -3,11 +3,3 @@
 frontend/src/client/** linguist-generated
 bun.lock linguist-generated
 uv.lock linguist-generated
-fixtures/demo/**/*.jpg filter=lfs diff=lfs merge=lfs -text
-fixtures/demo/**/*.jpeg filter=lfs diff=lfs merge=lfs -text
-fixtures/demo/**/*.png filter=lfs diff=lfs merge=lfs -text
-fixtures/demo/**/*.webp filter=lfs diff=lfs merge=lfs -text
-fixtures/demo/**/*.mp4 filter=lfs diff=lfs merge=lfs -text
-frontend/public/landing/*.jpg filter=lfs diff=lfs merge=lfs -text
-frontend/public/landing/*.webp filter=lfs diff=lfs merge=lfs -text
-frontend/public/fonts/*.woff2 filter=lfs diff=lfs merge=lfs -text
