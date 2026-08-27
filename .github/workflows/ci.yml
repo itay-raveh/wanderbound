@@ -245,8 +245,6 @@ jobs:
       GARAGE_RPC_SECRET: "1111111111111111111111111111111111111111111111111111111111111111"
     steps:
       - uses: actions/checkout@v7
-        with:
-          lfs: true
       - uses: jdx/mise-action@v4
         with:
           version: 2026.8.2
