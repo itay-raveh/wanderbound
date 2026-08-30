@@ -50,6 +50,8 @@ export function useMapbox(options: UseMapboxOptions) {
   mapboxgl.accessToken = getSettings().MAPBOX_TOKEN ?? "";
   const map = shallowRef<mapboxgl.Map | null>(null);
   let pendingIdle: (() => void) | null = null;
+  let pendingRender: (() => void) | null = null;
+  let readinessGeneration = 0;
   let initIdleHandle: number | null = null;
   let initTimeout: ReturnType<typeof setTimeout> | null = null;
   let visibilityTimeout: ReturnType<typeof setTimeout> | null = null;
@@ -96,8 +98,11 @@ export function useMapbox(options: UseMapboxOptions) {
       armIdleReady(el, m);
     } catch (e) {
       console.warn("[mapbox] failed to initialise map:", e);
-      // Mark ready on error so PrintView doesn't wait forever.
-      el.dataset.mapReady = "";
+      if (options.preserveDrawingBuffer) {
+        el.dataset.mapError = "initialization-failed";
+      } else {
+        el.dataset.mapReady = "";
+      }
     }
   }
 
@@ -116,38 +121,75 @@ export function useMapbox(options: UseMapboxOptions) {
 
   function armIdleReady(el: HTMLElement, m: mapboxgl.Map) {
     disarmIdleReady(m);
+    const generation = ++readinessGeneration;
     delete el.dataset.mapReady;
     delete el.dataset.mapSnapshotReady;
+    delete el.dataset.mapError;
     let attempts = 0;
     const markReady = () => {
-      if (options.preserveDrawingBuffer) snapshotCanvasForPrint(el, m);
+      if (generation !== readinessGeneration) return;
       el.dataset.mapReady = "";
       pendingIdle = null;
+      pendingRender = null;
       if (idleFallback !== null) {
         clearTimeout(idleFallback);
         idleFallback = null;
       }
     };
+    const markError = (code: string) => {
+      if (generation !== readinessGeneration) return;
+      el.dataset.mapError = code;
+      pendingIdle = null;
+      pendingRender = null;
+      if (idleFallback !== null) {
+        clearTimeout(idleFallback);
+        idleFallback = null;
+      }
+    };
+    const capture = async () => {
+      if (generation !== readinessGeneration) return;
+      pendingRender = null;
+      if (await snapshotCanvasForPrint(el, m, generation)) markReady();
+      else markError("snapshot-failed");
+    };
     const check = () => {
+      if (generation !== readinessGeneration) return;
       if (!m.areTilesLoaded() && ++attempts < 20) {
         m.once("idle", check);
         return;
       }
-      markReady();
+      pendingIdle = null;
+      if (!options.preserveDrawingBuffer) {
+        markReady();
+        return;
+      }
+      pendingRender = () => void capture();
+      m.once("render", pendingRender);
+      m.triggerRepaint();
     };
     pendingIdle = check;
     m.once("idle", check);
-    // Absolute fallback: mark ready after 30s even if idle never fires
-    // (e.g. WebGL context loss). Prevents map staying invisible forever.
+    // Preview maps remain fail-open so a lost WebGL context does not leave the
+    // editor blank. Print maps must fail the export instead of hiding damage.
     idleFallback = setTimeout(() => {
-      if (!el.dataset.mapReady) markReady();
+      if (el.dataset.mapReady || el.dataset.mapError) return;
+      if (options.preserveDrawingBuffer) markError("render-timeout");
+      else markReady();
     }, 30_000);
   }
 
-  function snapshotCanvasForPrint(el: HTMLElement, m: mapboxgl.Map) {
+  async function snapshotCanvasForPrint(
+    el: HTMLElement,
+    m: mapboxgl.Map,
+    generation: number,
+  ): Promise<boolean> {
     try {
       const canvas = m.getCanvas();
-      if (canvas.width === 0 || canvas.height === 0) return;
+      if (canvas.width === 0 || canvas.height === 0) return false;
+
+      const dataUrl = canvas.toDataURL("image/png");
+      if (!dataUrl.startsWith("data:image/png;base64,") || dataUrl.length < 32)
+        return false;
 
       let snapshot = el.querySelector<HTMLImageElement>(
         ":scope > .mapbox-print-snapshot",
@@ -159,10 +201,14 @@ export function useMapbox(options: UseMapboxOptions) {
         snapshot.setAttribute("aria-hidden", "true");
         el.prepend(snapshot);
       }
-      snapshot.src = canvas.toDataURL("image/png");
+      snapshot.src = dataUrl;
+      await snapshot.decode();
+      if (generation !== readinessGeneration) return false;
       el.dataset.mapSnapshotReady = "";
+      return true;
     } catch (e) {
       console.warn("[mapbox] failed to snapshot print canvas:", e);
+      return false;
     }
   }
 
@@ -171,6 +217,10 @@ export function useMapbox(options: UseMapboxOptions) {
       m.off("idle", pendingIdle);
       pendingIdle = null;
     }
+    if (pendingRender) {
+      m.off("render", pendingRender);
+      pendingRender = null;
+    }
     if (idleFallback !== null) {
       clearTimeout(idleFallback);
       idleFallback = null;
@@ -178,6 +228,7 @@ export function useMapbox(options: UseMapboxOptions) {
   }
 
   function destroy() {
+    readinessGeneration++;
     if (map.value) disarmIdleReady(map.value);
     map.value?.remove();
     map.value = null;

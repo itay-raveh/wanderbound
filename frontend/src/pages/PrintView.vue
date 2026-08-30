@@ -78,6 +78,16 @@ async function loadFonts(): Promise<void> {
  */
 let pollTimer = 0;
 
+type PrintError = {
+  code: "map-render-failed" | "render-timeout";
+  message: string;
+};
+
+function setPrintError(error: PrintError) {
+  clearTimeout(pollTimer);
+  (window as unknown as Record<string, unknown>).__PRINT_ERROR__ = error;
+}
+
 function waitForPrintReady() {
   const MAX_WAIT = 45_000;
   const startTime = Date.now();
@@ -94,8 +104,10 @@ function waitForPrintReady() {
   function poll() {
     if (waiting) return;
     if (Date.now() - startTime > MAX_WAIT) {
-      console.warn("[print] timed out, forcing ready");
-      setReady();
+      setPrintError({
+        code: "render-timeout",
+        message: "Album rendering timed out before every map was ready.",
+      });
       return;
     }
 
@@ -120,9 +132,20 @@ function waitForPrintReady() {
       return;
     }
 
-    // Wait for all Mapbox maps to finish rendering tiles.
+    const failedMap = document.querySelector<HTMLElement>(
+      "[data-map][data-map-error]",
+    );
+    if (failedMap) {
+      setPrintError({
+        code: "map-render-failed",
+        message: `A map could not be rendered (${failedMap.dataset.mapError}).`,
+      });
+      return;
+    }
+
+    // A print map is ready only after its decoded canvas snapshot is installed.
     const unreadyMaps = document.querySelectorAll(
-      "[data-map]:not([data-map-ready])",
+      "[data-map]:not([data-map-snapshot-ready])",
     );
     if (unreadyMaps.length > 0) {
       schedulePoll(300);
