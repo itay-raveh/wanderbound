@@ -3397,11 +3397,16 @@
           "location": {
             "type": "string",
             "title": "Location"
+          },
+          "key": {
+            "type": "string",
+            "title": "Key"
           }
         },
         "type": "object",
         "required": [
-          "location"
+          "location",
+          "key"
         ],
         "title": "CompleteUploadResponse"
       },

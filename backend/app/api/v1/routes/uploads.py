@@ -72,6 +72,7 @@ class CompleteUploadRequest(BaseModel):
 
 class CompleteUploadResponse(BaseModel):
     location: str
+    key: str
 
 
 class TripSelectionRequest(BaseModel):
@@ -239,7 +240,7 @@ async def complete_upload(  # noqa: PLR0913
     _require_key(row, key)
     if row.status == "processing":
         await start_upload_workflow(row.upload_id)
-        return CompleteUploadResponse(location=row.object_key)
+        return CompleteUploadResponse(location=row.object_key, key=row.object_key)
     _ensure_uploading(row)
     async with upload_capacity_slot(session, row.size_bytes) as admitted:
         if not admitted:
@@ -262,7 +263,7 @@ async def complete_upload(  # noqa: PLR0913
         session.add(row)
         await session.commit()
     await start_upload_workflow(row.upload_id)
-    return CompleteUploadResponse(location=row.object_key)
+    return CompleteUploadResponse(location=row.object_key, key=row.object_key)
 
 
 @router.delete("/s3/multipart/{upload_id}")

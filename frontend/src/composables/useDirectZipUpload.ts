@@ -8,8 +8,8 @@ import {
   type UploadProgressUpdate,
   type UploadResult,
 } from "@/client";
-import AwsS3 from "@uppy/aws-s3";
-import Uppy, { type UppyFile } from "@uppy/core";
+import AwsS3, { type AwsBody } from "@uppy/aws-s3";
+import Uppy from "@uppy/core";
 import { onScopeDispose, ref } from "vue";
 
 const PART_SIZE = 64 * 1024 * 1024;
@@ -25,10 +25,7 @@ type UploadState =
 type UploadIngestionPhase = UploadProgressUpdate["phase"];
 type UploadProgressEvent = UploadProgressResponse[number];
 type UploadMeta = { size_bytes?: number };
-type UploadBody = Record<string, unknown>;
-type MultipartFile = UppyFile<UploadMeta, UploadBody> & {
-  s3Multipart?: { uploadId?: string };
-};
+type UploadBody = AwsBody;
 
 const INGESTION_PHASE_ORDER: Record<UploadIngestionPhase, number> = {
   downloading: 0,
@@ -145,8 +142,7 @@ export function useDirectZipUpload(options: {
       maxNumberOfFiles: 1,
     },
   }).use(AwsS3, {
-    endpoint: `${window.location.origin}/api/v1/users/uploads`,
-    cookiesRule: "same-origin",
+    companionEndpoint: `${window.location.origin}/api/v1/users/uploads`,
     limit: 8,
     shouldUseMultipart: true,
     allowedMetaFields: ["size_bytes"],
@@ -209,9 +205,12 @@ export function useDirectZipUpload(options: {
       progress.value = uploadProgress.bytesUploaded / uploadProgress.bytesTotal;
     }
   });
-  uppy.on("upload-success", (uploadedFile) => {
-    uploadId = (uploadedFile as MultipartFile | undefined)?.s3Multipart
-      ?.uploadId ?? null;
+  uppy.on("upload-success", (_uploadedFile, response) => {
+    const key = response.body?.key;
+    uploadId =
+      key?.startsWith("uploads/") && key.endsWith(".zip")
+        ? key.slice("uploads/".length, -".zip".length)
+        : null;
     if (!uploadId) {
       fail();
       return;
