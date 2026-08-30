@@ -15,6 +15,7 @@ from app.logic.pdf import (
     PdfDone,
     PdfError,
     PdfEvent,
+    PdfPageRenderError,
     PdfProgress,
     PdfQueued,
     PdfQueueTimeoutError,
@@ -156,6 +157,8 @@ async def render_album_chapters_zip_stream(  # noqa: C901, PLR0913
         if isinstance(done, PdfError):
             return
         owned = True
+    except PdfPageRenderError as exc:
+        yield PdfError(detail=str(exc))
     except Exception:
         logger.exception("pdf.chapter_zip_generation_failed", album_id=aid)
         yield PdfError(detail="Chapter ZIP generation failed. Please try again.")

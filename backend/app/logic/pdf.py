@@ -11,10 +11,10 @@ from contextlib import (
 )
 from pathlib import Path
 from typing import TYPE_CHECKING, Annotated, ClassVar, Literal
-from urllib.parse import quote, urlencode
+from urllib.parse import quote, urlencode, urlparse
 
 import structlog
-from playwright.async_api import Browser, Page, Playwright, async_playwright
+from playwright.async_api import Browser, Page, Playwright, Response, async_playwright
 from pydantic import BaseModel, Field
 
 from app.core.config import get_settings
@@ -73,6 +73,10 @@ class PdfArtifact(BaseModel):
 
 
 class PdfQueueTimeoutError(TimeoutError):
+    pass
+
+
+class PdfPageRenderError(RuntimeError):
     pass
 
 
@@ -358,7 +362,31 @@ async def _load_print_page(
         deadline = loop.time() + 60
         last_counts = (-1, -1)
         while True:
-            ready = await page.evaluate("window.__PRINT_READY__ === true")
+            state = await page.evaluate(
+                """() => ({
+                    ready: window.__PRINT_READY__ === true,
+                    error: window.__PRINT_ERROR__ ?? null,
+                })"""
+            )
+            ready = state["ready"]
+            if state["error"]:
+                error = state["error"]
+                code = (
+                    error.get("code", "unknown")
+                    if isinstance(error, dict)
+                    else "unknown"
+                )
+                logger.warning(
+                    "pdf.print_page_failed",
+                    album_id=aid,
+                    error_code=code,
+                )
+                detail = (
+                    "A map could not be rendered for PDF export. Please try again."
+                    if code == "map-render-failed"
+                    else "Album rendering did not finish in time. Please try again."
+                )
+                raise PdfPageRenderError(detail)
             counts = (finished, started)
             if counts != last_counts or ready:
                 last_counts = counts
@@ -420,6 +448,23 @@ async def render_pdf_file(  # noqa: PLR0913
                 error_type=type(err).__name__,
             ),
         )
+
+        def log_failed_mapbox_response(response: Response) -> None:
+            if response.status < 300:
+                return
+            parsed = urlparse(response.url)
+            host = parsed.hostname or ""
+            if host != "mapbox.com" and not host.endswith(".mapbox.com"):
+                return
+            logger.warning(
+                "pdf.mapbox_response_failed",
+                host=host,
+                path=parsed.path,
+                resource_type=response.request.resource_type,
+                status=response.status,
+            )
+
+        page.on("response", log_failed_mapbox_response)
         url = _print_url(frontend_url, aid, dark=dark, chapter=chapter)
         async for progress in _load_print_page(page, url, aid, dark=dark):
             yield progress
@@ -445,7 +490,7 @@ async def render_pdf_file(  # noqa: PLR0913
         await context.close()
 
 
-async def render_album_pdf_stream(  # noqa: PLR0913
+async def render_album_pdf_stream(  # noqa: C901, PLR0913
     browser: Browser,
     session: AsyncSession,
     aid: str,
@@ -500,6 +545,8 @@ async def render_album_pdf_stream(  # noqa: PLR0913
         owned = True
         yield PdfDone(token=token)
 
+    except PdfPageRenderError as exc:
+        yield PdfError(detail=str(exc))
     except TimeoutError:
         logger.warning(
             "pdf.render_timeout",
