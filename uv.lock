@@ -8,15 +8,6 @@ members = [
 ]
 
 [[package]]
-name = "aiolimiter"
-version = "1.2.1"
-source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/f1/23/b52debf471f7a1e42e362d959a3982bdcb4fe13a5d46e63d28868807a79c/aiolimiter-1.2.1.tar.gz", hash = "sha256:e02a37ea1a855d9e832252a105420ad4d15011505512a1a1d814647451b5cca9", size = 7185, upload-time = "2024-12-08T15:31:51.496Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/f3/ba/df6e8e1045aebc4778d19b8a3a9bc1808adb1619ba94ca354d9ba17d86c3/aiolimiter-1.2.1-py3-none-any.whl", hash = "sha256:d3f249e9059a20badcb56b61601a83556133655c11d1eb3dd3e04ff069e5f3c7", size = 6711, upload-time = "2024-12-08T15:31:49.874Z" },
-]
-
-[[package]]
 name = "aiosqlite"
 version = "0.22.1"
 source = { registry = "https://pypi.org/simple" }
@@ -99,7 +90,6 @@ name = "app"
 version = "1.0.0"
 source = { editable = "backend" }
 dependencies = [
-    { name = "aiolimiter" },
     { name = "alembic" },
     { name = "alembic-postgresql-enum" },
     { name = "anyio" },
@@ -127,6 +117,7 @@ dependencies = [
     { name = "pydantic" },
     { name = "pydantic-settings" },
     { name = "pyjwt", extra = ["crypto"] },
+    { name = "pyrate-limiter" },
     { name = "python-multipart" },
     { name = "scipy" },
     { name = "sentry-sdk", extra = ["fastapi"] },
@@ -154,7 +145,6 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "aiolimiter", specifier = "~=1.2" },
     { name = "alembic", specifier = "~=1.12" },
     { name = "alembic-postgresql-enum", specifier = ">=1.10.0" },
     { name = "anyio", specifier = "~=4.13" },
@@ -182,6 +172,7 @@ requires-dist = [
     { name = "pydantic", specifier = "~=2.0" },
     { name = "pydantic-settings", specifier = "~=2.0" },
     { name = "pyjwt", extras = ["crypto"], specifier = "~=2.0" },
+    { name = "pyrate-limiter", specifier = "~=4.4" },
     { name = "python-multipart", specifier = "<1" },
     { name = "scipy", specifier = "~=1.15" },
     { name = "sentry-sdk", extras = ["fastapi"], specifier = "~=2.35" },
@@ -1187,6 +1178,15 @@ wheels = [
 [package.optional-dependencies]
 crypto = [
     { name = "cryptography" },
+]
+
+[[package]]
+name = "pyrate-limiter"
+version = "4.5.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/62/43/48693393af06b9fffbaea6bb8fe03be3c3f17be5d1423dab347d1aad1dde/pyrate_limiter-4.5.0.tar.gz", hash = "sha256:098345fff3a52b84dee9bcf6973f184c8b3ef8d34e1f4f781ac0773e3984598b", size = 123240, upload-time = "2026-08-30T10:35:39.272Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/64/dc/02f88649feeabf4282c8c194a6f6060ca858041bab1204365b5d8ef8a95e/pyrate_limiter-4.5.0-py3-none-any.whl", hash = "sha256:e7320a715adf404cb7b2f399e05ceb59cae165275b21f7708eb1b9fd9608e91c", size = 57188, upload-time = "2026-08-30T10:35:38.069Z" },
 ]
 
 [[package]]

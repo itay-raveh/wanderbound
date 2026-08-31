@@ -1,6 +1,6 @@
 """App-wide httpx clients built once per lifespan.
 
-Each external API gets a dedicated client with its own rate limit,
+Each external API gets a dedicated client with its own quota policy,
 cache policy, and pool size. Clients are constructed inside
 ``lifespan_clients`` via ``AsyncExitStack`` so ``aclose`` runs in LIFO
 order on shutdown. The resulting ``HttpClients`` is exposed on
@@ -12,11 +12,11 @@ from contextlib import AsyncExitStack, asynccontextmanager
 from dataclasses import dataclass
 
 import httpx
-from aiolimiter import AsyncLimiter
 from httpx import AsyncClient, Request
+from pyrate_limiter import Duration, Rate
 
 from app.core.config import get_settings
-from app.core.http import http_client
+from app.core.http import http_client, sliding_window_limiter
 from app.services.google_photos import GooglePhotosOAuth2
 
 
@@ -60,24 +60,35 @@ async def lifespan_clients() -> AsyncGenerator[HttpClients]:
             # Mapbox documents 300/min for both matching and directions.
             # Keep headroom for retries and concurrent album jobs.
             mapbox_matching=await enter(
-                http_client(limiter=AsyncLimiter(250, 60), headers=mapbox_headers)
+                http_client(
+                    limiter=sliding_window_limiter(Rate(250, Duration.MINUTE)),
+                    headers=mapbox_headers,
+                )
             ),
             mapbox_directions=await enter(
-                http_client(limiter=AsyncLimiter(250, 60), headers=mapbox_headers)
+                http_client(
+                    limiter=sliding_window_limiter(Rate(250, Duration.MINUTE)),
+                    headers=mapbox_headers,
+                )
             ),
-            # Open-Meteo free tier: 600/min, 5000/hr. Stay under at 480/min.
+            # Open-Meteo free tier: 600/min, 5000/hr, 10000/day.
+            # Retain the existing 20% headroom across every published window.
             open_meteo=await enter(
                 http_client(
-                    limiter=AsyncLimiter(480, 60),
+                    limiter=sliding_window_limiter(
+                        Rate(480, Duration.MINUTE),
+                        Rate(4_000, Duration.HOUR),
+                        Rate(8_000, Duration.DAY),
+                    ),
                     weight_fn=_open_meteo_weight,
                 )
             ),
-            # Overpass ~2 req/s fair-use, bans default python-httpx UA.
+            # Overpass assigns execution slots rather than a requests/second quota.
             # https://community.openstreetmap.org/t/overpass-api-error-406/143198
             overpass=await enter(
                 http_client(
                     use_body_key=True,
-                    limiter=AsyncLimiter(2, 1),
+                    limits=httpx.Limits(max_connections=2),
                     headers={
                         "User-Agent": f"Wanderbound (+{settings.PUBLIC_URL})",
                     },

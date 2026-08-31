@@ -1,6 +1,6 @@
 """Open-Meteo API client: DEM elevations and historical weather.
 
-Both endpoints share an IP-based rate limit (480/min). Rate limiting
+Both endpoints share weighted minute, hour, and daily limits. Rate limiting
 sits between the cache and network layers so cache hits bypass it.
 """
 

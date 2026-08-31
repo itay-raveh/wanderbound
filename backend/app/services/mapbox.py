@@ -1,7 +1,7 @@
 """Mapbox Map Matching & Directions API client.
 
 Density-based API selection: dense GPS → Map Matching, sparse → Directions.
-Rate-limited to stay under Mapbox free-tier limits (60 req/min).
+Rate limiting is provided by the shared Mapbox HTTP clients.
 """
 
 import asyncio
