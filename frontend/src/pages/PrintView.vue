@@ -3,7 +3,10 @@ import AlbumViewer from "@/components/AlbumViewer.vue";
 import { usePrintBundleQuery } from "@/queries/queries";
 import { useUserQuery } from "@/queries/useUserQuery";
 import { useLocale } from "@/composables/useLocale";
-import { providePrintMediaReady } from "@/composables/usePrintReady";
+import {
+  getPrintTimeoutMs,
+  providePrintMediaReady,
+} from "@/composables/usePrintReady";
 import { ALLOWED_FONTS } from "@/utils/fonts";
 import { useI18n } from "vue-i18n";
 import { Dark } from "quasar";
@@ -99,7 +102,7 @@ function setPrintError(error: PrintError) {
 }
 
 function waitForPrintReady() {
-  const MAX_WAIT = 900_000;
+  const MAX_WAIT = getPrintTimeoutMs();
   const startTime = Date.now();
   let waiting = false;
 

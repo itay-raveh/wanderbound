@@ -2,6 +2,10 @@ import mapboxgl from "mapbox-gl";
 import "mapbox-gl/dist/mapbox-gl.css";
 
 import { useResizeObserver } from "@vueuse/core";
+import {
+  getPrintCpuCount,
+  getPrintTimeoutMs,
+} from "@/composables/usePrintReady";
 import { getSettings } from "@/config";
 import {
   onBeforeUnmount,
@@ -30,12 +34,16 @@ mapboxgl.setRTLTextPlugin(
 const MAP_INIT_ROOT_MARGIN_PX = 200;
 const MAP_VISIBILITY_SETTLE_MS = 100;
 const MAX_CONCURRENT_PRINT_MAPS = 2;
-const PRINT_PIXEL_RATIO = 3;
+const PRINT_PIXEL_RATIO = 2;
 const PRINT_TILE_SETTLE_MS = 2_000;
 
 let activePrintMaps = 0;
 const queuedPrintMaps: Array<() => void> = [];
 let printPixelRatioUsers = 0;
+
+function maxConcurrentPrintMaps(): number {
+  return Math.min(MAX_CONCURRENT_PRINT_MAPS, getPrintCpuCount() ?? 2);
+}
 
 function acquirePrintPixelRatio(): () => void {
   printPixelRatioUsers++;
@@ -60,7 +68,7 @@ function enqueuePrintMap(start: (release: () => void) => void): () => void {
 
   const drain = () => {
     while (
-      activePrintMaps < MAX_CONCURRENT_PRINT_MAPS &&
+      activePrintMaps < maxConcurrentPrintMaps() &&
       queuedPrintMaps.length > 0
     ) {
       queuedPrintMaps.shift()?.();
@@ -261,11 +269,14 @@ export function useMapbox(options: UseMapboxOptions) {
     readinessTimer = setTimeout(check, 0);
     // Preview maps remain fail-open so a lost WebGL context does not leave the
     // editor blank. Print maps must fail the export instead of hiding damage.
-    idleFallback = setTimeout(() => {
-      if (el.dataset.mapReady || el.dataset.mapError) return;
-      if (options.preserveDrawingBuffer) markError("render-timeout");
-      else markReady();
-    }, 300_000);
+    idleFallback = setTimeout(
+      () => {
+        if (el.dataset.mapReady || el.dataset.mapError) return;
+        if (options.preserveDrawingBuffer) markError("render-timeout");
+        else markReady();
+      },
+      Math.max(300_000, getPrintTimeoutMs() - 60_000),
+    );
   }
 
   function disposePrintMap(

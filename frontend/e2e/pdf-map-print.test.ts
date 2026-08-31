@@ -316,8 +316,10 @@ test.describe("PDF map snapshots", () => {
         return width / image.getBoundingClientRect().width;
       }),
     );
-    for (const pixelRatio of pixelRatios)
-      expect(pixelRatio).toBeGreaterThan(2.9);
+    for (const pixelRatio of pixelRatios) {
+      expect(pixelRatio).toBeGreaterThan(1.9);
+      expect(pixelRatio).toBeLessThan(2.1);
+    }
 
     const counts = await snapshotColorCounts(page);
     expect(counts[0][0]).toBeGreaterThan(1_000);

@@ -29,15 +29,32 @@ if TYPE_CHECKING:
 logger = structlog.get_logger(__name__)
 
 
+_BASELINE_RENDER_CPUS = 4
+_BASE_PRINT_PAGE_TIMEOUT = 900
+_BASE_RENDER_TIMEOUT = 1500
+
+
 def render_capacity(cpu_count: int) -> int:
-    return max(1, cpu_count)
+    return max(1, cpu_count // 2)
 
 
-_max_concurrent = render_capacity(detect_cpu_count())
+def render_timeouts(cpu_count: int) -> tuple[int, int]:
+    available_cpus = max(1, cpu_count)
+
+    def scale(timeout: int) -> int:
+        return max(
+            timeout,
+            (timeout * _BASELINE_RENDER_CPUS + available_cpus - 1) // available_cpus,
+        )
+
+    return scale(_BASE_PRINT_PAGE_TIMEOUT), scale(_BASE_RENDER_TIMEOUT)
+
+
+_CPU_COUNT = detect_cpu_count()
+_max_concurrent = render_capacity(_CPU_COUNT)
 
 PDF_QUEUE_TIMEOUT = 60
-_RENDER_TIMEOUT = 1500
-_PRINT_PAGE_TIMEOUT = 900
+_PRINT_PAGE_TIMEOUT, _RENDER_TIMEOUT = render_timeouts(_CPU_COUNT)
 _PROGRESS_CHUNK_BYTES = 512 * 1024
 _RENDER_SLOT_POLL_INTERVAL = 0.25
 
@@ -471,6 +488,12 @@ async def render_pdf_file(  # noqa: PLR0913
                     "url": frontend_url,
                 },
             ]
+        )
+        await context.add_init_script(
+            script=(
+                f"window.__PRINT_TIMEOUT_MS__ = {_PRINT_PAGE_TIMEOUT * 1000};"
+                f"window.__PRINT_CPU_COUNT__ = {_CPU_COUNT};"
+            )
         )
         page = await context.new_page()
         page.on("console", lambda msg: logger.debug("browser.console", text=msg.text))
