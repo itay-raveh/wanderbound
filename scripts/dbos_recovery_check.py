@@ -7,8 +7,6 @@ import sys
 import time
 from pathlib import Path
 from typing import Any
-from urllib.parse import urlparse
-from urllib.request import Request, urlopen
 from uuid import uuid4
 
 import psycopg
@@ -16,11 +14,10 @@ from dbos import DBOS, SetWorkflowID
 from psycopg import sql
 
 APP_NAME = "wanderbound-dbos-check"
-APP_VERSION = "dbos-recovery-check-v1"
+APP_VERSION = "dbos-recovery-check-v2"
 DBOS_SYSTEM_SCHEMA = "dbos_recovery_check"
 MARKER_TABLE = "dbos_recovery_check_markers"
-RECOVERY_ADMIN_PORT = 3001
-WORKFLOW_RECOVERY_PATH = "/dbos-workflow-recovery"
+EXECUTOR_ID = "recovery-check-worker"
 
 
 def psycopg_url(database_url: str) -> str:
@@ -31,35 +28,16 @@ def dbos_recovery_config(
     database_url: str,
     *,
     executor_id: str,
-    run_admin_server: bool = False,
-    admin_port: int = RECOVERY_ADMIN_PORT,
 ) -> dict[str, Any]:
     return {
         "name": APP_NAME,
         "system_database_url": database_url,
-        "run_admin_server": run_admin_server,
-        "admin_port": admin_port,
+        "run_admin_server": False,
         "log_level": "ERROR",
         "executor_id": executor_id,
         "application_version": APP_VERSION,
         "dbos_system_schema": DBOS_SYSTEM_SCHEMA,
     }
-
-
-def recover_workflows_via_admin(
-    admin_base_url: str, executor_ids: list[str]
-) -> list[str]:
-    parsed_url = urlparse(admin_base_url)
-    if parsed_url.scheme not in {"http", "https"}:
-        raise ValueError("DBOS admin URL must use http or https")
-    request = Request(  # noqa: S310
-        f"{admin_base_url.rstrip('/')}{WORKFLOW_RECOVERY_PATH}",
-        data=json.dumps(executor_ids).encode(),
-        method="POST",
-        headers={"Content-Type": "application/json"},
-    )
-    with urlopen(request, timeout=30) as response:  # noqa: S310
-        return list(json.loads(response.read().decode()))
 
 
 def _ensure_marker_table(database_url: str) -> None:
@@ -149,28 +127,10 @@ async def _run_worker(database_url: str, operation_id: str, executor_id: str) ->
         DBOS.destroy(workflow_completion_timeout_sec=1)
 
 
-def _recover(
-    database_url: str, operation_id: str, failed_executor_id: str
-) -> dict[str, Any]:
-    DBOS(
-        config=dbos_recovery_config(
-            database_url,
-            executor_id="worker-b",
-            run_admin_server=True,
-            admin_port=RECOVERY_ADMIN_PORT,
-        )
-    )
+def _recover(database_url: str, operation_id: str, executor_id: str) -> dict[str, Any]:
+    DBOS(config=dbos_recovery_config(database_url, executor_id=executor_id))
     DBOS.launch()
     try:
-        workflow_ids = recover_workflows_via_admin(
-            f"http://127.0.0.1:{RECOVERY_ADMIN_PORT}", [failed_executor_id]
-        )
-        if not workflow_ids:
-            raise RuntimeError(
-                f"No pending workflows recovered for {failed_executor_id}"
-            )
-        if operation_id not in workflow_ids:
-            raise RuntimeError(f"Recovered workflows did not include {operation_id}")
         handle = DBOS.retrieve_workflow(operation_id)
         result = handle.get_result()
         if inspect.isawaitable(result):
@@ -191,7 +151,6 @@ def _wait_for_first_attempt(database_url: str, operation_id: str) -> None:
 
 def _run_parent(database_url: str) -> dict[str, Any]:
     operation_id = f"dbos-recovery-check-{uuid4()}"
-    worker_a = f"worker-a-{operation_id}"
     _ensure_marker_table(database_url)
 
     worker = subprocess.Popen(  # noqa: S603
@@ -201,7 +160,7 @@ def _run_parent(database_url: str) -> dict[str, Any]:
             "worker",
             database_url,
             operation_id,
-            worker_a,
+            EXECUTOR_ID,
         ]
     )
     try:
@@ -213,7 +172,7 @@ def _run_parent(database_url: str) -> dict[str, Any]:
             worker.kill()
             worker.wait(timeout=10)
 
-        result = _recover(database_url, operation_id, worker_a)
+        result = _recover(database_url, operation_id, EXECUTOR_ID)
         attempts = _attempt_count(database_url, operation_id)
         return {"result": result, "attempts": attempts}
     finally:
