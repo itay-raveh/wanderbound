@@ -100,7 +100,19 @@ async def test_recover_dead_workflow_executors_recovers_stale(
         status="active",
         last_seen_at=datetime.now(UTC) - timedelta(seconds=120),
     )
-    session.add(stale)
+    already_dead = WorkflowExecutorHeartbeat(
+        executor_id="dead-worker",
+        admin_base_url="http://127.0.0.1:3001",
+        status="dead",
+        last_seen_at=datetime.now(UTC) - timedelta(seconds=120),
+    )
+    current = WorkflowExecutorHeartbeat(
+        executor_id="current-worker",
+        admin_base_url="http://127.0.0.1:3001",
+        status="active",
+        last_seen_at=datetime.now(UTC),
+    )
+    session.add_all([stale, already_dead, current])
     await session.flush()
     calls: list[tuple[str, list[str]]] = []
 
@@ -115,9 +127,40 @@ async def test_recover_dead_workflow_executors_recovers_stale(
 
     recovered = await recover_dead_workflow_executors(session, _RecoverySettings())
 
-    assert stale.status == "dead"
     assert recovered == ["workflow-1"]
     assert calls == [("http://127.0.0.1:3001", ["stale-worker"])]
+    assert await session.get(WorkflowExecutorHeartbeat, "stale-worker") is None
+    assert await session.get(WorkflowExecutorHeartbeat, "dead-worker") is None
+    assert await session.get(WorkflowExecutorHeartbeat, "current-worker") is current
+
+
+async def test_recover_dead_workflow_executors_prunes_old_dead_rows(
+    session: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    already_dead = WorkflowExecutorHeartbeat(
+        executor_id="dead-worker",
+        admin_base_url="http://127.0.0.1:3001",
+        status="dead",
+        last_seen_at=datetime.now(UTC) - timedelta(seconds=120),
+    )
+    session.add(already_dead)
+    await session.flush()
+    calls: list[tuple[str, list[str]]] = []
+
+    def fake_recover(admin_base_url: str, executor_ids: list[str]) -> list[str]:
+        calls.append((admin_base_url, executor_ids))
+        return []
+
+    monkeypatch.setattr(
+        "app.logic.workflows.recovery.recover_workflows_via_admin",
+        fake_recover,
+    )
+
+    recovered = await recover_dead_workflow_executors(session, _RecoverySettings())
+
+    assert recovered == []
+    assert calls == []
+    assert await session.get(WorkflowExecutorHeartbeat, "dead-worker") is None
 
 
 async def test_workflow_admin_election_promotes_when_lock_is_available() -> None:

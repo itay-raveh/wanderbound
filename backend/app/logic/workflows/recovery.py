@@ -11,7 +11,7 @@ from urllib.parse import urlparse
 from urllib.request import Request, urlopen
 
 import structlog
-from sqlalchemy import update
+from sqlalchemy import delete, update
 from sqlalchemy.exc import SQLAlchemyError
 from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -113,11 +113,20 @@ async def recover_dead_workflow_executors(
     dead_executor_ids = await list_dead_workflow_executors(
         session, stale_after=timedelta(seconds=settings.DBOS_HEARTBEAT_TTL_SECONDS)
     )
-    if not dead_executor_ids:
-        return []
-    return await asyncio.to_thread(
-        recover_workflows_via_admin, admin_base_url, dead_executor_ids
+    recovered = (
+        await asyncio.to_thread(
+            recover_workflows_via_admin, admin_base_url, dead_executor_ids
+        )
+        if dead_executor_ids
+        else []
     )
+    await session.exec(
+        delete(WorkflowExecutorHeartbeat).where(
+            col(WorkflowExecutorHeartbeat.status) == "dead"
+        )
+    )
+    await session.flush()
+    return recovered
 
 
 async def workflow_heartbeat_once(
