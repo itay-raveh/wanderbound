@@ -28,6 +28,12 @@
   display: none;
 }
 
+.mapbox-print-marker-overlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
 @media print {
   [data-map][data-map-snapshot-ready] .mapboxgl-canvas {
     opacity: 0;

@@ -38,6 +38,7 @@ const { data: segments } = useSegmentPointsQuery(
   fromTime,
   toTime,
   loadSegments,
+  !printMode,
 );
 const container = useTemplateRef("map");
 const { map, fitBounds } = useMapbox({

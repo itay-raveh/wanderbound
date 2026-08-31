@@ -26,6 +26,7 @@ export function useSegmentPointsQuery(
   fromTime: Ref<number>,
   toTime: Ref<number>,
   enabled: MaybeRefOrGetter<boolean> = true,
+  refetchUnmatchedRoutes: MaybeRefOrGetter<boolean> = true,
 ) {
   const { albumId } = useAlbum();
 
@@ -65,6 +66,7 @@ export function useSegmentPointsQuery(
     if (
       disposed ||
       !toValue(enabled) ||
+      !toValue(refetchUnmatchedRoutes) ||
       !hasUnmatchedRoute(query.data.value) ||
       attempts >= ROUTE_REFETCH_LIMIT
     )
@@ -81,7 +83,7 @@ export function useSegmentPointsQuery(
   }
 
   watch(
-    [query.data, () => toValue(enabled)],
+    [query.data, () => toValue(enabled), () => toValue(refetchUnmatchedRoutes)],
     () => {
       if (!hasUnmatchedRoute(query.data.value)) attempts = 0;
       schedule();

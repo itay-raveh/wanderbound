@@ -1,6 +1,6 @@
 <script lang="ts" setup>
 import { useAlbum } from "@/composables/useAlbum";
-import { usePrintMode } from "@/composables/usePrintReady";
+import { usePrintMediaReady, usePrintMode } from "@/composables/usePrintReady";
 import { usePanoramaFrame } from "@/composables/usePanoramaFrame";
 import { PAGE_HEIGHT_MM, PAGE_WIDTH_MM } from "@/utils/pageSize";
 import { computed } from "vue";
@@ -18,8 +18,12 @@ const emit = defineEmits<{
 const { placementMediaUrl } = useAlbum();
 const openPanoramaDialog = usePanoramaFrame();
 const printMode = usePrintMode();
+const printMediaReady = usePrintMediaReady();
 const spreadAspectRatio = (PAGE_WIDTH_MM * 2) / PAGE_HEIGHT_MM;
 const src = computed(() => placementMediaUrl(props.media));
+const renderedSrc = computed(() =>
+  printMode && !printMediaReady.value ? undefined : src.value,
+);
 
 function openPanoramaFrame(): void {
   openPanoramaDialog?.({
@@ -36,7 +40,7 @@ function openPanoramaFrame(): void {
     :data-media="media"
   >
     <img
-      :src="src"
+      :src="renderedSrc"
       alt=""
       class="panorama-media"
       :loading="printMode ? 'eager' : 'lazy'"
@@ -70,5 +74,4 @@ function openPanoramaFrame(): void {
 .side-right .panorama-media {
   left: -100%;
 }
-
 </style>

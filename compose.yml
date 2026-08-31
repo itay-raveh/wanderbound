@@ -103,8 +103,8 @@ services:
     deploy:
       resources:
         limits:
-          memory: 2G
-          cpus: "2.0"
+          memory: 6G
+          cpus: "4.0"
           pids: 512
     networks: [backend, frontend]
     depends_on:

@@ -3,7 +3,7 @@ import type { PhotoQuality } from "@/utils/photoQuality";
 import { useAlbum } from "@/composables/useAlbum";
 import { usePhotoFocus, STEP_ID_KEY } from "@/composables/usePhotoFocus";
 import { registerQualityBadge } from "@/composables/usePhotoQuality";
-import { usePrintMode } from "@/composables/usePrintReady";
+import { usePrintMediaReady, usePrintMode } from "@/composables/usePrintReady";
 import { PROGRAMMATIC_SCROLL_KEY } from "@/composables/useProgrammaticScroll";
 import { useVideoFrameMutation } from "@/queries/useVideoFrameMutation";
 import PanoramaActions from "./PanoramaActions.vue";
@@ -64,10 +64,13 @@ const emit = defineEmits<{
 const { albumId, mediaByName, placementMediaUrl } = useAlbum();
 const openPanoramaDialog = usePanoramaFrame();
 const printMode = usePrintMode();
+const printMediaReady = usePrintMediaReady();
 const supportsIntersectionObserver =
   typeof window !== "undefined" && "IntersectionObserver" in window;
 const shouldLoadImmediately = computed(
-  () => printMode || !props.lazy || !supportsIntersectionObserver,
+  () =>
+    (printMode && printMediaReady.value) ||
+    (!printMode && (!props.lazy || !supportsIntersectionObserver)),
 );
 
 const programmaticScroll = inject(PROGRAMMATIC_SCROLL_KEY, ref(false));
@@ -92,6 +95,10 @@ const visible = useElementVisibility(rootRef, {
 });
 const loadImg = ref(shouldLoadImmediately.value);
 watchEffect(() => {
+  if (printMode) {
+    if (printMediaReady.value) loadImg.value = true;
+    return;
+  }
   if (
     shouldLoadImmediately.value ||
     (visible.value && !programmaticScroll.value)
