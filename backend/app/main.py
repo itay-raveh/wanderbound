@@ -23,7 +23,10 @@ from app.logic.export import lifespan as export_lifespan
 from app.logic.external_media.undo import lifespan as undo_lifespan
 from app.logic.media_upgrade.pipeline import cleanup_orphaned_tmp
 from app.logic.pdf import lifespan as pdf_lifespan
-from app.logic.segment_routes import set_route_enrichment_http_clients
+from app.logic.segment_routes import (
+    reconcile_missing_route_enrichments,
+    set_route_enrichment_http_clients,
+)
 from app.logic.session import cancel_all_sessions
 from app.logic.storage_metrics import storage_metrics_loop
 from app.logic.uploads.cleanup import upload_cleanup_loop
@@ -59,6 +62,16 @@ async def _reconcile_media_hashes() -> None:
         )
 
 
+async def _reconcile_segment_routes() -> None:
+    try:
+        await reconcile_missing_route_enrichments()
+    except Exception as exc:
+        logger.exception(
+            "route_enrichment.startup_reconciliation_failed",
+            error_type=type(exc).__name__,
+        )
+
+
 def _launch_background_tasks(
     upload_store: UploadStoreService,
 ) -> list[asyncio.Task[None]]:
@@ -84,6 +97,7 @@ async def _dbos_lifespan(
     upload_store: UploadStoreService,
 ) -> AsyncGenerator[None]:
     await launch_dbos(settings)
+    await _reconcile_segment_routes()
     await _reconcile_media_hashes()
     tasks = _launch_background_tasks(upload_store)
     try:

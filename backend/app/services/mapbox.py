@@ -1,7 +1,7 @@
 """Mapbox Map Matching & Directions API client.
 
 Density-based API selection: dense GPS → Map Matching, sparse → Directions.
-Rate-limited to stay under Mapbox free-tier limits (60 req/min).
+Rate limiting is provided by the shared Mapbox HTTP clients.
 """
 
 import asyncio
@@ -22,6 +22,7 @@ from app.logic.route_matching import (
     simplify_route,
     total_length_km,
 )
+from app.models.segment import RouteEnrichmentStatus
 
 logger = structlog.get_logger(__name__)
 
@@ -50,6 +51,16 @@ class MapboxRouteClients:
     directions: MapboxClient
 
 
+class MapboxTransientError(RuntimeError):
+    pass
+
+
+class RouteMatchResult(BaseModel):
+    status: RouteEnrichmentStatus
+    route: Coords | None = None
+    error_code: str | None = None
+
+
 class _GeoJSONLineString(BaseModel):
     type: Literal["LineString"]
     coordinates: list[list[float]]
@@ -60,6 +71,7 @@ class _Matching(BaseModel):
 
 
 class _MatchingResponse(BaseModel):
+    code: str = "Ok"
     matchings: list[_Matching] = []
 
 
@@ -68,7 +80,54 @@ class _Route(BaseModel):
 
 
 class _DirectionsResponse(BaseModel):
+    code: str = "Ok"
     routes: list[_Route] = []
+
+
+_NO_ROUTE_CODES = frozenset({"NoMatch", "NoRoute", "NoSegment"})
+
+
+def _failed(error_code: str) -> RouteMatchResult:
+    return RouteMatchResult(
+        status=RouteEnrichmentStatus.failed,
+        error_code=error_code[:100],
+    )
+
+
+def _no_route(error_code: str) -> RouteMatchResult:
+    return RouteMatchResult(
+        status=RouteEnrichmentStatus.no_route,
+        error_code=error_code[:100],
+    )
+
+
+def _matched(route: Coords) -> RouteMatchResult:
+    return RouteMatchResult(status=RouteEnrichmentStatus.matched, route=route)
+
+
+def _response_error_code(response: httpx.Response) -> str:
+    try:
+        payload = response.json()
+    except ValueError:
+        payload = None
+    if isinstance(payload, dict) and isinstance(payload.get("code"), str):
+        return payload["code"]
+    return f"http_{response.status_code}"
+
+
+def _http_failure(response: httpx.Response, *, operation: str) -> RouteMatchResult:
+    error_code = _response_error_code(response)
+    logger.warning(
+        "mapbox.api_error",
+        operation=operation,
+        status_code=response.status_code,
+        error_code=error_code,
+    )
+    if response.status_code == 429 or response.status_code >= 500:
+        raise MapboxTransientError(f"{operation}:{error_code}")
+    if error_code in _NO_ROUTE_CODES:
+        return _no_route(error_code)
+    return _failed(error_code)
 
 
 def _encode_coords(coords: Coords) -> str:
@@ -88,7 +147,7 @@ async def _fetch_matching(
     profile: Profile,
     token: str,
     stats: RouteMatchStats | None = None,
-) -> Coords | None:
+) -> RouteMatchResult:
     if stats is not None:
         stats.matching_requests += 1
     reduced = reduce_coords(coords, MATCH_MAX_COORDS)
@@ -103,7 +162,7 @@ async def _fetch_matching(
         },
     ) as span:
         try:
-            resp = await client.get(
+            response = await client.get(
                 f"{_MATCHING_URL}/{profile}/{_encode_coords(reduced)}",
                 params={
                     "geometries": "geojson",
@@ -112,25 +171,27 @@ async def _fetch_matching(
                     "access_token": token,
                 },
             )
-            set_span_data(span, **{"http.status_code": resp.status_code})
-            resp.raise_for_status()
-        except httpx.HTTPStatusError as e:
+            set_span_data(span, **{"http.status_code": response.status_code})
+        except httpx.RequestError as exc:
             logger.warning(
-                "mapbox.matching_api_error",
-                status_code=e.response.status_code,
+                "mapbox.matching_request_failed",
+                error_type=type(exc).__name__,
             )
-            return None
-        except httpx.TimeoutException:
-            logger.warning("mapbox.matching_timeout")
-            return None
-    data = _MatchingResponse.model_validate_json(resp.content)
+            raise MapboxTransientError("matching:request_failed") from exc
+    if not response.is_success:
+        return _http_failure(response, operation="matching")
+    data = _MatchingResponse.model_validate_json(response.content)
+    if data.code in _NO_ROUTE_CODES:
+        return _no_route(data.code)
+    if data.code != "Ok":
+        return _failed(data.code)
     if not data.matchings:
-        return None
+        return _no_route("NoMatch")
     all_coords: Coords = []
     for matching in data.matchings:
         pts: Coords = [(c[0], c[1]) for c in matching.geometry.coordinates]
         all_coords.extend(pts[1:] if all_coords else pts)
-    return all_coords if len(all_coords) >= 2 else None
+    return _matched(all_coords) if len(all_coords) >= 2 else _failed("invalid_geometry")
 
 
 async def _fetch_directions(
@@ -139,7 +200,7 @@ async def _fetch_directions(
     profile: Profile,
     token: str,
     stats: RouteMatchStats | None = None,
-) -> Coords | None:
+) -> RouteMatchResult:
     if stats is not None:
         stats.directions_requests += 1
     with start_span(
@@ -152,7 +213,7 @@ async def _fetch_directions(
         },
     ) as span:
         try:
-            resp = await client.get(
+            response = await client.get(
                 f"{_DIRECTIONS_URL}/{profile}/{_encode_coords(coords)}",
                 params={
                     "geometries": "geojson",
@@ -160,30 +221,32 @@ async def _fetch_directions(
                     "access_token": token,
                 },
             )
-            set_span_data(span, **{"http.status_code": resp.status_code})
-            resp.raise_for_status()
-        except httpx.HTTPStatusError as e:
+            set_span_data(span, **{"http.status_code": response.status_code})
+        except httpx.RequestError as exc:
             logger.warning(
-                "mapbox.directions_api_error",
-                status_code=e.response.status_code,
+                "mapbox.directions_request_failed",
+                error_type=type(exc).__name__,
             )
-            return None
-        except httpx.TimeoutException:
-            logger.warning("mapbox.directions_timeout")
-            return None
-    data = _DirectionsResponse.model_validate_json(resp.content)
+            raise MapboxTransientError("directions:request_failed") from exc
+    if not response.is_success:
+        return _http_failure(response, operation="directions")
+    data = _DirectionsResponse.model_validate_json(response.content)
+    if data.code in _NO_ROUTE_CODES:
+        return _no_route(data.code)
+    if data.code != "Ok":
+        return _failed(data.code)
     if not data.routes:
-        return None
+        return _no_route("NoRoute")
     result: Coords = [(c[0], c[1]) for c in data.routes[0].geometry.coordinates]
-    return result if len(result) >= 2 else None
+    return _matched(result) if len(result) >= 2 else _failed("invalid_geometry")
 
 
 async def _chunked_route(
     coords: Coords,
     chunk_size: int,
     overlap: int,
-    route_fn: Callable[[Coords], Coroutine[None, None, Coords | None]],
-) -> Coords | None:
+    route_fn: Callable[[Coords], Coroutine[None, None, RouteMatchResult]],
+) -> RouteMatchResult:
     chunks: list[Coords] = []
     start = 0
     while start < len(coords):
@@ -195,12 +258,27 @@ async def _chunked_route(
 
     results = await asyncio.gather(*[route_fn(c) for c in chunks])
 
+    if failed := next(
+        (result for result in results if result.status == RouteEnrichmentStatus.failed),
+        None,
+    ):
+        return failed
+    if no_route := next(
+        (
+            result
+            for result in results
+            if result.status == RouteEnrichmentStatus.no_route
+        ),
+        None,
+    ):
+        return no_route
+
     all_coords: Coords = []
-    for piece in results:
-        if piece is None:
-            continue
-        all_coords.extend(piece[1:] if all_coords else piece)
-    return all_coords if len(all_coords) >= 2 else None
+    for result in results:
+        if not result.route:
+            return _failed("invalid_geometry")
+        all_coords.extend(result.route[1:] if all_coords else result.route)
+    return _matched(all_coords) if len(all_coords) >= 2 else _failed("invalid_geometry")
 
 
 async def _match_one(
@@ -209,18 +287,18 @@ async def _match_one(
     profile: Profile,
     token: str,
     stats: RouteMatchStats | None = None,
-) -> Coords | None:
+) -> RouteMatchResult:
     """Match a single segment's GPS points to roads via Mapbox APIs."""
     if len(points_lonlat) < 2:
-        return None
+        return _failed("insufficient_points")
 
     if is_sparse(points_lonlat):
         if len(points_lonlat) <= 25:
-            raw = await _fetch_directions(
+            result = await _fetch_directions(
                 clients.directions, points_lonlat, profile, token, stats
             )
         else:
-            raw = await _chunked_route(
+            result = await _chunked_route(
                 points_lonlat,
                 20,
                 1,
@@ -229,36 +307,38 @@ async def _match_one(
                 ),
             )
     elif len(points_lonlat) <= MATCH_MAX_COORDS:
-        raw = await _fetch_matching(
+        result = await _fetch_matching(
             clients.matching, points_lonlat, profile, token, stats
         )
     else:
-        raw = await _chunked_route(
+        result = await _chunked_route(
             points_lonlat,
             90,
             10,
             lambda c: _fetch_matching(clients.matching, c, profile, token, stats),
         )
 
-    if raw is None:
+    if result.status != RouteEnrichmentStatus.matched or not result.route:
         logger.debug(
             "mapbox.segment_match_failed",
             profile=profile,
             point_count=len(points_lonlat),
+            status=result.status,
+            error_code=result.error_code,
         )
-        return None
+        return result
 
     span = total_length_km(points_lonlat)
-    simplified = simplify_route(raw, span)
+    simplified = simplify_route(result.route, span)
     logger.debug(
         "mapbox.segment_matched",
         profile=profile,
         point_count=len(points_lonlat),
-        matched_point_count=len(raw),
+        matched_point_count=len(result.route),
         simplified_point_count=len(simplified),
         length_km=span,
     )
-    return simplified
+    return _matched(simplified)
 
 
 async def match_segment(
@@ -269,18 +349,20 @@ async def match_segment(
     """Match a single segment's GPS points to roads via Mapbox APIs.
 
     Automatically selects Map Matching (dense) or Directions (sparse).
-    Returns road-snapped coordinates in [lon, lat] order, or None on failure.
+    Returns road-snapped coordinates in [lon, lat] order, or None when Mapbox
+    reports no route or a permanent failure. Transient failures are raised.
     """
     token = _token()
     if not token:
         return None
 
-    return await _match_one(
+    result = await _match_one(
         MapboxRouteClients(matching=client, directions=client),
         points_lonlat,
         profile,
         token,
     )
+    return result.route
 
 
 async def match_segments(
@@ -288,15 +370,15 @@ async def match_segments(
     pairs: list[tuple[Coords, Profile]],
 ) -> list[Coords | None]:
     """Match multiple segments concurrently, sharing one HTTP connection pool."""
-    routes, _stats = await match_segments_with_stats(client, client, pairs)
-    return routes
+    results, _stats = await match_segments_with_stats(client, client, pairs)
+    return [result.route for result in results]
 
 
 async def match_segments_with_stats(
     matching_client: MapboxClient,
     directions_client: MapboxClient,
     pairs: list[tuple[Coords, Profile]],
-) -> tuple[list[Coords | None], RouteMatchStats]:
+) -> tuple[list[RouteMatchResult], RouteMatchStats]:
     """Match multiple segments, returning route results and HTTP request counts."""
     stats = RouteMatchStats()
     if not pairs:
@@ -304,10 +386,10 @@ async def match_segments_with_stats(
 
     token = _token()
     if not token:
-        return [None] * len(pairs), stats
+        return [_failed("token_missing") for _ in pairs], stats
 
     clients = MapboxRouteClients(matching=matching_client, directions=directions_client)
-    routes = await asyncio.gather(
+    results = await asyncio.gather(
         *(
             _match_one(
                 clients,
@@ -319,4 +401,4 @@ async def match_segments_with_stats(
             for coords, profile in pairs
         )
     )
-    return routes, stats
+    return results, stats

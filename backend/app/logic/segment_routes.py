@@ -1,14 +1,13 @@
 from __future__ import annotations
 
 import time
-from collections.abc import Sequence
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from typing import TYPE_CHECKING, Any
 from uuid import uuid4
 
 import structlog
 from dbos import DBOS, SetWorkflowID
-from sqlalchemy import String, cast, or_, update
+from sqlalchemy import String, and_, cast, or_
 from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -17,8 +16,12 @@ from app.core.http_clients import HttpClients
 from app.core.locks import try_advisory_lock
 from app.core.observability import set_span_data, start_span
 from app.logic.route_matching import MATCHABLE_KINDS
-from app.models.segment import Segment
-from app.services.mapbox import match_segments_with_stats
+from app.models.segment import (
+    RouteEnrichmentStatus,
+    Segment,
+    SegmentRouteEnrichment,
+)
+from app.services.mapbox import RouteMatchResult, match_segments_with_stats
 
 if TYPE_CHECKING:
     from fastapi import BackgroundTasks
@@ -33,26 +36,43 @@ type SegmentSnapshot = tuple[SegmentKey, list[tuple[float, float]], str]
 _route_http_clients: list[HttpClients] = []
 
 
+class RouteEnrichmentIncompleteError(RuntimeError):
+    pass
+
+
 @dataclass
 class RouteEnrichmentStats:
     candidates: int = 0
     matched: int = 0
+    no_route: int = 0
+    failed: int = 0
+    recorded: int = 0
     updated: int = 0
     route_requests: int = 0
     matching_requests: int = 0
     directions_requests: int = 0
-
-    @property
-    def skipped(self) -> int:
-        return self.candidates - self.matched
+    already_running: bool = False
 
     @property
     def stale(self) -> int:
-        return self.matched - self.updated
+        return self.candidates - self.recorded
 
 
 def _route_missing() -> ColumnElement[bool]:
     return or_(col(Segment.route).is_(None), cast(col(Segment.route), String) == "null")
+
+
+def _without_enrichment_state() -> ColumnElement[bool]:
+    return col(SegmentRouteEnrichment.uid).is_(None)
+
+
+def _enrichment_join() -> ColumnElement[bool]:
+    return and_(
+        col(SegmentRouteEnrichment.uid) == col(Segment.uid),
+        col(SegmentRouteEnrichment.aid) == col(Segment.aid),
+        col(SegmentRouteEnrichment.start_time) == col(Segment.start_time),
+        col(SegmentRouteEnrichment.end_time) == col(Segment.end_time),
+    )
 
 
 def enqueue_album_route_enrichment(
@@ -89,12 +109,53 @@ def route_enrichment_payload(uid: int, aid: str) -> dict[str, Any]:
     return {"uid": uid, "aid": aid}
 
 
-@DBOS.workflow(name="route.enrich_album")
-async def album_route_enrichment_workflow(payload: dict[str, Any]) -> dict[str, Any]:
+@DBOS.step(
+    retries_allowed=True,
+    max_attempts=3,
+    interval_seconds=5,
+    backoff_rate=2,
+)
+async def enrich_album_routes_step(payload: dict[str, Any]) -> dict[str, Any]:
     uid = int(payload["uid"])
     aid = str(payload["aid"])
-    await match_album_segment_routes(get_route_enrichment_http_clients(), uid, aid)
-    return route_enrichment_payload(uid, aid)
+    stats = await match_album_segment_routes(
+        get_route_enrichment_http_clients(), uid, aid
+    )
+    return asdict(stats)
+
+
+@DBOS.step(retries_allowed=True, max_attempts=3)
+async def mark_album_route_failure_step(
+    payload: dict[str, Any], error_code: str
+) -> int:
+    uid = int(payload["uid"])
+    aid = str(payload["aid"])
+    async with AsyncSession(get_engine()) as session:
+        return await _mark_pending_failed(session, uid, aid, error_code)
+
+
+@DBOS.workflow(name="route.enrich_album")
+async def album_route_enrichment_workflow(payload: dict[str, Any]) -> dict[str, Any]:
+    try:
+        result = await enrich_album_routes_step(payload)
+    except Exception as exc:
+        error_code = f"retry_exhausted:{type(exc).__name__}"
+        try:
+            await mark_album_route_failure_step(payload, error_code)
+        except Exception as marker_exc:
+            logger.exception(
+                "route_enrichment.failure_record_failed",
+                user_id=int(payload["uid"]),
+                album_id=str(payload["aid"]),
+                error_type=type(marker_exc).__name__,
+            )
+        raise
+
+    stats = RouteEnrichmentStats(**result)
+    if stats.failed:
+        msg = f"route enrichment recorded {stats.failed} failed segment(s)"
+        raise RouteEnrichmentIncompleteError(msg)
+    return route_enrichment_payload(int(payload["uid"]), str(payload["aid"]))
 
 
 def start_album_route_enrichment(uid: int, aid: str) -> object:
@@ -114,36 +175,64 @@ def start_album_route_enrichment(uid: int, aid: str) -> object:
         return None
 
 
-async def match_album_segment_routes(http: HttpClients, uid: int, aid: str) -> None:
+async def pending_route_enrichment_targets(
+    session: AsyncSession,
+) -> list[tuple[int, str]]:
+    rows = await session.exec(
+        select(Segment.uid, Segment.aid)
+        .outerjoin(SegmentRouteEnrichment, _enrichment_join())
+        .where(
+            col(Segment.kind).in_(MATCHABLE_KINDS),
+            _route_missing(),
+            _without_enrichment_state(),
+        )
+        .distinct()
+        .order_by(col(Segment.uid), col(Segment.aid))
+    )
+    return list(rows.all())
+
+
+async def reconcile_missing_route_enrichments() -> None:
+    async with AsyncSession(get_engine()) as session:
+        targets = await pending_route_enrichment_targets(session)
+    for uid, aid in targets:
+        start_album_route_enrichment(uid, aid)
+
+
+async def match_album_segment_routes(
+    http: HttpClients, uid: int, aid: str
+) -> RouteEnrichmentStats:
     lock_key = f"segment-route-match:{uid}:{aid}"
     started = time.perf_counter()
-    try:
-        with start_span(
-            "route_enrichment.run",
-            "Run route enrichment",
-            **{"app.workflow": "route_enrichment", "user.id": uid, "album.id": aid},
-        ) as span:
-            async with try_advisory_lock(lock_key) as acquired:
-                if not acquired:
-                    set_span_data(span, result="already_running")
-                    logger.info(
-                        "route_enrichment.already_running",
-                        user_id=uid,
-                        album_id=aid,
-                    )
-                    return
+    with start_span(
+        "route_enrichment.run",
+        "Run route enrichment",
+        **{"app.workflow": "route_enrichment", "user.id": uid, "album.id": aid},
+    ) as span:
+        async with try_advisory_lock(lock_key) as acquired:
+            if not acquired:
+                stats = RouteEnrichmentStats(already_running=True)
+                set_span_data(span, result="already_running")
+                logger.info(
+                    "route_enrichment.already_running",
+                    user_id=uid,
+                    album_id=aid,
+                )
+                return stats
 
+            try:
                 async with AsyncSession(get_engine()) as session:
-                    await _match_routes_in_session(
+                    return await _match_routes_in_session(
                         http, session, uid, aid, span, started
                     )
-    except Exception:
-        logger.exception(
-            "route_enrichment.failed",
-            user_id=uid,
-            album_id=aid,
-            duration_ms=_duration_ms(started),
-        )
+            except Exception:
+                logger.exception(
+                    "route_enrichment.failed",
+                    user_id=uid,
+                    album_id=aid,
+                    duration_ms=_duration_ms(started),
+                )
+                raise
 
 
 async def _match_routes_in_session(  # noqa: PLR0913
@@ -153,13 +242,13 @@ async def _match_routes_in_session(  # noqa: PLR0913
     aid: str,
     span: Span,
     started: float,
-) -> None:
+) -> RouteEnrichmentStats:
     snapshots = await _unmatched_snapshots(session, uid, aid)
     if not snapshots:
         stats = RouteEnrichmentStats()
         _set_route_span_data(span, stats, result="empty")
         _log_complete(uid, aid, started, stats)
-        return
+        return stats
 
     pairs = [(coords, profile) for _, coords, profile in snapshots]
     with start_span(
@@ -172,7 +261,7 @@ async def _match_routes_in_session(  # noqa: PLR0913
             "route.candidates": len(snapshots),
         },
     ):
-        routes, route_stats = await match_segments_with_stats(
+        results, route_stats = await match_segments_with_stats(
             http.mapbox_matching,
             http.mapbox_directions,
             pairs,
@@ -182,13 +271,26 @@ async def _match_routes_in_session(  # noqa: PLR0913
     stats.route_requests = route_stats.requests
     stats.matching_requests = route_stats.matching_requests
     stats.directions_requests = route_stats.directions_requests
-    for (key, _, _), route in zip(snapshots, routes, strict=True):
-        if route:
+    for (key, _, _), result in zip(snapshots, results, strict=True):
+        outcome = result
+        if outcome.status == RouteEnrichmentStatus.matched and not outcome.route:
+            outcome = RouteMatchResult(
+                status=RouteEnrichmentStatus.failed,
+                error_code="invalid_geometry",
+            )
+        if outcome.status == RouteEnrichmentStatus.matched:
             stats.matched += 1
-            stats.updated += await _write_route(session, key, route)
+        elif outcome.status == RouteEnrichmentStatus.no_route:
+            stats.no_route += 1
+        else:
+            stats.failed += 1
+        recorded, updated = await _write_outcome(session, key, outcome)
+        stats.recorded += recorded
+        stats.updated += updated
     await session.commit()
     _set_route_span_data(span, stats, result="completed")
     _log_complete(uid, aid, started, stats)
+    return stats
 
 
 def _duration_ms(started: float) -> int:
@@ -207,8 +309,10 @@ def _set_route_span_data(
         **{
             "route.candidates": stats.candidates,
             "route.matched": stats.matched,
+            "route.no_route": stats.no_route,
+            "route.failed": stats.failed,
+            "route.recorded": stats.recorded,
             "route.updated": stats.updated,
-            "route.skipped": stats.skipped,
             "route.stale": stats.stale,
             "route.requests": stats.route_requests,
             "mapbox.matching_requests": stats.matching_requests,
@@ -229,8 +333,10 @@ def _log_complete(
         album_id=aid,
         candidates=stats.candidates,
         matched=stats.matched,
+        no_route=stats.no_route,
+        failed=stats.failed,
+        recorded=stats.recorded,
         updated=stats.updated,
-        skipped=stats.skipped,
         stale=stats.stale,
         route_requests=stats.route_requests,
         matching_requests=stats.matching_requests,
@@ -244,11 +350,13 @@ async def _unmatched_snapshots(
 ) -> list[SegmentSnapshot]:
     result = await session.exec(
         select(Segment)
+        .outerjoin(SegmentRouteEnrichment, _enrichment_join())
         .where(
             Segment.uid == uid,
             Segment.aid == aid,
             col(Segment.kind).in_(MATCHABLE_KINDS),
             _route_missing(),
+            _without_enrichment_state(),
         )
         .order_by(col(Segment.start_time))
     )
@@ -262,21 +370,49 @@ async def _unmatched_snapshots(
     ]
 
 
-async def _write_route(
+async def _write_outcome(
     session: AsyncSession,
     key: SegmentKey,
-    route: Sequence[tuple[float, float]],
-) -> int:
-    uid, aid, start_time, end_time = key
-    result = await session.exec(
-        update(Segment)
-        .where(
-            col(Segment.uid) == uid,
-            col(Segment.aid) == aid,
-            col(Segment.start_time) == start_time,
-            col(Segment.end_time) == end_time,
-            _route_missing(),
+    result: RouteMatchResult,
+) -> tuple[int, int]:
+    segment = await session.get(Segment, key)
+    state = await session.get(SegmentRouteEnrichment, key)
+    if segment is None or segment.route is not None or state is not None:
+        return 0, 0
+
+    updated = 0
+    if result.status == RouteEnrichmentStatus.matched and result.route:
+        segment.route = list(result.route)
+        session.add(segment)
+        updated = 1
+
+    session.add(
+        SegmentRouteEnrichment(
+            uid=segment.uid,
+            aid=segment.aid,
+            start_time=segment.start_time,
+            end_time=segment.end_time,
+            status=result.status,
+            error_code=result.error_code,
         )
-        .values(route=list(route))
     )
-    return result.rowcount or 0
+    return 1, updated
+
+
+async def _mark_pending_failed(
+    session: AsyncSession,
+    uid: int,
+    aid: str,
+    error_code: str,
+) -> int:
+    snapshots = await _unmatched_snapshots(session, uid, aid)
+    failed = RouteMatchResult(
+        status=RouteEnrichmentStatus.failed,
+        error_code=error_code[:100],
+    )
+    recorded = 0
+    for key, _, _ in snapshots:
+        wrote, _ = await _write_outcome(session, key, failed)
+        recorded += wrote
+    await session.commit()
+    return recorded

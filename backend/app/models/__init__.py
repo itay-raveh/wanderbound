@@ -12,6 +12,9 @@ from app.models.processing import (
     ProcessingOperation as ProcessingOperation,
     UploadSession as UploadSession,
 )
-from app.models.segment import Segment as Segment
+from app.models.segment import (
+    Segment as Segment,
+    SegmentRouteEnrichment as SegmentRouteEnrichment,
+)
 from app.models.step import Step as Step
 from app.models.user import User as User
