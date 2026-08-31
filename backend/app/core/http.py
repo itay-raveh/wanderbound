@@ -14,7 +14,6 @@ from __future__ import annotations
 
 import asyncio
 from collections.abc import Callable, Iterable
-from typing import TYPE_CHECKING
 
 import httpx
 from hishel import (
@@ -33,9 +32,7 @@ from httpx import (
     Response,
 )
 from httpx_retries import Retry, RetryTransport
-
-if TYPE_CHECKING:
-    from aiolimiter import AsyncLimiter
+from pyrate_limiter import BucketAsyncWrapper, InMemoryBucket, Limiter, Rate
 
 from app.core.config import get_settings
 
@@ -73,19 +70,25 @@ class _TimeoutTransport(AsyncBaseTransport):
                 f"Request to {request.url.host} timed out after {self._timeout}s"
             ) from exc
 
+    async def aclose(self) -> None:
+        await self._transport.aclose()
+
+
+def sliding_window_limiter(*rates: Rate) -> Limiter:
+    return Limiter(BucketAsyncWrapper(InMemoryBucket(list(rates))))
+
 
 class RateLimitedTransport(AsyncBaseTransport):
-    """Rate-limits requests on cache miss.
+    """Apply exact sliding-window limits to requests on cache miss.
 
     Connection-pool concurrency is capped by ``httpx.Limits`` on the
-    underlying transport. This wrapper only enforces a token-bucket
-    rate, not parallelism.
+    underlying transport. This wrapper only enforces request windows.
     """
 
     def __init__(
         self,
         inner: AsyncBaseTransport,
-        limiter: AsyncLimiter,
+        limiter: Limiter,
         *,
         weight_fn: Callable[[Request], int] = lambda _: 1,
     ) -> None:
@@ -94,15 +97,23 @@ class RateLimitedTransport(AsyncBaseTransport):
         self._weight_fn = weight_fn
 
     async def handle_async_request(self, request: Request) -> Response:
-        await self._limiter.acquire(self._weight_fn(request))
+        await self._limiter.try_acquire_async(
+            "http-request", weight=self._weight_fn(request)
+        )
         return await self._inner.handle_async_request(request)
+
+    async def aclose(self) -> None:
+        try:
+            await self._inner.aclose()
+        finally:
+            self._limiter.close()
 
 
 def http_client(  # noqa: PLR0913
     *,
     cache: bool = True,
     use_body_key: bool = False,
-    limiter: AsyncLimiter | None = None,
+    limiter: Limiter | None = None,
     weight_fn: Callable[[Request], int] | None = None,
     limits: httpx.Limits = _DEFAULT_LIMITS,
     follow_redirects: bool = False,
@@ -116,7 +127,8 @@ def http_client(  # noqa: PLR0913
 
     ``cache`` wraps in hishel's SQLite cache (2xx only, 30-day TTL).
     ``use_body_key`` includes request body in cache key (POST-based APIs).
-    ``limiter`` is an AsyncLimiter applied on cache miss, weighted by ``weight_fn``.
+    ``limiter`` applies exact sliding windows on cache miss, weighted by
+    ``weight_fn``.
     ``limits`` caps connection-pool concurrency. ``timeout`` enforces a per-request
     deadline (applies even when hishel strips httpx timeouts).
     """
