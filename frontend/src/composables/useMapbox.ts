@@ -33,7 +33,8 @@ mapboxgl.setRTLTextPlugin(
 
 const MAP_INIT_ROOT_MARGIN_PX = 200;
 const MAP_VISIBILITY_SETTLE_MS = 100;
-const MAX_CONCURRENT_PRINT_MAPS = 2;
+const MAX_CONCURRENT_PRINT_MAPS = 4;
+const PRINT_MAPS_PER_CPU = 2;
 const PRINT_PIXEL_RATIO = 2;
 const PRINT_TILE_SETTLE_MS = 2_000;
 
@@ -42,7 +43,10 @@ const queuedPrintMaps: Array<() => void> = [];
 let printPixelRatioUsers = 0;
 
 function maxConcurrentPrintMaps(): number {
-  return Math.min(MAX_CONCURRENT_PRINT_MAPS, getPrintCpuCount() ?? 2);
+  return Math.min(
+    MAX_CONCURRENT_PRINT_MAPS,
+    (getPrintCpuCount() ?? 2) * PRINT_MAPS_PER_CPU,
+  );
 }
 
 function acquirePrintPixelRatio(): () => void {
