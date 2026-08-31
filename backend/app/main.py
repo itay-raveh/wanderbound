@@ -1,6 +1,6 @@
 import asyncio
 import shutil
-from collections.abc import AsyncGenerator, Awaitable, Callable
+from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager, suppress
 from typing import TYPE_CHECKING
 
@@ -16,7 +16,6 @@ from app.api.v1.router import router as v1_router
 from app.api.v1.routes.uploads import UploadHTTPException
 from app.core.config import get_settings
 from app.core.http_clients import lifespan_clients
-from app.core.locks import try_advisory_lock
 from app.core.logging import setup_logging
 from app.core.sentry import setup_sentry
 from app.frontend import install_frontend
@@ -33,12 +32,6 @@ from app.logic.workflows.media_hashes import (
     reconcile_missing_media_hash_backfills,
 )
 from app.logic.workflows.processing import set_processing_workflow_http_clients
-from app.logic.workflows.recovery import (
-    WorkflowAdminState,
-    workflow_admin_election_loop,
-    workflow_heartbeat_loop,
-    workflow_recovery_loop,
-)
 from app.logic.workflows.runtime import destroy_dbos, launch_dbos
 from app.services.upload_store import UploadStoreService, build_upload_store
 
@@ -67,73 +60,37 @@ async def _reconcile_media_hashes() -> None:
 
 
 def _launch_background_tasks(
-    admin_state: WorkflowAdminState,
     upload_store: UploadStoreService,
-    promote_to_admin: Callable[[], Awaitable[None]],
-) -> list[asyncio.Task[None] | None]:
+) -> list[asyncio.Task[None]]:
     return [
-        asyncio.create_task(
-            workflow_heartbeat_loop(
-                settings,
-                has_admin_server=lambda: admin_state.has_admin_server,
-            )
-        ),
         asyncio.create_task(storage_metrics_loop(settings.DATA_FOLDER)),
         asyncio.create_task(media_hash_reconciliation_loop()),
         asyncio.create_task(
             upload_cleanup_loop(upload_store, settings.DATA_FOLDER / "upload-work")
         ),
-        (
-            asyncio.create_task(workflow_recovery_loop(settings))
-            if admin_state.has_admin_server
-            else None
-        ),
-        (
-            asyncio.create_task(
-                workflow_admin_election_loop(
-                    settings,
-                    admin_state,
-                    promote_to_admin=promote_to_admin,
-                )
-            )
-            if settings.DBOS_RUN_ADMIN_SERVER and not admin_state.has_admin_server
-            else None
-        ),
     ]
 
 
-async def _cleanup_tasks(tasks: list[asyncio.Task[None] | None]) -> None:
+async def _cleanup_tasks(tasks: list[asyncio.Task[None]]) -> None:
     for task in tasks:
-        if task is not None:
-            task.cancel()
+        task.cancel()
     for task in tasks:
-        if task is not None:
-            with suppress(asyncio.CancelledError):
-                await task
+        with suppress(asyncio.CancelledError):
+            await task
 
 
 @asynccontextmanager
 async def _dbos_lifespan(
     upload_store: UploadStoreService,
 ) -> AsyncGenerator[None]:
-    async with try_advisory_lock("dbos-admin") as admin_lock_acquired:
-        admin_state = WorkflowAdminState(
-            has_admin_server=(settings.DBOS_RUN_ADMIN_SERVER and admin_lock_acquired)
-        )
-        await launch_dbos(settings, run_admin_server=admin_state.has_admin_server)
-        await _reconcile_media_hashes()
-
-        async def promote_to_admin() -> None:
-            logger.info("workflow.admin_promoted")
-            destroy_dbos()
-            await launch_dbos(settings, run_admin_server=True)
-
-        tasks = _launch_background_tasks(admin_state, upload_store, promote_to_admin)
-        try:
-            yield
-        finally:
-            await _cleanup_tasks(tasks)
-            destroy_dbos()
+    await launch_dbos(settings)
+    await _reconcile_media_hashes()
+    tasks = _launch_background_tasks(upload_store)
+    try:
+        yield
+    finally:
+        await _cleanup_tasks(tasks)
+        destroy_dbos()
 
 
 @asynccontextmanager

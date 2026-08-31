@@ -11,7 +11,6 @@ from app.models.processing import (
     ProcessingEventRow as ProcessingEventRow,
     ProcessingOperation as ProcessingOperation,
     UploadSession as UploadSession,
-    WorkflowExecutorHeartbeat as WorkflowExecutorHeartbeat,
 )
 from app.models.segment import Segment as Segment
 from app.models.step import Step as Step

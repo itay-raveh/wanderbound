@@ -86,10 +86,6 @@ class Settings(PublicSettings, DatabaseSettings):
     DBOS_APP_NAME: str = "wanderbound"
     DBOS_SYSTEM_DATABASE_URI: SecretStr | None = None
     DBOS_EXECUTOR_ID: str = "local"
-    DBOS_ADMIN_PORT: int = 3001
-    DBOS_RUN_ADMIN_SERVER: bool = True
-    DBOS_HEARTBEAT_TTL_SECONDS: float = 60.0
-    DBOS_RECOVERY_INTERVAL_SECONDS: float = 10.0
 
     SENTRY_DSN: AnyHttpUrl | None = None
 

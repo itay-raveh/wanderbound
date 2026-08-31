@@ -13,7 +13,6 @@ from app.models.upload import TripChoice, UploadResult
 ProcessingOperationStatus = Literal[
     "queued", "running", "succeeded", "failed", "cancelled", "stale"
 ]
-WorkflowExecutorStatus = Literal["active", "draining", "dead"]
 UploadStatus = Literal[
     "uploading",
     "processing",
@@ -88,21 +87,6 @@ class ProcessingEventRow(SQLModel, table=True):
     created_at: datetime = Field(
         default_factory=_now,
         sa_column=Column(DateTime(timezone=True), nullable=False),
-    )
-
-
-class WorkflowExecutorHeartbeat(SQLModel, table=True):
-    __tablename__ = "workflow_executor_heartbeat"
-
-    executor_id: str = Field(primary_key=True, max_length=255)
-    admin_base_url: str = Field(max_length=500)
-    status: WorkflowExecutorStatus = Field(
-        default="active",
-        sa_column=Column(String(20), nullable=False, index=True),
-    )
-    last_seen_at: datetime = Field(
-        default_factory=_now,
-        sa_column=Column(DateTime(timezone=True), nullable=False, index=True),
     )
 
 

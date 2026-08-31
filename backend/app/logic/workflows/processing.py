@@ -23,7 +23,6 @@ from app.logic.workflows.media_hashes import (
     enqueue_media_hash_backfill,
     media_hash_backfill_revision,
 )
-from app.logic.workflows.recovery import workflow_executor_id
 from app.models.processing import ProcessingOperation
 from app.models.user import User
 
@@ -110,7 +109,7 @@ async def run_processing_workflow_payload(
         return {"operation_id": params.operation_id, "status": "cancelled"}
 
     if not await mark_processing_operation_running(
-        session, operation, executor_id=workflow_executor_id(get_settings())
+        session, operation, executor_id=get_settings().DBOS_EXECUTOR_ID
     ):
         return {"operation_id": operation.operation_id, "status": operation.status}
     await session.commit()
