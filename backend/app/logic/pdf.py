@@ -29,14 +29,32 @@ if TYPE_CHECKING:
 logger = structlog.get_logger(__name__)
 
 
+_BASELINE_RENDER_CPUS = 4
+_BASE_PRINT_PAGE_TIMEOUT = 900
+_BASE_RENDER_TIMEOUT = 1500
+
+
 def render_capacity(cpu_count: int) -> int:
-    return max(1, cpu_count)
+    return max(1, cpu_count // 2)
 
 
-_max_concurrent = render_capacity(detect_cpu_count())
+def render_timeouts(cpu_count: int) -> tuple[int, int]:
+    available_cpus = max(1, cpu_count)
+
+    def scale(timeout: int) -> int:
+        return max(
+            timeout,
+            (timeout * _BASELINE_RENDER_CPUS + available_cpus - 1) // available_cpus,
+        )
+
+    return scale(_BASE_PRINT_PAGE_TIMEOUT), scale(_BASE_RENDER_TIMEOUT)
+
+
+_CPU_COUNT = detect_cpu_count()
+_max_concurrent = render_capacity(_CPU_COUNT)
 
 PDF_QUEUE_TIMEOUT = 60
-_RENDER_TIMEOUT = 300
+_PRINT_PAGE_TIMEOUT, _RENDER_TIMEOUT = render_timeouts(_CPU_COUNT)
 _PROGRESS_CHUNK_BYTES = 512 * 1024
 _RENDER_SLOT_POLL_INTERVAL = 0.25
 
@@ -330,6 +348,16 @@ def _print_url(
     return f"{frontend_url.rstrip('/')}/print/{quote(aid)}?{urlencode(query)}"
 
 
+async def _release_print_map_memory(
+    page: Page, phase: str | None, *, released: bool
+) -> bool:
+    if released or phase != "map-memory":
+        return released
+    await page.request_gc()
+    await page.evaluate("window.__PRINT_MAP_MEMORY_RELEASED__ = true")
+    return True
+
+
 async def _load_print_page(
     page: Page,
     url: str,
@@ -359,27 +387,49 @@ async def _load_print_page(
         await page.goto(url, wait_until="domcontentloaded")
         logger.info("pdf.dom_loaded", album_id=aid)
         loop = asyncio.get_running_loop()
-        deadline = loop.time() + 60
+        deadline = loop.time() + _PRINT_PAGE_TIMEOUT
         last_counts = (-1, -1)
+        map_memory_released = False
         while True:
             state = await page.evaluate(
                 """() => ({
                     ready: window.__PRINT_READY__ === true,
                     error: window.__PRINT_ERROR__ ?? null,
+                    phase: document.querySelector('.print-view')?.dataset.printPhase
+                        ?? null,
                 })"""
+            )
+            map_memory_released = await _release_print_map_memory(
+                page, state["phase"], released=map_memory_released
             )
             ready = state["ready"]
             if state["error"]:
                 error = state["error"]
+                map_counts = await page.evaluate(
+                    """() => ({
+                        ready: document.querySelectorAll(
+                            '[data-map][data-map-snapshot-ready]'
+                        ).length,
+                        total: document.querySelectorAll('[data-map]').length,
+                    })"""
+                )
                 code = (
                     error.get("code", "unknown")
                     if isinstance(error, dict)
                     else "unknown"
                 )
-                logger.warning(
+                map_error = (
+                    error.get("mapError", "unknown")
+                    if isinstance(error, dict)
+                    else "unknown"
+                )
+                logger.error(
                     "pdf.print_page_failed",
                     album_id=aid,
                     error_code=code,
+                    map_error=map_error,
+                    maps_ready=map_counts["ready"],
+                    maps_total=map_counts["total"],
                 )
                 detail = (
                     "A map could not be rendered for PDF export. Please try again."
@@ -425,7 +475,7 @@ async def render_pdf_file(  # noqa: PLR0913
     ):
         context = await browser.new_context(
             viewport={"width": 1920, "height": 1080},
-            device_scale_factor=2,
+            device_scale_factor=1,
             bypass_csp=True,
             extra_http_headers={"Referer": str(settings.PUBLIC_URL)},
         )
@@ -438,6 +488,12 @@ async def render_pdf_file(  # noqa: PLR0913
                     "url": frontend_url,
                 },
             ]
+        )
+        await context.add_init_script(
+            script=(
+                f"window.__PRINT_TIMEOUT_MS__ = {_PRINT_PAGE_TIMEOUT * 1000};"
+                f"window.__PRINT_CPU_COUNT__ = {_CPU_COUNT};"
+            )
         )
         page = await context.new_page()
         page.on("console", lambda msg: logger.debug("browser.console", text=msg.text))
@@ -548,7 +604,7 @@ async def render_album_pdf_stream(  # noqa: C901, PLR0913
     except PdfPageRenderError as exc:
         yield PdfError(detail=str(exc))
     except TimeoutError:
-        logger.warning(
+        logger.exception(
             "pdf.render_timeout",
             album_id=aid,
             timeout_s=_RENDER_TIMEOUT,

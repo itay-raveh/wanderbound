@@ -64,7 +64,12 @@ const toTime = computed(
   () => (adjAfter.value || null)?.end_time ?? props.hikeSegment.end_time,
 );
 
-const { data: fetchedSegments } = useSegmentPointsQuery(fromTime, toTime);
+const { data: fetchedSegments } = useSegmentPointsQuery(
+  fromTime,
+  toTime,
+  true,
+  !printMode,
+);
 
 const fullHikeSegment = computed(() =>
   fetchedSegments.value?.find(

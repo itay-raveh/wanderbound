@@ -3,10 +3,14 @@ import AlbumViewer from "@/components/AlbumViewer.vue";
 import { usePrintBundleQuery } from "@/queries/queries";
 import { useUserQuery } from "@/queries/useUserQuery";
 import { useLocale } from "@/composables/useLocale";
+import {
+  getPrintTimeoutMs,
+  providePrintMediaReady,
+} from "@/composables/usePrintReady";
 import { ALLOWED_FONTS } from "@/utils/fonts";
 import { useI18n } from "vue-i18n";
 import { Dark } from "quasar";
-import { computed, onMounted, onUnmounted } from "vue";
+import { computed, onMounted, onUnmounted, ref } from "vue";
 import { useRoute } from "vue-router";
 import type { SegmentOutline } from "@/client";
 
@@ -24,6 +28,13 @@ const { data: bundle, error } = usePrintBundleQuery(aid, chapterId);
 const { locale } = useUserQuery();
 const { t } = useI18n();
 useLocale(locale);
+
+const printMediaReady = ref(false);
+const printPhase = ref<"maps" | "map-memory" | "media" | "ready" | "error">(
+  "maps",
+);
+const printMapsCaptured = ref(false);
+providePrintMediaReady(printMediaReady);
 
 const album = computed(() => bundle.value?.album);
 const media = computed(() => bundle.value?.album.media ?? []);
@@ -81,15 +92,17 @@ let pollTimer = 0;
 type PrintError = {
   code: "map-render-failed" | "render-timeout";
   message: string;
+  mapError?: string;
 };
 
 function setPrintError(error: PrintError) {
   clearTimeout(pollTimer);
+  printPhase.value = "error";
   (window as unknown as Record<string, unknown>).__PRINT_ERROR__ = error;
 }
 
 function waitForPrintReady() {
-  const MAX_WAIT = 45_000;
+  const MAX_WAIT = getPrintTimeoutMs();
   const startTime = Date.now();
   let waiting = false;
 
@@ -124,14 +137,6 @@ function waitForPrintReady() {
       return;
     }
 
-    const pending = Array.from(
-      document.querySelectorAll<HTMLImageElement>("[data-media] img"),
-    ).filter((img) => !img.complete);
-    if (pending.length > 0) {
-      schedulePoll(300);
-      return;
-    }
-
     const failedMap = document.querySelector<HTMLElement>(
       "[data-map][data-map-error]",
     );
@@ -139,15 +144,48 @@ function waitForPrintReady() {
       setPrintError({
         code: "map-render-failed",
         message: `A map could not be rendered (${failedMap.dataset.mapError}).`,
+        mapError: failedMap.dataset.mapError ?? "unknown",
       });
       return;
     }
 
-    // A print map is ready only after its decoded canvas snapshot is installed.
+    // A print map is ready only after its image snapshot is installed.
     const unreadyMaps = document.querySelectorAll(
       "[data-map]:not([data-map-snapshot-ready])",
     );
     if (unreadyMaps.length > 0) {
+      schedulePoll(300);
+      return;
+    }
+
+    if (!printMapsCaptured.value) {
+      printMapsCaptured.value = true;
+      printPhase.value = "map-memory";
+      schedulePoll(0);
+      return;
+    }
+
+    const hasPrintMaps = document.querySelector("[data-map]") !== null;
+    if (
+      hasPrintMaps &&
+      !(window as unknown as Record<string, unknown>)
+        .__PRINT_MAP_MEMORY_RELEASED__
+    ) {
+      schedulePoll(100);
+      return;
+    }
+
+    if (!printMediaReady.value) {
+      printMediaReady.value = true;
+      printPhase.value = "media";
+      schedulePoll(0);
+      return;
+    }
+
+    const pending = Array.from(
+      document.querySelectorAll<HTMLImageElement>("[data-media] img"),
+    ).filter((img) => !img.complete);
+    if (pending.length > 0) {
       schedulePoll(300);
       return;
     }
@@ -166,6 +204,7 @@ function waitForPrintReady() {
 
   function setReady() {
     clearTimeout(pollTimer);
+    printPhase.value = "ready";
     // Remove trailing page break to prevent an empty last page in PDF output.
     const pages = document.querySelectorAll(".page-container");
     if (pages.length) {
@@ -182,7 +221,7 @@ onUnmounted(() => clearTimeout(pollTimer));
 </script>
 
 <template>
-  <div class="print-view">
+  <div class="print-view" :data-print-phase="printPhase">
     <div v-if="error" class="status-message flex flex-center text-negative">
       {{ t("error.loadAlbum") }} {{ error.message }}
     </div>

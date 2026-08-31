@@ -103,7 +103,7 @@ services:
     deploy:
       resources:
         limits:
-          memory: 2G
+          memory: 5G
           cpus: "2.0"
           pids: 512
     networks: [backend, frontend]
