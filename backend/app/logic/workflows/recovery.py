@@ -1,7 +1,5 @@
 import asyncio
 import json
-import os
-import socket
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
@@ -31,7 +29,7 @@ class WorkflowAdminState:
 
 
 class WorkflowRecoverySettings(Protocol):
-    DBOS_EXECUTOR_ID: str | None
+    DBOS_EXECUTOR_ID: str
     DBOS_ADMIN_PORT: int
     DBOS_HEARTBEAT_TTL_SECONDS: float
     DBOS_RECOVERY_INTERVAL_SECONDS: float
@@ -42,9 +40,7 @@ def workflow_admin_base_url(settings: WorkflowRecoverySettings) -> str:
 
 
 def workflow_executor_id(settings: WorkflowRecoverySettings) -> str:
-    if settings.DBOS_EXECUTOR_ID:
-        return settings.DBOS_EXECUTOR_ID
-    return f"{socket.gethostname()}-{os.getpid()}"
+    return settings.DBOS_EXECUTOR_ID
 
 
 def _now() -> datetime:

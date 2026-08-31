@@ -34,6 +34,7 @@ jobs:
               - 'backend/**'
               - 'pyproject.toml'
               - 'uv.lock'
+              - 'scripts/dbos_recovery_check.py'
               - 'scripts/regen-openapi.sh'
               - 'scripts/generate_openapi.py'
             frontend:
@@ -218,6 +219,9 @@ jobs:
           install_args: python uv
       - run: uv sync --all-packages
       - run: uv run alembic upgrade head
+        working-directory: backend
+      - name: Verify DBOS native restart recovery
+        run: uv run python ../scripts/dbos_recovery_check.py run "$SQLALCHEMY_DATABASE_URI"
         working-directory: backend
       - run: uv run alembic downgrade base
         working-directory: backend
