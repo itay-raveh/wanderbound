@@ -163,7 +163,7 @@ requires-dist = [
     { name = "boto3", specifier = "==1.43.67" },
     { name = "cachetools", specifier = "~=7.0" },
     { name = "coloraide", specifier = "~=8.7" },
-    { name = "dbos", specifier = ">=2.22.0" },
+    { name = "dbos", specifier = ">=2.31.0" },
     { name = "fastapi", extras = ["standard"], specifier = ">=0.139.2,<1" },
     { name = "hishel", extras = ["httpx"], specifier = "~=1.0" },
     { name = "httpx", specifier = "<1" },
@@ -409,19 +409,19 @@ wheels = [
 
 [[package]]
 name = "dbos"
-version = "2.22.0"
+version = "2.31.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
+    { name = "click" },
     { name = "psycopg", extra = ["binary"] },
     { name = "python-dateutil" },
     { name = "pyyaml" },
     { name = "sqlalchemy", extra = ["asyncio"] },
-    { name = "typer-slim" },
     { name = "websockets" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/4d/52/5e4944e7a0605b4da3119876502cc39af7775555f16982c6a298411a7f63/dbos-2.22.0.tar.gz", hash = "sha256:5d43a9d0388d851df0f7bbd4ed752bc8b67be3d6fbe358c8be4d22f6c4887db6", size = 479210, upload-time = "2026-05-15T15:33:51.483Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/0f/13/d8bb7b92102f98203f1b28aa3fd1b72f84660300a47a7b8a141c6b1b7138/dbos-2.31.0.tar.gz", hash = "sha256:7f5117385526a08aaaffa8c97016f920b9b9c6c8a25b4a08b51dfb15c5bb4fcb", size = 702185, upload-time = "2026-08-25T15:37:16.51Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/9e/bc/0fc571524ba11c9800a1a116cb9b157223bbff39b070e7a2c3ed5b4edbe6/dbos-2.22.0-py3-none-any.whl", hash = "sha256:09edc621ec2857dae73cc1b01bc7379999fe9ee4ef8c6ff4ac69dd1a5263001f", size = 198070, upload-time = "2026-05-15T15:33:49.893Z" },
+    { url = "https://files.pythonhosted.org/packages/f4/21/103dd5b76ce3bda956d171b153440a6a0a9800363b933cfa0f57dd74fc41/dbos-2.31.0-py3-none-any.whl", hash = "sha256:2a84930349ced724cfe2fa00b98b3ac80287ed28f65ee316139b37dae702fb37", size = 278387, upload-time = "2026-08-25T15:37:14.718Z" },
 ]
 
 [[package]]
@@ -1676,18 +1676,6 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/83/b8/9ebb531b6c2d377af08ac6746a5df3425b21853a5d2260876919b58a2a4a/typer-0.24.2.tar.gz", hash = "sha256:ec070dcfca1408e85ee203c6365001e818c3b7fffe686fd07ff2d68095ca0480", size = 119849, upload-time = "2026-04-22T17:45:34.413Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/39/d1/9484b497e0a0410b901c12b8251c3e746e1e863f7d28419ffe06f7892fda/typer-0.24.2-py3-none-any.whl", hash = "sha256:b618bc3d721f9a8d30f3e05565be26416d06e9bcc29d49bc491dc26aba674fa8", size = 55977, upload-time = "2026-04-22T17:45:33.055Z" },
-]
-
-[[package]]
-name = "typer-slim"
-version = "0.24.0"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "typer" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/a7/a7/e6aecc4b4eb59598829a3b5076a93aff291b4fdaa2ded25efc4e1f4d219c/typer_slim-0.24.0.tar.gz", hash = "sha256:f0ed36127183f52ae6ced2ecb2521789995992c521a46083bfcdbb652d22ad34", size = 4776, upload-time = "2026-02-16T22:08:51.2Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/a7/24/5480c20380dfd18cf33d14784096dca45a24eae6102e91d49a718d3b6855/typer_slim-0.24.0-py3-none-any.whl", hash = "sha256:d5d7ee1ee2834d5020c7c616ed5e0d0f29b9a4b1dd283bdebae198ec09778d0e", size = 3394, upload-time = "2026-02-16T22:08:49.92Z" },
 ]
 
 [[package]]
