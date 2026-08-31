@@ -1,10 +1,11 @@
 from bisect import bisect_right
+from datetime import UTC, datetime
 from enum import StrEnum
 from operator import attrgetter
 from typing import Literal, NamedTuple
 
 from pydantic import BaseModel
-from sqlalchemy import ForeignKeyConstraint
+from sqlalchemy import DateTime, ForeignKeyConstraint
 from sqlmodel import Column, Field, SQLModel
 
 from app.core.db import PydanticJSON
@@ -19,6 +20,12 @@ class SegmentKind(StrEnum):
     hike = "hike"
     walking = "walking"
     driving = "driving"
+
+
+class RouteEnrichmentStatus(StrEnum):
+    matched = "matched"
+    no_route = "no_route"
+    failed = "failed"
 
 
 class SegmentData(NamedTuple):
@@ -47,6 +54,28 @@ class Segment(SQLModel, table=True):
     route: list[tuple[float, float]] | None = Field(
         default=None,
         sa_column=Column(PydanticJSON(list[tuple[float, float]] | None), nullable=True),
+    )
+
+
+class SegmentRouteEnrichment(SQLModel, table=True):
+    __tablename__ = "segment_route_enrichment"
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["uid", "aid", "start_time", "end_time"],
+            ["segment.uid", "segment.aid", "segment.start_time", "segment.end_time"],
+            ondelete="CASCADE",
+        ),
+    )
+
+    uid: int = Field(primary_key=True)
+    aid: str = Field(primary_key=True)
+    start_time: float = Field(primary_key=True)
+    end_time: float = Field(primary_key=True)
+    status: RouteEnrichmentStatus
+    error_code: str | None = Field(default=None, max_length=100)
+    attempted_at: datetime = Field(
+        default_factory=lambda: datetime.now(UTC),
+        sa_column=Column(DateTime(timezone=True), nullable=False),
     )
 
 
