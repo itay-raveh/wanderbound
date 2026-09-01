@@ -21,7 +21,12 @@ from app.models.segment import (
     Segment,
     SegmentRouteEnrichment,
 )
-from app.services.mapbox import RouteMatchResult, match_segments_with_stats
+from app.services.mapbox import (
+    REQUEST_BUDGET_EXCEEDED,
+    RouteMatchResult,
+    match_segments_with_stats,
+    route_request_batch_indices,
+)
 
 if TYPE_CHECKING:
     from fastapi import BackgroundTasks
@@ -31,7 +36,8 @@ if TYPE_CHECKING:
 logger = structlog.get_logger(__name__)
 
 type SegmentKey = tuple[int, str, float, float]
-type SegmentSnapshot = tuple[SegmentKey, list[tuple[float, float]], str]
+type SegmentKeyPayload = dict[str, int | str | float]
+type SegmentSnapshot = tuple[SegmentKey, list[tuple[float, float, float]], str]
 
 _route_http_clients: list[HttpClients] = []
 
@@ -51,11 +57,46 @@ class RouteEnrichmentStats:
     route_requests: int = 0
     matching_requests: int = 0
     directions_requests: int = 0
+    cache_hits: int = 0
+    outbound_attempts: int = 0
+    retries: int = 0
+    limiter_wait_ms: int = 0
+    provider_latency_ms: int = 0
+    budget_fallbacks: int = 0
     already_running: bool = False
 
     @property
     def stale(self) -> int:
         return self.candidates - self.recorded
+
+
+def _segment_key_payload(key: SegmentKey) -> SegmentKeyPayload:
+    uid, aid, start_time, end_time = key
+    return {
+        "uid": uid,
+        "aid": aid,
+        "start_time": start_time,
+        "end_time": end_time,
+    }
+
+
+def _segment_key_from_payload(payload: SegmentKeyPayload) -> SegmentKey:
+    return (
+        int(payload["uid"]),
+        str(payload["aid"]),
+        float(payload["start_time"]),
+        float(payload["end_time"]),
+    )
+
+
+def _snapshots_for_keys(
+    snapshots: list[SegmentSnapshot],
+    keys: list[SegmentKey] | None,
+) -> list[SegmentSnapshot]:
+    if keys is None:
+        return snapshots
+    by_key = {snapshot[0]: snapshot for snapshot in snapshots}
+    return [by_key[key] for key in keys if key in by_key]
 
 
 def _route_missing() -> ColumnElement[bool]:
@@ -109,51 +150,89 @@ def route_enrichment_payload(uid: int, aid: str) -> dict[str, Any]:
     return {"uid": uid, "aid": aid}
 
 
+@DBOS.step(retries_allowed=True, max_attempts=3)
+async def plan_album_route_batch_step(
+    payload: dict[str, Any],
+) -> list[SegmentKeyPayload]:
+    uid = int(payload["uid"])
+    aid = str(payload["aid"])
+    async with AsyncSession(get_engine()) as session:
+        snapshots = await _unmatched_snapshots(session, uid, aid)
+    pairs = [(coords, profile) for _, coords, profile in snapshots]
+    indexes = route_request_batch_indices(pairs)
+    if snapshots and not indexes:
+        msg = "no route enrichment candidate fits the request budget"
+        raise RouteEnrichmentIncompleteError(msg)
+    return [_segment_key_payload(snapshots[index][0]) for index in indexes]
+
+
 @DBOS.step(
     retries_allowed=True,
     max_attempts=3,
     interval_seconds=5,
     backoff_rate=2,
 )
-async def enrich_album_routes_step(payload: dict[str, Any]) -> dict[str, Any]:
+async def enrich_album_routes_step(
+    payload: dict[str, Any], batch: list[SegmentKeyPayload]
+) -> dict[str, Any]:
     uid = int(payload["uid"])
     aid = str(payload["aid"])
     stats = await match_album_segment_routes(
-        get_route_enrichment_http_clients(), uid, aid
+        get_route_enrichment_http_clients(),
+        uid,
+        aid,
+        [_segment_key_from_payload(key) for key in batch],
     )
     return asdict(stats)
 
 
 @DBOS.step(retries_allowed=True, max_attempts=3)
 async def mark_album_route_failure_step(
-    payload: dict[str, Any], error_code: str
+    payload: dict[str, Any],
+    error_code: str,
+    batch: list[SegmentKeyPayload],
 ) -> int:
     uid = int(payload["uid"])
     aid = str(payload["aid"])
     async with AsyncSession(get_engine()) as session:
-        return await _mark_pending_failed(session, uid, aid, error_code)
+        return await _mark_pending_failed(
+            session,
+            uid,
+            aid,
+            error_code,
+            [_segment_key_from_payload(key) for key in batch],
+        )
 
 
 @DBOS.workflow(name="route.enrich_album")
 async def album_route_enrichment_workflow(payload: dict[str, Any]) -> dict[str, Any]:
-    try:
-        result = await enrich_album_routes_step(payload)
-    except Exception as exc:
-        error_code = f"retry_exhausted:{type(exc).__name__}"
+    failed = 0
+    while batch := await plan_album_route_batch_step(payload):
         try:
-            await mark_album_route_failure_step(payload, error_code)
-        except Exception as marker_exc:
-            logger.exception(
-                "route_enrichment.failure_record_failed",
-                user_id=int(payload["uid"]),
-                album_id=str(payload["aid"]),
-                error_type=type(marker_exc).__name__,
-            )
-        raise
+            result = await enrich_album_routes_step(payload, batch)
+        except Exception as exc:
+            error_code = f"retry_exhausted:{type(exc).__name__}"
+            try:
+                await mark_album_route_failure_step(payload, error_code, batch)
+            except Exception as marker_exc:
+                logger.exception(
+                    "route_enrichment.failure_record_failed",
+                    user_id=int(payload["uid"]),
+                    album_id=str(payload["aid"]),
+                    error_type=type(marker_exc).__name__,
+                )
+            raise
 
-    stats = RouteEnrichmentStats(**result)
-    if stats.failed:
-        msg = f"route enrichment recorded {stats.failed} failed segment(s)"
+        stats = RouteEnrichmentStats(**result)
+        if stats.already_running:
+            break
+        if stats.budget_fallbacks:
+            msg = "route enrichment batch exceeded its planned request budget"
+            raise RouteEnrichmentIncompleteError(msg)
+        failed += stats.failed
+
+    if failed:
+        msg = f"route enrichment recorded {failed} failed segment(s)"
         raise RouteEnrichmentIncompleteError(msg)
     return route_enrichment_payload(int(payload["uid"]), str(payload["aid"]))
 
@@ -200,7 +279,10 @@ async def reconcile_missing_route_enrichments() -> None:
 
 
 async def match_album_segment_routes(
-    http: HttpClients, uid: int, aid: str
+    http: HttpClients,
+    uid: int,
+    aid: str,
+    keys: list[SegmentKey] | None = None,
 ) -> RouteEnrichmentStats:
     lock_key = f"segment-route-match:{uid}:{aid}"
     started = time.perf_counter()
@@ -223,7 +305,7 @@ async def match_album_segment_routes(
             try:
                 async with AsyncSession(get_engine()) as session:
                     return await _match_routes_in_session(
-                        http, session, uid, aid, span, started
+                        http, session, uid, aid, span, started, keys
                     )
             except Exception:
                 logger.exception(
@@ -242,8 +324,12 @@ async def _match_routes_in_session(  # noqa: PLR0913
     aid: str,
     span: Span,
     started: float,
+    keys: list[SegmentKey] | None,
 ) -> RouteEnrichmentStats:
-    snapshots = await _unmatched_snapshots(session, uid, aid)
+    snapshots = _snapshots_for_keys(
+        await _unmatched_snapshots(session, uid, aid),
+        keys,
+    )
     if not snapshots:
         stats = RouteEnrichmentStats()
         _set_route_span_data(span, stats, result="empty")
@@ -271,8 +357,16 @@ async def _match_routes_in_session(  # noqa: PLR0913
     stats.route_requests = route_stats.requests
     stats.matching_requests = route_stats.matching_requests
     stats.directions_requests = route_stats.directions_requests
+    stats.cache_hits = route_stats.cache_hits
+    stats.outbound_attempts = route_stats.outbound_attempts
+    stats.retries = route_stats.retries
+    stats.limiter_wait_ms = route_stats.limiter_wait_ms
+    stats.provider_latency_ms = route_stats.provider_latency_ms
+    stats.budget_fallbacks = route_stats.budget_fallbacks
     for (key, _, _), result in zip(snapshots, results, strict=True):
         outcome = result
+        if outcome.error_code == REQUEST_BUDGET_EXCEEDED:
+            continue
         if outcome.status == RouteEnrichmentStatus.matched and not outcome.route:
             outcome = RouteMatchResult(
                 status=RouteEnrichmentStatus.failed,
@@ -317,6 +411,12 @@ def _set_route_span_data(
             "route.requests": stats.route_requests,
             "mapbox.matching_requests": stats.matching_requests,
             "mapbox.directions_requests": stats.directions_requests,
+            "mapbox.cache_hits": stats.cache_hits,
+            "mapbox.outbound_attempts": stats.outbound_attempts,
+            "mapbox.retries": stats.retries,
+            "mapbox.limiter_wait_ms": stats.limiter_wait_ms,
+            "mapbox.provider_latency_ms": stats.provider_latency_ms,
+            "mapbox.budget_fallbacks": stats.budget_fallbacks,
         },
     )
 
@@ -341,6 +441,12 @@ def _log_complete(
         route_requests=stats.route_requests,
         matching_requests=stats.matching_requests,
         directions_requests=stats.directions_requests,
+        cache_hits=stats.cache_hits,
+        outbound_attempts=stats.outbound_attempts,
+        retries=stats.retries,
+        limiter_wait_ms=stats.limiter_wait_ms,
+        provider_latency_ms=stats.provider_latency_ms,
+        budget_fallbacks=stats.budget_fallbacks,
         duration_ms=_duration_ms(started),
     )
 
@@ -363,7 +469,7 @@ async def _unmatched_snapshots(
     return [
         (
             (seg.uid, seg.aid, seg.start_time, seg.end_time),
-            [(p.lon, p.lat) for p in seg.points],
+            [(p.lon, p.lat, p.time) for p in seg.points],
             str(seg.kind),
         )
         for seg in result.all()
@@ -404,8 +510,12 @@ async def _mark_pending_failed(
     uid: int,
     aid: str,
     error_code: str,
+    keys: list[SegmentKey],
 ) -> int:
-    snapshots = await _unmatched_snapshots(session, uid, aid)
+    snapshots = _snapshots_for_keys(
+        await _unmatched_snapshots(session, uid, aid),
+        keys,
+    )
     failed = RouteMatchResult(
         status=RouteEnrichmentStatus.failed,
         error_code=error_code[:100],

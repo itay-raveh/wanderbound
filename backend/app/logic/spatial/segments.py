@@ -27,6 +27,7 @@ import math
 from collections import Counter
 from collections.abc import Iterable, Sequence
 from datetime import datetime
+from itertools import pairwise
 from typing import Protocol, cast
 
 import numpy as np
@@ -521,24 +522,39 @@ def _gdf_to_point(gdf: pl.DataFrame, idx: int) -> Point:
     return Point(lat=gdf["lat"][idx], lon=gdf["lon"][idx], time=gdf["time"][idx])
 
 
-def _simplify_points(gdf: pl.DataFrame) -> list[Point]:
+def _simplify_points(
+    gdf: pl.DataFrame, *, max_time_gap_s: float | None = None
+) -> list[Point]:
     """RDP-simplify a group, keeping step waypoints."""
     la, lo, ti = gdf["lat"].to_numpy(), gdf["lon"].to_numpy(), gdf["time"].to_numpy()
     keep = np.zeros(len(la), dtype=bool)
     keep[simplify_coords_idx(np.column_stack((lo, la)), RDP_EPSILON_DEG)] = True
     if "is_step" in gdf.columns:
         keep |= gdf["is_step"].to_numpy()
+    if max_time_gap_s is not None:
+        selected = np.flatnonzero(keep)
+        for left, right in pairwise(selected):
+            current = int(left)
+            while ti[right] - ti[current] >= max_time_gap_s:
+                next_idx = int(
+                    np.searchsorted(ti, ti[current] + max_time_gap_s, side="left") - 1
+                )
+                current = max(current + 1, next_idx)
+                keep[current] = True
     return [Point(lat=la[i], lon=lo[i], time=ti[i]) for i in range(len(la)) if keep[i]]
 
 
 def _resolve_kind(kind: str, gdf: pl.DataFrame) -> SegmentKind:
-    """Resolve "other" -> walking/driving by average speed."""
     if kind != "other":
         return SegmentKind(kind)
-    total_h = float(gdf["gap_h"].sum())
-    total_km = float(gdf["dist_km"].sum())
-    avg = total_km / total_h if total_h > 0 else 0.0
-    return SegmentKind.driving if avg > HIKE_MAX_SPEED_KMH else SegmentKind.walking
+    moving = gdf.filter(pl.col("gap_h") < MAX_HIKE_GAP_H)
+    fast_km = float(
+        moving.filter(pl.col("speed_kmh") > HIKE_MAX_SPEED_KMH)["dist_km"].sum()
+    )
+    slow_km = float(
+        moving.filter(pl.col("speed_kmh") <= HIKE_MAX_SPEED_KMH)["dist_km"].sum()
+    )
+    return SegmentKind.driving if fast_km > slow_km else SegmentKind.walking
 
 
 def _emit_segments(
@@ -548,22 +564,37 @@ def _emit_segments(
     prev_last_pt: Point | None = None
 
     for _, gdf in df.group_by("output_id", maintain_order=True):
-        kind = cast("str", gdf["final_mode"][0])
+        raw_kind = cast("str", gdf["final_mode"][0])
+        groups = [gdf]
+        if raw_kind == "other":
+            groups = gdf.with_columns(
+                (pl.col("gap_h") >= MAX_HIKE_GAP_H).cum_sum().alias("trace_id")
+            ).partition_by("trace_id", maintain_order=True)
 
-        if kind == "flight":
-            pts = [_gdf_to_point(gdf, 0), _gdf_to_point(gdf, -1)]
-        else:
-            pts = _simplify_points(gdf)
+        for trace in groups:
+            kind = _resolve_kind(raw_kind, trace)
+            if kind == SegmentKind.flight:
+                pts = [_gdf_to_point(trace, 0), _gdf_to_point(trace, -1)]
+            else:
+                pts = _simplify_points(
+                    trace,
+                    max_time_gap_s=(
+                        MAX_HIKE_GAP_H * 3600 if raw_kind == "other" else None
+                    ),
+                )
 
-        # Stitch: prepend previous endpoint if there's a time gap
-        if prev_last_pt is not None and (not pts or pts[0].time > prev_last_pt.time):
-            pts = [prev_last_pt, *pts]
+            if (
+                prev_last_pt is not None
+                and pts
+                and 0 < pts[0].time - prev_last_pt.time < MAX_HIKE_GAP_H * 3600
+            ):
+                pts = [prev_last_pt, *pts]
 
-        if len(pts) < 2:
-            continue
+            if len(pts) < 2:
+                continue
 
-        prev_last_pt = pts[-1]
-        yield SegmentData(kind=_resolve_kind(kind, gdf), points=pts)
+            prev_last_pt = pts[-1]
+            yield SegmentData(kind=kind, points=pts)
 
 
 def build_segments(

@@ -1,16 +1,19 @@
 import datetime as _dt_mod
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from pathlib import Path
 
 import polars as pl
 import pytest
 
+from app.logic.spatial.geo import total_length_km
 from app.logic.spatial.segments import (
     _remove_gps_noise,
     build_segments,
 )
-from app.models.polarsteps import Point
+from app.models.polarsteps import Point, PSLocations, PSTrip
 from app.models.segment import SegmentData, SegmentKind
+from app.services.mapbox import _plan_route
 
 _BASE_TS = datetime(2024, 1, 1, tzinfo=UTC).timestamp()
 
@@ -282,3 +285,34 @@ class TestRobustness:
         steps = [_step(0.0, 0.0, 9.0), _step(0.0, 0.1, 14.0)]
         segments = list(build_segments(steps, []))
         assert all(len(s.points) >= 2 for s in segments)
+
+
+def test_demo_routes_respect_mapbox_input_contracts() -> None:
+    trip_dir = (
+        Path(__file__).resolve().parents[2]
+        / "fixtures/demo/trip/south-america-2024-2025_14232450"
+    )
+    trip = PSTrip.from_trip_dir(trip_dir)
+    locations = PSLocations.from_trip_dir(trip_dir)
+    profile_distance_limit = {
+        SegmentKind.walking: 1_000,
+        SegmentKind.driving: 10_000,
+    }
+    coordinate_limit = {"matching": 100, "directions": 25}
+
+    segments = (
+        segment
+        for segment in build_segments(trip.all_steps, locations.locations)
+        if segment.kind in profile_distance_limit
+    )
+    for segment in segments:
+        points = [(point.lon, point.lat, point.time) for point in segment.points]
+        assert (
+            total_length_km([(lon, lat) for lon, lat, _ in points])
+            <= (profile_distance_limit[segment.kind])
+        )
+        plan, error = _plan_route(points, str(segment.kind))
+        assert error is None
+        assert plan
+        for part in plan:
+            assert 2 <= len(part.points) <= coordinate_limit[part.operation]

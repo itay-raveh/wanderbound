@@ -13,7 +13,11 @@ built here enforce an explicit ``asyncio.timeout`` to compensate.
 from __future__ import annotations
 
 import asyncio
-from collections.abc import Callable, Iterable
+from collections.abc import Callable, Iterable, Iterator
+from contextlib import contextmanager
+from contextvars import ContextVar
+from dataclasses import dataclass
+from time import perf_counter
 
 import httpx
 from hishel import (
@@ -39,6 +43,28 @@ from app.core.config import get_settings
 _CACHE_TTL = 60 * 60 * 24 * 30  # 30 days
 _RETRY_STATUS_CODES = {429, 500, 502, 503, 504}
 _DEFAULT_LIMITS = httpx.Limits(max_connections=20)
+
+
+@dataclass
+class HttpTransportMetrics:
+    outbound_attempts: int = 0
+    limiter_wait_ms: int = 0
+    provider_latency_ms: int = 0
+
+
+_http_metrics: ContextVar[HttpTransportMetrics | None] = ContextVar(
+    "http_transport_metrics", default=None
+)
+
+
+@contextmanager
+def collect_http_transport_metrics() -> Iterator[HttpTransportMetrics]:
+    metrics = HttpTransportMetrics()
+    token = _http_metrics.set(metrics)
+    try:
+        yield metrics
+    finally:
+        _http_metrics.reset(token)
 
 
 class _CacheOnlySuccess(BaseFilter[HishelResponse]):
@@ -97,10 +123,22 @@ class RateLimitedTransport(AsyncBaseTransport):
         self._weight_fn = weight_fn
 
     async def handle_async_request(self, request: Request) -> Response:
+        metrics = _http_metrics.get()
+        wait_started = perf_counter()
         await self._limiter.try_acquire_async(
             "http-request", weight=self._weight_fn(request)
         )
-        return await self._inner.handle_async_request(request)
+        if metrics is not None:
+            metrics.outbound_attempts += 1
+            metrics.limiter_wait_ms += round((perf_counter() - wait_started) * 1000)
+        provider_started = perf_counter()
+        try:
+            return await self._inner.handle_async_request(request)
+        finally:
+            if metrics is not None:
+                metrics.provider_latency_ms += round(
+                    (perf_counter() - provider_started) * 1000
+                )
 
     async def aclose(self) -> None:
         try:
