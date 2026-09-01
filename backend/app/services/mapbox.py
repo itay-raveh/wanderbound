@@ -29,7 +29,7 @@ type TimedCoords = list[TimedCoord]
 
 MATCH_MAX_COORDS = 100
 MATCH_CHUNK_COORDS = 90
-MAX_ROUTE_REQUESTS_PER_RUN = 100
+ROUTE_REQUEST_BATCH_TARGET = 100
 MAX_TRACE_GAP_S = 4 * 60 * 60
 REQUEST_BUDGET_EXCEEDED = "request_budget_exceeded"
 
@@ -70,11 +70,18 @@ class _RoutePart:
 @dataclass
 class _RequestBudget:
     remaining: int
+    used: int = 0
 
     def reserve(self, requests: int) -> bool:
         if requests > self.remaining:
-            return False
+            # An indivisible route may exceed the target only in an empty batch.
+            if self.used or self.remaining == 0:
+                return False
+            self.used = requests
+            self.remaining = 0
+            return True
         self.remaining -= requests
+        self.used += requests
         return True
 
 
@@ -165,11 +172,11 @@ def _coords(points: TimedCoords) -> Coords:
     return [(lon, lat) for lon, lat, _ in points]
 
 
-def _matching_request_points(points: TimedCoords) -> list[tuple[int, int]]:
+def _matching_request_points(points: TimedCoords) -> list[tuple[int, float]]:
     selected = reduce_coord_indices(_coords(points), MATCH_MAX_COORDS)
-    request_points: list[tuple[int, int]] = []
+    request_points: list[tuple[int, float]] = []
     for index in selected:
-        timestamp = int(points[index][2])
+        timestamp = points[index][2]
         if not request_points or timestamp > request_points[-1][1]:
             request_points.append((index, timestamp))
     return request_points
@@ -335,7 +342,7 @@ def _plan_route(
 
 def route_request_batch_indices(
     pairs: list[tuple[TimedCoords, Profile]],
-    max_requests: int = MAX_ROUTE_REQUESTS_PER_RUN,
+    max_requests: int = ROUTE_REQUEST_BATCH_TARGET,
 ) -> list[int]:
     """Return pair indices whose planned requests fit within one batch."""
     budget = _RequestBudget(max_requests)
@@ -348,6 +355,42 @@ def route_request_batch_indices(
     return selected
 
 
+async def _fetch_route_part(
+    clients: MapboxRouteClients,
+    part: _RoutePart,
+    profile: Profile,
+    token: str,
+    stats: RouteMatchStats | None,
+) -> RouteMatchResult:
+    if part.operation == "matching":
+        return await _fetch_matching(
+            clients.matching, part.points, profile, token, stats
+        )
+    return await _fetch_directions(
+        clients.directions, part.points, profile, token, stats
+    )
+
+
+async def _execute_route_window(
+    clients: MapboxRouteClients,
+    parts: list[_RoutePart],
+    profile: Profile,
+    token: str,
+    stats: RouteMatchStats | None,
+) -> list[RouteMatchResult]:
+    tasks = [
+        asyncio.create_task(_fetch_route_part(clients, part, profile, token, stats))
+        for part in parts
+    ]
+    try:
+        return await asyncio.gather(*tasks)
+    except BaseException:
+        for task in tasks:
+            task.cancel()
+        await asyncio.gather(*tasks, return_exceptions=True)
+        raise
+
+
 async def _execute_route_plan(
     clients: MapboxRouteClients,
     plan: list[_RoutePart],
@@ -355,30 +398,34 @@ async def _execute_route_plan(
     token: str,
     stats: RouteMatchStats | None,
 ) -> RouteMatchResult:
-    results = await asyncio.gather(
-        *(
-            _fetch_matching(clients.matching, part.points, profile, token, stats)
-            if part.operation == "matching"
-            else _fetch_directions(
-                clients.directions, part.points, profile, token, stats
-            )
-            for part in plan
+    results: list[RouteMatchResult] = []
+    for start in range(0, len(plan), ROUTE_REQUEST_BATCH_TARGET):
+        window = await _execute_route_window(
+            clients,
+            plan[start : start + ROUTE_REQUEST_BATCH_TARGET],
+            profile,
+            token,
+            stats,
         )
-    )
-    if failed := next(
-        (result for result in results if result.status == RouteEnrichmentStatus.failed),
-        None,
-    ):
-        return failed
-    if no_route := next(
-        (
-            result
-            for result in results
-            if result.status == RouteEnrichmentStatus.no_route
-        ),
-        None,
-    ):
-        return no_route
+        if failed := next(
+            (
+                result
+                for result in window
+                if result.status == RouteEnrichmentStatus.failed
+            ),
+            None,
+        ):
+            return failed
+        if no_route := next(
+            (
+                result
+                for result in window
+                if result.status == RouteEnrichmentStatus.no_route
+            ),
+            None,
+        ):
+            return no_route
+        results.extend(window)
 
     all_coords: Coords = []
     for result in results:
@@ -454,7 +501,7 @@ async def match_segments_with_stats(
         return [_failed("token_missing") for _ in pairs], stats
 
     clients = MapboxRouteClients(matching=matching_client, directions=directions_client)
-    budget = _RequestBudget(MAX_ROUTE_REQUESTS_PER_RUN)
+    budget = _RequestBudget(ROUTE_REQUEST_BATCH_TARGET)
     with collect_http_transport_metrics() as transport_metrics:
         results = await asyncio.gather(
             *(
