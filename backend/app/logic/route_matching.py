@@ -1,12 +1,10 @@
 import numpy as np
 from simplification.cutil import simplify_coords_idx
 
-from app.logic.spatial.geo import Coords, total_length_km
+from app.logic.spatial.geo import Coords
 from app.models.segment import SegmentKind
 
 MATCHABLE_KINDS = frozenset({SegmentKind.driving, SegmentKind.walking})
-
-SPARSE_THRESHOLD_KM = 2
 
 # RDP tolerances (degrees, approximate)
 _RDP_TOLERANCES = [
@@ -16,23 +14,22 @@ _RDP_TOLERANCES = [
 ]
 
 
-def is_sparse(coords: Coords) -> bool:
-    if len(coords) < 2:
-        return False
-    total = total_length_km(coords)
-    return total / (len(coords) - 1) > SPARSE_THRESHOLD_KM
-
-
-def reduce_coords(coords: Coords, max_count: int) -> Coords:
-    """Simplify coords to at most max_count points using RDP."""
+def reduce_coord_indices(coords: Coords, max_count: int) -> list[int]:
+    """Return RDP-selected indices so parallel metadata stays aligned."""
     if len(coords) <= max_count:
-        return coords
+        return list(range(len(coords)))
     tolerance = 0.0001
+    indices = list(range(len(coords)))
     result = coords
     while len(result) > max_count and tolerance < 1.0:
-        result = _simplify(result, tolerance)
+        selected = simplify_coords_idx(np.array(result), tolerance).tolist()
+        indices = [indices[i] for i in selected]
+        result = [result[i] for i in selected]
         tolerance *= 2
-    return result
+    if len(indices) > max_count:
+        positions = np.linspace(0, len(indices) - 1, max_count, dtype=int)
+        indices = [indices[i] for i in positions]
+    return indices
 
 
 def simplify_route(coords: Coords, span_km: float) -> Coords:
