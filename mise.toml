@@ -7,7 +7,7 @@ task.source_freshness_hash_contents = true
 [tools]
 python = "3.14.7"
 bun = "1.4.0"
-uv = "0.12.3"
+uv = "0.12.5"
 helm = "4.2.4"
 "github:orhun/git-cliff" = "2"
 prek = "0.5.0"
