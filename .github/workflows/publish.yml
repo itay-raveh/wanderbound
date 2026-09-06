@@ -57,7 +57,7 @@ jobs:
 
       - uses: jdx/mise-action@v4
         with:
-          version: 2026.8.6
+          version: 2026.9.1
           install_args: helm
 
       - name: Log Helm in to GHCR
