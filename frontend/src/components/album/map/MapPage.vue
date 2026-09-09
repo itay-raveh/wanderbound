@@ -1,4 +1,5 @@
 <script lang="ts" setup>
+import AlbumPage from "@/components/album/AlbumPage.vue";
 import type { SegmentOutline, StepRead as Step } from "@/client";
 import { useAlbum } from "@/composables/useAlbum";
 import { useMapbox } from "@/composables/useMapbox";
@@ -86,10 +87,11 @@ watch(safeMarginMm, () => {
 </script>
 
 <template>
-  <div
-    ref="map"
+  <AlbumPage
     role="img"
     :aria-label="t('album.tripRouteMap')"
-    class="page-container map-page relative-position overflow-hidden"
-  />
+    class="map-page relative-position overflow-hidden"
+  >
+    <div ref="map" class="absolute-full" />
+  </AlbumPage>
 </template>

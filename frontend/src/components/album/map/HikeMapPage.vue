@@ -1,4 +1,5 @@
 <script lang="ts" setup>
+import AlbumPage from "@/components/album/AlbumPage.vue";
 import type { SegmentOutline, StepRead as Step } from "@/client";
 import { useAlbum } from "@/composables/useAlbum";
 import { useMapbox } from "@/composables/useMapbox";
@@ -341,10 +342,10 @@ watch(safeMarginMm, () => {
 </script>
 
 <template>
-  <div
+  <AlbumPage
     role="region"
     :aria-label="ariaLabel"
-    class="page-container relative-position overflow-hidden"
+    class="relative-position overflow-hidden"
   >
     <div ref="hike-map" class="hike-map-canvas" />
     <div v-if="stats" class="stats-block">
@@ -380,7 +381,7 @@ watch(safeMarginMm, () => {
       </defs>
       <rect width="1" height="1" :fill="`url(#${fadeGradId})`" />
     </svg>
-    <div class="elevation-chart">
+    <div class="elevation-chart page-content">
       <ElevationProfile
         :points="elevationSamples"
         :accent="countryColor"
@@ -388,7 +389,7 @@ watch(safeMarginMm, () => {
         :is-km="isKm"
       />
     </div>
-  </div>
+  </AlbumPage>
 </template>
 
 <style lang="scss" scoped>
@@ -421,7 +422,7 @@ watch(safeMarginMm, () => {
   right: 0;
   z-index: 2;
   padding-inline: var(--safe-margin, 0mm);
-  padding-bottom: max(var(--gap-md), var(--safe-margin, 0mm));
+  --page-content-inset-bottom: max(var(--gap-md), var(--safe-margin, 0mm));
 }
 
 // Floating stats pill in the top-right corner of the map page.

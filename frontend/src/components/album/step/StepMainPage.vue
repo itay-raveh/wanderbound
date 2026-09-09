@@ -1,4 +1,5 @@
 <script lang="ts" setup>
+import AlbumPage from "@/components/album/AlbumPage.vue";
 import type { StepRead as Step } from "@/client";
 import type { JustifiedLine } from "@/composables/useTextLayout";
 import { useAlbum } from "@/composables/useAlbum";
@@ -33,7 +34,7 @@ const coverQuality = computed(() =>
 </script>
 
 <template>
-  <div class="page-container step-main">
+  <AlbumPage class="step-main">
     <StepMetaPanel
       :step="step"
       :sidebar-lines="sidebarLines"
@@ -53,13 +54,12 @@ const coverQuality = computed(() =>
       />
       <div v-else class="topo-filler" />
     </div>
-  </div>
+  </AlbumPage>
 </template>
 
 <style lang="scss" scoped>
 .step-main {
   display: flex;
-  background: var(--bg);
   color: var(--text);
   overflow: hidden;
 }

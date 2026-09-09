@@ -1,4 +1,5 @@
 <script lang="ts" setup>
+import AlbumPage from "@/components/album/AlbumPage.vue";
 import { useAlbum } from "@/composables/useAlbum";
 import { usePrintMediaReady, usePrintMode } from "@/composables/usePrintReady";
 import { usePanoramaFrame } from "@/composables/usePanoramaFrame";
@@ -35,10 +36,7 @@ function openPanoramaFrame(): void {
 </script>
 
 <template>
-  <div
-    :class="['page-container', 'panorama-page', `side-${side}`]"
-    :data-media="media"
-  >
+  <AlbumPage :class="['panorama-page', `side-${side}`]" :data-media="media">
     <img
       :src="renderedSrc"
       alt=""
@@ -53,7 +51,7 @@ function openPanoramaFrame(): void {
       @frame="openPanoramaFrame"
       @make-full-page="emit('make-full-page', $event)"
     />
-  </div>
+  </AlbumPage>
 </template>
 
 <style lang="scss" scoped>

@@ -1,4 +1,5 @@
 <script lang="ts" setup>
+import AlbumPage from "@/components/album/AlbumPage.vue";
 import { parseLocalDate } from "@/utils/date";
 import type { AlbumChapter, AlbumMeta, StepRead as Step } from "@/client";
 import { useUserQuery } from "@/queries/useUserQuery";
@@ -61,7 +62,7 @@ function saveText(field: "title" | "subtitle", value: string) {
 </script>
 
 <template>
-  <div class="page-container cover-page relative-position">
+  <AlbumPage class="cover-page relative-position">
     <!-- Background photo (full bleed, no uniform dimming) -->
     <MediaItem
       v-if="coverMedia"
@@ -102,7 +103,7 @@ function saveText(field: "title" | "subtitle", value: string) {
     </template>
 
     <!-- ═══ BACK COVER ═══ (photo only) -->
-  </div>
+  </AlbumPage>
 </template>
 
 <style lang="scss" scoped>
