@@ -77,7 +77,7 @@ export function computeDpi(
     : Math.min(widthDpi, heightDpi);
 }
 
-export function dpiTier(
+function dpiTier(
   dpi: number,
   preset: MediaResolutionWarningPreset = DEFAULT_MEDIA_RESOLUTION_WARNING_PRESET,
 ): QualityTier {

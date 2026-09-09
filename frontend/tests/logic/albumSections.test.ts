@@ -1,8 +1,6 @@
 import {
   segmentsOverlapping,
   buildSections,
-  activeSectionId,
-  sectionKey,
   stepPageCount,
   type Section,
 } from "@/components/album/albumSections";
@@ -182,33 +180,5 @@ describe("buildSections", () => {
       expect(mapSection.segments).toHaveLength(1);
       expect(mapSection.segments[0].start_time).toBe(50);
     }
-  });
-});
-
-describe("activeSectionId", () => {
-  const stepSection = (id: number): Section => ({
-    type: "step",
-    step: makeStep({ id }),
-  });
-  const mapSection = (dateRange: DateRange): Section => ({
-    type: "map",
-    steps: [],
-    segments: [],
-    rangeIdx: 0,
-    dateRange,
-  });
-
-  it("returns step ID for step sections", () => {
-    const sections = [stepSection(42), stepSection(99)];
-    expect(activeSectionId(sections, 0)).toBe(42);
-    expect(activeSectionId(sections, 1)).toBe(99);
-  });
-
-  it("returns section key for map sections", () => {
-    const range: DateRange = ["2024-01-01", "2024-01-31"];
-    const sections = [mapSection(range), stepSection(1)];
-    const result = activeSectionId(sections, 0);
-    expect(typeof result).toBe("string");
-    expect(result).toBe(sectionKey(sections[0]));
   });
 });

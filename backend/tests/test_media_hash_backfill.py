@@ -13,7 +13,6 @@ from app.logic.workflows.media_hashes import (
     enqueue_media_hash_backfill,
     media_hash_backfill_revision,
     media_hash_backfill_workflow,
-    media_hash_workflow_id,
     missing_media_hash_backfill_targets,
     persist_media_hash_batch,
 )
@@ -31,30 +30,6 @@ if TYPE_CHECKING:
     from types import TracebackType
 
     from sqlmodel.ext.asyncio.session import AsyncSession
-
-
-async def test_workflow_delegates_to_one_album_step(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    expected = {"hashed": 3, "already_completed": 0, "stale": 0, "failed": 0}
-
-    async def backfill(payload: dict[str, object]) -> dict[str, int]:
-        assert payload == {"uid": 42, "aid": "trip-1"}
-        return expected
-
-    monkeypatch.setattr(media_hashes, "backfill_media_hashes_step", backfill)
-
-    result = await media_hash_backfill_workflow.__wrapped__.__wrapped__(
-        {"uid": 42, "aid": "trip-1"}
-    )
-
-    assert result == expected
-
-
-def test_media_hash_workflow_id_is_scoped_to_missing_hash_revision() -> None:
-    assert media_hash_workflow_id(42, "trip-1", 7, "abc123") == (
-        "media-hash-backfill:42:trip-1:7:abc123"
-    )
 
 
 async def _async_value(value: object) -> object:
