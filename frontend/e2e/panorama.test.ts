@@ -36,6 +36,7 @@ async function mockPanoramaAlbum(page: Page) {
   const album = {
     ...mockAlbum,
     safe_margin_mm: 10,
+    show_page_numbers: false,
     hidden_headers: [
       "cover-back" as const,
       "overview" as const,
@@ -51,9 +52,11 @@ async function mockPanoramaAlbum(page: Page) {
   };
   let appliedFrame: Record<string, number> | null = null;
 
-  await page.route("**/api/v1/albums/aid-1", (route) =>
-    route.fulfill({ json: album }),
-  );
+  await page.route("**/api/v1/albums/aid-1", (route) => {
+    if (route.request().method() === "PATCH")
+      Object.assign(album, route.request().postDataJSON());
+    return route.fulfill({ json: album });
+  });
   await page.route("**/api/v1/albums/aid-1/steps", (route) =>
     route.fulfill({ json: [step] }),
   );
@@ -112,6 +115,8 @@ test("frames a panorama globally and prints a two-page spread", async ({
   await page.setViewportSize({ width: 1440, height: 760 });
   const state = await mockPanoramaAlbum(page);
   await openEditor(page);
+  await expect(page.locator(".album-page-number:visible")).toHaveCount(0);
+  await page.getByRole("switch", { name: "Show page numbers" }).click();
   await scrollToStep(page, "Amsterdam");
 
   const treat = page
@@ -189,6 +194,8 @@ test("frames a panorama globally and prints a two-page spread", async ({
   await expect.poll(() => state.step().pages[0]?.kind).toBe("panorama_spread");
   await expect(page.locator(".alignment-item")).toHaveCount(0);
   await expect(page.locator(".panorama-page")).toHaveCount(2);
+  await page.locator(".panorama-spread").scrollIntoViewIfNeeded();
+  await expect(page.locator(".page-position")).toHaveText("Pages 3–4 of 4");
 
   await page.goto("/print/aid-1", { waitUntil: "domcontentloaded" });
   await expect(page.locator(".panorama-page")).toHaveCount(2);
@@ -203,6 +210,17 @@ test("frames a panorama globally and prints a two-page spread", async ({
       ),
     )
     .toBe(true);
+
+  const numbers = await page.locator(".page-container").evaluateAll((pages) =>
+    pages.map((page) => {
+      const label = page.querySelector(".album-page-number");
+      return label
+        ? getComputedStyle(label).getPropertyValue("--page-number").trim()
+        : null;
+    }),
+  );
+  expect(numbers).toEqual([null, "2", "3", "4"]);
+  await expect(page.locator(".album-page-number:visible")).toHaveCount(3);
 
   await openEditor(page);
   await page.locator(".panorama-disable-action").first().click();

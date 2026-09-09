@@ -50,6 +50,7 @@ const hike: Segment = {
 const bundle: PrintBundle = {
   album: {
     ...mockAlbum,
+    show_page_numbers: true,
     hidden_headers: ["cover-front", "cover-back", "overview"],
     maps_ranges: [["2024-01-01", "2024-01-01"]],
     chapters: [
@@ -260,7 +261,14 @@ test.describe("PDF map snapshots", () => {
   test("waits for delayed basemap tiles and runtime routes", async ({
     page,
   }) => {
-    const tiles = await installPdfMapFixture(page);
+    const tiles = await installPdfMapFixture(page, null, {
+      ...bundle,
+      album: {
+        ...bundle.album,
+        safe_margin_mm: 15,
+        hidden_headers: ["cover-front", "cover-back"],
+      },
+    });
 
     await page.goto("/print/aid-1");
     await expect.poll(tiles.tileRequested, { timeout: 30_000 }).toBe(true);
@@ -294,10 +302,20 @@ test.describe("PDF map snapshots", () => {
       "ready",
     );
     expect(tiles.tileFulfilled()).toBe(true);
+    const overview = page.locator(".overview");
+    const labels = await overview.locator(".country-labels").boundingBox();
+    const number = await overview.locator(".album-page-number").boundingBox();
+    expect(labels!.y + labels!.height).toBeLessThan(number!.y);
     const snapshots = page.locator(
       "[data-map][data-map-snapshot-ready] > .mapbox-print-snapshot",
     );
     await expect(snapshots).toHaveCount(2);
+    await expect(
+      page
+        .locator(".page-container")
+        .filter({ has: page.locator(".mapbox-print-snapshot") })
+        .locator(".album-page-number:visible"),
+    ).toHaveCount(2);
     const elevationProfile = page.locator(
       ".hike-map-canvas ~ .elevation-chart svg[role='img']",
     );

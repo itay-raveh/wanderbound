@@ -62,7 +62,7 @@ function saveText(field: "title" | "subtitle", value: string) {
 </script>
 
 <template>
-  <AlbumPage class="cover-page relative-position">
+  <AlbumPage number-placement="none" class="cover-page relative-position">
     <!-- Background photo (full bleed, no uniform dimming) -->
     <MediaItem
       v-if="coverMedia"

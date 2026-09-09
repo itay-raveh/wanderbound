@@ -83,6 +83,12 @@ function updateSafeMargin(mm: number) {
         </q-item>
       </template>
     </q-select>
+    <q-toggle
+      :model-value="album.show_page_numbers ?? false"
+      :label="t('editor.showPageNumbers')"
+      dense
+      @update:model-value="albumMutation.mutate({ show_page_numbers: $event })"
+    />
     <div class="margin-group">
       <div class="margin-header row no-wrap items-center">
         <q-icon

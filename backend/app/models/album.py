@@ -62,6 +62,7 @@ class AlbumBase(SQLModel):
         sa_column=Column(String(100), nullable=False, default=DEFAULT_BODY_FONT),
     )
     safe_margin_mm: int = Field(default=5)
+    show_page_numbers: bool = Field(default=False)
     media_resolution_warning_preset: MediaResolutionWarningPreset = Field(
         default=DEFAULT_MEDIA_RESOLUTION_WARNING_PRESET,
         sa_column=Column(

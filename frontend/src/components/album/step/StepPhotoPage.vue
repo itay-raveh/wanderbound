@@ -106,7 +106,10 @@ const photoQualities = computed(() =>
 </script>
 
 <template>
-  <AlbumPage class="page">
+  <AlbumPage
+    :number-placement="fullBleedPanorama ? 'image' : 'margin'"
+    class="page"
+  >
     <div
       ref="containerRef"
       :class="[

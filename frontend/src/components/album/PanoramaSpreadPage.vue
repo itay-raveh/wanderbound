@@ -36,7 +36,11 @@ function openPanoramaFrame(): void {
 </script>
 
 <template>
-  <AlbumPage :class="['panorama-page', `side-${side}`]" :data-media="media">
+  <AlbumPage
+    number-placement="image"
+    :class="['panorama-page', `side-${side}`]"
+    :data-media="media"
+  >
     <img
       :src="renderedSrc"
       alt=""

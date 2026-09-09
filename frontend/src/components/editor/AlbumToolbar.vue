@@ -24,6 +24,7 @@ const { t } = useI18n();
 
 defineProps<{
   album?: AlbumMeta;
+  pagePosition?: string;
 }>();
 
 const undoStack = useUndoStack();
@@ -77,6 +78,7 @@ const undoStack = useUndoStack();
         /></q-tooltip>
       </q-btn>
       <q-separator vertical class="action-divider" />
+      <span v-if="pagePosition" class="page-position">{{ pagePosition }}</span>
       <div class="zoom-control row no-wrap items-center">
         <q-icon
           :name="symOutlinedZoomIn"
@@ -151,6 +153,13 @@ const undoStack = useUndoStack();
   &:hover {
     color: var(--text-bright);
   }
+}
+
+.page-position {
+  color: var(--text);
+  font-size: var(--type-sm);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 
 .zoom-control {

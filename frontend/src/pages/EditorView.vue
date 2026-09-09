@@ -23,6 +23,7 @@ import { useI18n } from "vue-i18n";
 import { computed, watch, nextTick, onBeforeUnmount, ref } from "vue";
 
 const { t } = useI18n();
+const pagePosition = ref("");
 
 useMeta({ title: "Editor" });
 
@@ -150,7 +151,7 @@ const activeStep = computed(() =>
       </div>
     </template>
 
-    <AlbumToolbar v-if="album" :album="album" />
+    <AlbumToolbar v-if="album" :album="album" :page-position="pagePosition" />
   </EditorHeader>
 
   <q-drawer
@@ -241,6 +242,7 @@ const activeStep = computed(() =>
       :media="media"
       :steps="displayedSteps"
       :segment-outlines="segmentOutlines"
+      @page-position="pagePosition = $event"
     />
     <q-page-sticky
       v-if="!navigationOpen"

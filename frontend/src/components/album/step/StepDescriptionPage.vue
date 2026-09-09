@@ -33,7 +33,10 @@ const photoQuality = computed(() =>
 </script>
 
 <template>
-  <AlbumPage class="description-page">
+  <AlbumPage
+    :number-placement="photo ? 'image' : 'margin'"
+    class="description-page"
+  >
     <EditableText
       :model-value="description"
       multiline

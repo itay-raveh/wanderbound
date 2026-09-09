@@ -114,6 +114,9 @@
     "getDataGuide": "See Polarsteps' step-by-step guide"
   },
   "editor": {
+    "showPageNumbers": "Show page numbers",
+    "pagePosition": "Page {page} of {total}",
+    "pageRangePosition": "Pages {start}–{end} of {total}",
     "toolbar": "Album tools",
     "exportPdf": "Export PDF",
     "exportChaptersTitle": "Export chapters",

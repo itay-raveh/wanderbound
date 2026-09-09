@@ -26,6 +26,7 @@ import { visibleHeaderKeys } from "./album/albumSections";
 import {
   buildChapterRenderGroups,
   buildEditorItems,
+  buildEditorPageRanges,
   buildPhysicalRenderItems,
   type ChapterRenderGroup,
 } from "./album/albumRenderPlan";
@@ -48,7 +49,7 @@ import { useI18n } from "vue-i18n";
 const { t } = useI18n();
 
 const EmptyPage = defineComponent({
-  render: () => h(AlbumPage),
+  render: () => h(AlbumPage, { numberPlacement: "none" }),
 });
 
 const MapPage = defineAsyncComponent({
@@ -76,6 +77,8 @@ const props = defineProps<{
   segmentOutlines: SegmentOutline[];
   printMode?: boolean;
 }>();
+
+const emit = defineEmits<{ "page-position": [label: string] }>();
 
 const albumId = computed(() => props.album.id);
 const albumColors = computed(
@@ -105,6 +108,8 @@ const albumStyle = computed(() => {
     "--font-album": fontStack(props.album.font ?? DEFAULT_FONT),
     "--font-album-body": fontStack(props.album.body_font ?? DEFAULT_BODY_FONT),
     "--safe-margin": `${sm}mm`,
+    "--page-number-display": props.album.show_page_numbers ? "block" : "none",
+    "--page-number-clearance": props.album.show_page_numbers ? "7mm" : "0mm",
     ...(sm > 0
       ? {
           "--page-inset-x": `max(3rem, ${sm}mm)`,
@@ -182,6 +187,13 @@ const editorItems = computed(() =>
 const physicalRenderItems = computed(() =>
   buildPhysicalRenderItems(editorItems.value),
 );
+const editorPageRanges = computed(() =>
+  buildEditorPageRanges(editorItems.value),
+);
+const currentPageRange = computed(
+  () => editorPageRanges.value[activeItemIndex.value],
+);
+
 const expectedPageCount = computed(() => physicalRenderItems.value.length);
 
 function onWheel(e: WheelEvent) {
@@ -198,6 +210,7 @@ const {
   items,
   size,
   makeFullPage,
+  activeItemIndex,
 } = useAlbumViewerEditor({
   albumId,
   editorItems,
@@ -207,6 +220,25 @@ const {
   printMode: Boolean(props.printMode),
 });
 
+watchEffect(() => {
+  if (props.printMode) return;
+  const range = currentPageRange.value;
+  emit(
+    "page-position",
+    range && visibleSteps.value.length
+      ? range.start === range.end
+        ? t("editor.pagePosition", {
+            page: range.start,
+            total: expectedPageCount.value,
+          })
+        : t("editor.pageRangePosition", {
+            start: range.start,
+            end: range.end,
+            total: expectedPageCount.value,
+          })
+      : "",
+  );
+});
 </script>
 
 <template>
@@ -217,7 +249,12 @@ const {
     :data-expected-pages="expectedPageCount"
     :style="albumStyle"
   >
-    <template v-for="item in physicalRenderItems" :key="item.key">
+    <div
+      v-for="(item, index) in physicalRenderItems"
+      :key="item.key"
+      class="physical-page"
+      :style="{ '--page-number': index + 1 }"
+    >
       <CoverPage
         v-if="item.type === 'header' && item.headerKey === 'cover-front'"
         :album="album"
@@ -273,7 +310,7 @@ const {
         :media="item.media"
         side="right"
       />
-    </template>
+    </div>
   </div>
 
   <!-- Editor mode: virtual scrolling - only visible sections are in the DOM -->
@@ -305,7 +342,10 @@ const {
           v-for="vItem in items"
           :key="vItem.key as PropertyKey"
           :data-index="vItem.index"
-          :style="{ minHeight: `${vItem.size}px` }"
+          :style="{
+            minHeight: `${vItem.size}px`,
+            '--page-number': editorPageRanges[vItem.index]?.start,
+          }"
         >
           <template v-if="!pageContentSuspended && editorItems[vItem.index]">
             <template
@@ -368,7 +408,11 @@ const {
                   makeFullPage(item.step, item.originalPageIndex, $event)
                 "
               />
-              <PanoramaSpreadPage :media="item.media" side="right" />
+              <PanoramaSpreadPage
+                :media="item.media"
+                side="right"
+                :style="{ '--page-number': editorPageRanges[vItem.index]?.end }"
+              />
             </div>
             <StepEntry
               v-else-if="item.type === 'step-add-zone'"

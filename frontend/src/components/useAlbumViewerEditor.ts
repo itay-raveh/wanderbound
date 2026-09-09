@@ -68,6 +68,19 @@ export function useAlbumViewerEditor({
     })),
   );
 
+  const activeItemIndex = computed(() => {
+    void version.value;
+    const pages = items.value.filter(
+      (item) => editorItems.value[item.index]?.type !== "step-add-zone",
+    );
+    return pickBestItem(
+      pages,
+      window.scrollY,
+      scrollMargin.value,
+      window.innerHeight / 2,
+    )?.index ?? 0;
+  });
+
   let mutateStepLayout:
     | ((payload: { sid: number; update: { pages: Step["pages"] } }) => void)
     | null = null;
@@ -90,6 +103,7 @@ export function useAlbumViewerEditor({
       items,
       size,
       makeFullPage,
+      activeItemIndex,
     };
   }
 
@@ -395,5 +409,6 @@ export function useAlbumViewerEditor({
     items,
     size,
     makeFullPage,
+    activeItemIndex,
   };
 }

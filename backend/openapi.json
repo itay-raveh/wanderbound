@@ -2959,6 +2959,11 @@
             "title": "Safe Margin Mm",
             "default": 5
           },
+          "show_page_numbers": {
+            "type": "boolean",
+            "title": "Show Page Numbers",
+            "default": false
+          },
           "media_resolution_warning_preset": {
             "type": "string",
             "enum": [
@@ -3097,6 +3102,18 @@
             "title": "Safe Margin Mm",
             "default": 5
           },
+          "show_page_numbers": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Show Page Numbers",
+            "default": false
+          },
           "media_resolution_warning_preset": {
             "anyOf": [
               {
@@ -3168,6 +3185,11 @@
             "type": "integer",
             "title": "Safe Margin Mm",
             "default": 5
+          },
+          "show_page_numbers": {
+            "type": "boolean",
+            "title": "Show Page Numbers",
+            "default": false
           },
           "media_resolution_warning_preset": {
             "type": "string",
