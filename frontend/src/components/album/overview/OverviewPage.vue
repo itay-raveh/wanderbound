@@ -1,4 +1,5 @@
 <script lang="ts" setup>
+import AlbumPage from "@/components/album/AlbumPage.vue";
 import type { AlbumMeta, SegmentOutline, StepRead as Step } from "@/client";
 import { computeOverview } from "@/composables/useOverview";
 import { useUserQuery } from "@/queries/useUserQuery";
@@ -180,12 +181,8 @@ const factColumns = computed(() => {
 </script>
 
 <template>
-  <div
-    class="page-container overview"
-    role="region"
-    :aria-label="t('overview.title')"
-  >
-    <div class="overview-content">
+  <AlbumPage class="overview" role="region" :aria-label="t('overview.title')">
+    <div class="overview-content page-content">
       <template v-for="(col, ci) in factColumns" :key="ci">
         <div
           class="side-facts"
@@ -263,7 +260,7 @@ const factColumns = computed(() => {
         </div>
       </div>
     </div>
-  </div>
+  </AlbumPage>
 </template>
 
 <style lang="scss" scoped>
@@ -295,7 +292,9 @@ const factColumns = computed(() => {
     "labels labels labels" auto
     / 3fr 5fr 3fr;
   flex: 1;
-  padding: var(--page-inset-y) var(--page-inset-x);
+  --page-content-inset-bottom: var(--page-inset-y);
+  padding-inline: var(--page-inset-x);
+  padding-top: var(--page-inset-y);
   column-gap: var(--gap-md);
   overflow: hidden;
 }

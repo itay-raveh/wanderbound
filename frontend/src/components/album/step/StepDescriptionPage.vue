@@ -1,4 +1,5 @@
 <script lang="ts" setup>
+import AlbumPage from "@/components/album/AlbumPage.vue";
 import type { JustifiedLine } from "@/composables/useTextLayout";
 import { useAlbum } from "@/composables/useAlbum";
 import { mediaQuality, PHOTO_PANEL_FRACTION } from "@/utils/photoQuality";
@@ -32,7 +33,7 @@ const photoQuality = computed(() =>
 </script>
 
 <template>
-  <div class="page-container description-page">
+  <AlbumPage class="description-page">
     <EditableText
       :model-value="description"
       multiline
@@ -49,13 +50,12 @@ const photoQuality = computed(() =>
       class="description-photo"
     />
     <div v-else class="topo-filler" />
-  </div>
+  </AlbumPage>
 </template>
 
 <style lang="scss" scoped>
 .description-page {
   display: flex;
-  background: var(--bg);
   color: var(--text);
   overflow: hidden;
 }

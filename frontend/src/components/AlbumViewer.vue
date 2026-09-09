@@ -1,4 +1,5 @@
 <script lang="ts" setup>
+import AlbumPage from "@/components/album/AlbumPage.vue";
 import type {
   AlbumMedia,
   AlbumMeta,
@@ -47,7 +48,7 @@ import { useI18n } from "vue-i18n";
 const { t } = useI18n();
 
 const EmptyPage = defineComponent({
-  render: () => h("div", { class: "page-container" }),
+  render: () => h(AlbumPage),
 });
 
 const MapPage = defineAsyncComponent({

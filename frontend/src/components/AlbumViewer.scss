@@ -1,12 +1,3 @@
-// :deep needed because page-containers live inside child components
-:deep(.page-container) {
-  width: var(--page-width);
-  height: var(--page-height);
-  background-color: var(--page-bg, var(--bg));
-  font-family: var(--font-album);
-  contain: strict; // strict containment creates a positioning context for ::after
-}
-
 .panorama-spread {
   width: calc(var(--page-width) * var(--editor-zoom) * 2);
   margin: 0 auto;

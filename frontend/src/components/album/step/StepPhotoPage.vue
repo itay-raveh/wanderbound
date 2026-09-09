@@ -1,4 +1,5 @@
 <script lang="ts" setup>
+import AlbumPage from "@/components/album/AlbumPage.vue";
 import { computed, ref, watch } from "vue";
 import { useDraggable } from "vue-draggable-plus";
 import MediaItem from "../MediaItem.vue";
@@ -105,11 +106,12 @@ const photoQualities = computed(() =>
 </script>
 
 <template>
-  <div class="page page-container">
+  <AlbumPage class="page">
     <div
       ref="containerRef"
       :class="[
         'container',
+        'page-content',
         layoutClass,
         `fit-${photoFit}`,
         { 'full-bleed-panorama': fullBleedPanorama },
@@ -130,7 +132,7 @@ const photoQualities = computed(() =>
         @make-panorama-spread="emit('make-panorama-spread', $event)"
       />
     </div>
-  </div>
+  </AlbumPage>
 </template>
 
 <style lang="scss" scoped>
@@ -145,7 +147,12 @@ const photoQualities = computed(() =>
   height: 100%;
   display: grid;
   gap: var(--photo-gap-lg);
-  padding: max(var(--photo-gap-lg), var(--safe-margin, 0mm));
+  --page-content-inset-bottom: max(
+    var(--photo-gap-lg),
+    var(--safe-margin, 0mm)
+  );
+  padding-inline: var(--page-content-inset-bottom);
+  padding-top: var(--page-content-inset-bottom);
   align-items: stretch;
   justify-items: stretch;
   box-sizing: border-box;
@@ -167,7 +174,7 @@ const photoQualities = computed(() =>
 
 .container.full-bleed-panorama {
   gap: 0;
-  padding: 0;
+  --page-content-inset-bottom: 0mm;
 }
 
 .container.full-bleed-panorama :deep(img) {

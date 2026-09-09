@@ -1,4 +1,5 @@
 <script lang="ts" setup>
+import AlbumPage from "@/components/album/AlbumPage.vue";
 import { usePrintMode } from "@/composables/usePrintReady";
 import { t } from "@/i18n";
 
@@ -7,13 +8,13 @@ const printMode = usePrintMode();
 
 <template>
   <div class="alignment-item">
-    <div class="page-container alignment-artwork">
+    <AlbumPage class="alignment-artwork">
       <img src="/topo-contours.svg" alt="" />
       <div v-if="!printMode" class="alignment-note" role="note">
         <strong>{{ t("panorama.alignment.title") }}</strong>
         <p>{{ t("panorama.alignment.body") }}</p>
       </div>
-    </div>
+    </AlbumPage>
   </div>
 </template>
 
