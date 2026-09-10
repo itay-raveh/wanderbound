@@ -67,6 +67,12 @@ mise run setup
 
 Fill in the values in the created `.env` file.
 
+When both Google and Microsoft sign-in are unconfigured, the landing page offers
+**Continue as…** for existing local accounts. Selecting an account opens its saved
+albums without uploading the ZIP again. Anyone who can access the installation
+can use these accounts, so keep this mode on a trusted network or behind access
+controls. Configuring either sign-in provider disables the local account picker.
+
 Run at <https://localhost:8000>:
 
 ```bash

@@ -66,6 +66,73 @@
         }
       }
     },
+    "/api/v1/auth/local": {
+      "get": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "List Local Users",
+        "operationId": "list_local_users",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/LocalUser"
+                  },
+                  "type": "array",
+                  "title": "Response List Local Users"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/auth/local/{uid}": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Login Local User",
+        "operationId": "login_local_user",
+        "parameters": [
+          {
+            "name": "uid",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Uid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserPublic"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/auth/{provider}": {
       "post": {
         "tags": [
@@ -3745,6 +3812,24 @@
           "total"
         ],
         "title": "ImportInProgress"
+      },
+      "LocalUser": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "first_name": {
+            "type": "string",
+            "title": "First Name"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "first_name"
+        ],
+        "title": "LocalUser"
       },
       "Location": {
         "properties": {

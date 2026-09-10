@@ -51,6 +51,11 @@
     "signInGoogle": "Sign in with Google",
     "signInMicrosoft": "Sign in with Microsoft",
     "localZip": "Log in with Polarsteps ZIP",
+    "localContinue": "Continue as…",
+    "localRetry": "Try again",
+    "localAccountId": "Polarsteps ID: {id}",
+    "localEmpty": "No local accounts yet. Upload a ZIP to get started.",
+    "localLoadFailed": "Could not load local accounts.",
     "signInFailed": "Sign-in failed. @:common.retry"
   },
   "register": {
