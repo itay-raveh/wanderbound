@@ -1,7 +1,6 @@
 <script lang="ts" setup>
-import type { JustifiedLine } from "@/composables/useTextLayout";
+import type { TextPage } from "@/composables/useTextLayout";
 import { usePrintMode } from "@/composables/usePrintReady";
-import JustifiedText from "./JustifiedText.vue";
 import { ref, nextTick } from "vue";
 
 const props = withDefaults(
@@ -9,7 +8,7 @@ const props = withDefaults(
     modelValue: string;
     multiline?: boolean;
     placeholder?: string;
-    lines?: JustifiedLine[] | null;
+    page?: TextPage;
   }>(),
   { multiline: false, placeholder: "" },
 );
@@ -23,20 +22,29 @@ const editing = ref(false);
 const editEl = ref<HTMLTextAreaElement | HTMLElement | null>(null);
 
 function startEdit() {
+  if (editing.value) return;
   editing.value = true;
-  void nextTick(() => (editEl.value as HTMLElement)?.focus());
+  void nextTick(() => {
+    const el = editEl.value;
+    if (el instanceof HTMLTextAreaElement) {
+      const offset = props.page?.offset ?? 0;
+      el.setSelectionRange(offset, offset);
+      // Allow a short final page to start at its own first line.
+      if (offset > 0) el.style.paddingBottom = `${el.clientHeight}px`;
+      el.scrollTop =
+        (props.page?.lineIndex ?? 0) *
+        parseFloat(getComputedStyle(el).lineHeight);
+    }
+    el?.focus({ preventScroll: true });
+  });
 }
 
 function commit() {
-  if (!editing.value) return;
+  const el = editEl.value;
+  if (!editing.value || !el) return;
   editing.value = false;
-  const raw =
-    editEl.value instanceof HTMLTextAreaElement
-      ? editEl.value.value
-      : (editEl.value?.innerText ?? "");
-  const text = props.multiline
-    ? raw.replace(/\r\n/g, "\n").replace(/^\n+|\n+$/g, "")
-    : raw.trim();
+  const raw = el instanceof HTMLTextAreaElement ? el.value : el.innerText;
+  const text = props.multiline ? raw.replace(/\r\n?/g, "\n") : raw.trim();
   if (text !== props.modelValue) emit("update:modelValue", text);
 }
 
@@ -56,34 +64,37 @@ function onKeydown(e: KeyboardEvent) {
 
 <template>
   <!-- Print mode -->
-  <JustifiedText v-if="printMode && lines" :lines="lines" />
-  <div v-else-if="printMode">{{ modelValue }}</div>
+  <div
+    v-if="printMode"
+    :dir="multiline ? (page?.direction ?? 'auto') : undefined"
+  >
+    {{ page?.text ?? modelValue }}
+  </div>
 
-  <!-- Multiline edit: plain textarea, no DOM conflicts with Vue -->
-  <textarea
-    v-else-if="multiline && editing"
-    ref="editEl"
-    class="edit-textarea"
-    :value="modelValue"
-    :placeholder="placeholder"
-    :aria-label="placeholder || undefined"
-    @blur="commit"
-    @keydown="onKeydown"
-  />
-
-  <!-- Multiline display: justified text, click to edit -->
+  <!-- Keep the page's geometry and margins outside the scrolling textarea. -->
   <div
     v-else-if="multiline"
-    role="button"
-    tabindex="0"
+    :dir="page?.direction ?? 'auto'"
+    :role="editing ? undefined : 'button'"
+    :tabindex="editing ? undefined : 0"
     class="editable-display"
     :data-placeholder="placeholder"
     @click="startEdit"
-    @keydown.enter.prevent="startEdit"
-    @keydown.space.prevent="startEdit"
+    @keydown.enter.self.prevent="startEdit"
+    @keydown.space.self.prevent="startEdit"
   >
-    <JustifiedText v-if="lines" :lines="lines" />
-    <template v-else>{{ modelValue }}</template>
+    <textarea
+      v-if="editing"
+      ref="editEl"
+      dir="auto"
+      class="edit-textarea"
+      :value="modelValue"
+      :placeholder="placeholder"
+      :aria-label="placeholder || undefined"
+      @blur="commit"
+      @keydown="onKeydown"
+    />
+    <template v-else>{{ page?.text ?? modelValue }}</template>
   </div>
 
   <!-- Single-line: inline contenteditable (no justification needed) -->
@@ -131,6 +142,8 @@ $outline: 0.125rem dashed color-mix(in srgb, currentColor 35%, transparent);
 }
 
 .edit-textarea {
+  display: block;
+  box-sizing: border-box;
   appearance: none;
   border: none;
   background: transparent;
@@ -143,9 +156,15 @@ $outline: 0.125rem dashed color-mix(in srgb, currentColor 35%, transparent);
   font: inherit;
   color: inherit;
   border-radius: var(--radius-xs);
-  outline: $outline;
-  outline-offset: var(--gap-sm);
+  outline: none;
   overflow-y: auto;
   scrollbar-width: none;
+  white-space: pre-wrap;
+  // Match the display's direction instead of textarea's per-paragraph default.
+  unicode-bidi: isolate;
+  overflow-wrap: break-word;
+  tab-size: 8;
+  text-align: start;
+  hyphens: none;
 }
 </style>
