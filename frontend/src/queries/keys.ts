@@ -21,6 +21,7 @@ export const queryKeys = {
     [...queryKeys.printBundles(aid), chapter ?? NONE] as const,
   user: () => ["user"] as const,
   authState: () => ["auth-state"] as const,
+  localUsers: () => ["local-users"] as const,
 };
 
 function isPrintBundlesKey(key: EntryKey): boolean {

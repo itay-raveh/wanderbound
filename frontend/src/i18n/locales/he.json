@@ -51,6 +51,11 @@
     "signInGoogle": "התחברות עם Google",
     "signInMicrosoft": "התחברות עם Microsoft",
     "localZip": "התחברות עם קובץ ZIP מ-Polarsteps",
+    "localContinue": "המשך עם חשבון קיים…",
+    "localRetry": "נסו שוב",
+    "localAccountId": "מזהה Polarsteps: {id}",
+    "localEmpty": "אין עדיין חשבונות מקומיים. העלו קובץ ZIP כדי להתחיל.",
+    "localLoadFailed": "לא ניתן לטעון את החשבונות המקומיים.",
     "signInFailed": "ההתחברות נכשלה. @:common.retry"
   },
   "register": {
