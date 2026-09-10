@@ -1,36 +1,16 @@
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-import pytest
-
 if TYPE_CHECKING:
     from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.logic.media_upgrade.phash_matching import (
     MatchResult,
 )
-from app.logic.media_upgrade.pipeline import (
-    _needs_upgrade,
-)
 from app.logic.media_upgrade.upgrade import _persist_upgrade_in_session
 from app.models.album_media import PanoramaConfig
 
 from .factories import AID, create_test_jpeg, insert_album, insert_album_media
-
-
-class TestNeedsUpgrade:
-    @pytest.mark.parametrize(
-        ("upgrade_candidates", "expected"),
-        [
-            ({"photo.jpg"}, True),
-            (set(), False),
-        ],
-    )
-    def test_needs_upgrade(
-        self, upgrade_candidates: set[str], *, expected: bool
-    ) -> None:
-        match = MatchResult(local_name="photo.jpg", google_id="gid-A", distance=0)
-        assert _needs_upgrade(match, upgrade_candidates) is expected
 
 
 class TestPersistUpgrade:

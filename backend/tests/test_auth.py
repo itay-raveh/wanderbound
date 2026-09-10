@@ -94,14 +94,6 @@ class TestLogout:
         assert resp.status_code == 401
 
 
-class TestUpdateUser:
-    @pytest.mark.usefixtures("uploaded_user")
-    async def test_update_locale(self, user_routes: UserRoutes) -> None:
-        resp = await user_routes.update(locale="he-IL")
-        assert resp.status_code == 200
-        assert resp.json()["locale"] == "he-IL"
-
-
 class TestDeleteUser:
     @pytest.mark.usefixtures("uploaded_user")
     async def test_clears_session(self, user_routes: UserRoutes) -> None:

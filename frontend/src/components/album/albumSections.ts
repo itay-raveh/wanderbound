@@ -100,16 +100,6 @@ export function sectionKey(section: Section): string {
   }
 }
 
-/** Return the nav ID for a section at the given index (header-offset already removed). */
-export function activeSectionId(
-  sections: readonly Section[],
-  sectionIdx: number,
-): number | string | undefined {
-  const sec = sections[sectionIdx];
-  if (!sec) return undefined;
-  return sec.type === "step" ? sec.step.id : sectionKey(sec);
-}
-
 export function stepPageCount(
   step: Step,
   mediaByName: ReadonlyMap<string, AlbumMedia> = new Map(),

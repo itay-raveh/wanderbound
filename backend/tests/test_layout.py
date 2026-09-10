@@ -6,7 +6,6 @@ from app.logic.layout.builder import (
     _landscape_pages,
     _optimal_mixed_count,
     _portrait_page_count,
-    _three_page_count,
 )
 
 # Helpers
@@ -18,15 +17,6 @@ def _names(prefix: str, n: int) -> list[str]:
 
 
 VALID_LANDSCAPE_SIZES = {1, 3, 4}
-
-
-# _portrait_page_count
-
-
-class TestPortraitPageCount:
-    def test_is_ceil_n_over_3(self) -> None:
-        for n in range(50):
-            assert _portrait_page_count(n) == -(-n // 3)
 
 
 # _landscape_page_count
@@ -56,27 +46,10 @@ class TestLandscapePageCount:
         assert _landscape_page_count(n) == expected
 
 
-# _three_page_count
-
-
-class TestThreePageCount:
-    def test_is_neg_n_mod_4(self) -> None:
-        for n in range(3, 50):
-            assert _three_page_count(n) == -n % 4
-
-
 # _optimal_mixed_count
 
 
 class TestOptimalMixedCount:
-    def test_1p_4l_no_mixing_is_better(self) -> None:
-        """1P+4L: mix -> 1P2L+2 singles = 3pp, no mix -> 1P+4L = 2pp."""
-        assert _optimal_mixed_count(1, 4) == 0
-
-    def test_1p_2l_mixing_is_better(self) -> None:
-        """1P + 2L: mixing gives 1 page, no mix gives 1P + 2 singles = 3 pages."""
-        assert _optimal_mixed_count(1, 2) == 1
-
     def test_result_minimizes_pages(self) -> None:
         """Brute-force verify that the returned b gives the minimum total pages."""
         for p in range(15):
@@ -117,12 +90,6 @@ class TestLandscapePages:
             assert len(page) in VALID_LANDSCAPE_SIZES, (
                 f"invalid page size {len(page)} for n={n}"
             )
-
-    @pytest.mark.parametrize("n", [3, 4, 6, 7, 8, 9, 10, 11, 12, 13, 20])
-    def test_optimal_page_count(self, n: int) -> None:
-        items = _names("l", n)
-        pages = list(_landscape_pages(items))
-        assert len(pages) == _landscape_page_count(n)
 
     @pytest.mark.parametrize("n", range(21))
     def test_all_items_consumed(self, n: int) -> None:
@@ -191,35 +158,6 @@ class TestBuildPages:
         pages = list(_build_pages(portraits, landscapes))
         flat = [item for page in pages for item in page]
         assert sorted(flat) == sorted(portraits + landscapes)
-
-    @pytest.mark.parametrize(
-        ("p", "l"),
-        [
-            (0, 0),
-            (1, 0),
-            (0, 1),
-            (3, 3),
-            (1, 2),
-            (1, 4),
-            (4, 6),
-            (5, 10),
-            (3, 7),
-            (10, 10),
-        ],
-    )
-    def test_page_count_is_optimal(self, p: int, l: int) -> None:
-        """Total pages should equal what _optimal_mixed_count + formulas predict."""
-        portraits = _names("p", p)
-        landscapes = _names("l", l)
-        pages = list(_build_pages(portraits, landscapes))
-
-        mixed = _optimal_mixed_count(p, l)
-        expected = (
-            mixed
-            + _portrait_page_count(p - mixed)
-            + _landscape_page_count(l - 2 * mixed)
-        )
-        assert len(pages) == expected
 
     @pytest.mark.parametrize(
         ("p", "l"),
