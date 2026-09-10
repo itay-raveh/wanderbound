@@ -14,6 +14,7 @@ export function usePdfExportController(
   const exportTarget = ref<PdfExportTarget>({ type: "album" });
   const pdf = usePdfExportStream(albumId, () => exportTarget.value);
   const showChapterDialog = ref(false);
+  const separate = ref(false);
   const showQualityDialog = ref(false);
   const chapterSelection = usePdfChapterSelection(chapters);
 
@@ -54,7 +55,15 @@ export function usePdfExportController(
     const target = chapterSelection.selectedExportTarget();
     if (!target) return;
     showChapterDialog.value = false;
-    startExport(target);
+    startExport(
+      separate.value
+        ? {
+            type: "chapters",
+            ids: [...chapterSelection.selectedChapterIds.value],
+            separate: true,
+          }
+        : target,
+    );
   }
 
   function confirmQualityWarning() {
@@ -64,6 +73,7 @@ export function usePdfExportController(
 
   return {
     pdf,
+    separate,
     qualitySummary,
     showChapterDialog,
     showQualityDialog,

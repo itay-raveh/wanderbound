@@ -1,4 +1,5 @@
 <script lang="ts" setup>
+import PreviewDialog from "@/components/ui/PreviewDialog.vue";
 import type { AlbumMedia } from "@/client";
 import {
   clampPanoramaFrame,
@@ -45,10 +46,6 @@ useResizeObserver(viewerRoot, () => adapter?.resize());
 
 const panorama = computed(() => props.media.panorama);
 const applying = computed(() => mutation.asyncStatus.value === "loading");
-const viewportStyle = computed(() => ({
-  aspectRatio: String(props.aspectRatio),
-  maxWidth: `${props.aspectRatio * 56}vh`,
-}));
 const projectionStyle = computed(() => ({
   "--panorama-zoom": String(draft.value.zoom),
 }));
@@ -73,11 +70,7 @@ function normalizedFrame(frame: PanoramaFrameDraft): PanoramaFrameDraft {
 }
 
 function currentBounds(frame = draft.value) {
-  return panoramaCameraBounds(
-    frame,
-    props.media,
-    props.aspectRatio,
-  );
+  return panoramaCameraBounds(frame, props.media, props.aspectRatio);
 }
 
 function panoramaSourceUrl(): string {
@@ -152,10 +145,6 @@ function numberFromInput(event: Event): number {
   return Number((event.target as HTMLInputElement).value);
 }
 
-function cancel(): void {
-  emit("update:modelValue", false);
-}
-
 async function apply(): Promise<void> {
   if (applying.value) return;
   const frame = draft.value;
@@ -187,152 +176,76 @@ onBeforeUnmount(cleanupAdapter);
 </script>
 
 <template>
-  <q-dialog
+  <PreviewDialog
     :model-value="modelValue"
-    aria-labelledby="panorama-frame-title"
+    :title="t('panorama.frame.title')"
+    :preview-label="t('panorama.frame.preview')"
+    :aspect-ratio="aspectRatio"
+    :close-label="t('common.cancel')"
+    :apply-label="t('panorama.frame.apply')"
+    :applying="applying"
+    :apply-disabled="loading || loadError"
     persistent
     @update:model-value="(value) => emit('update:modelValue', value)"
+    @apply="apply"
   >
-    <q-card class="panorama-dialog">
-      <q-card-section class="panorama-header">
-        <h2 id="panorama-frame-title" class="panorama-title">
-          {{ t("panorama.frame.title") }}
-        </h2>
-      </q-card-section>
+    <div class="panorama-projection-layer" :style="projectionStyle">
+      <div ref="viewerRoot" class="panorama-viewer-root" />
+    </div>
+    <div v-if="showSeam" class="spread-seam" aria-hidden="true" />
+    <div
+      v-if="loading"
+      class="viewport-status"
+      role="status"
+      aria-live="polite"
+    >
+      {{ t("panorama.frame.loading") }}
+    </div>
+    <div
+      v-else-if="loadError"
+      class="viewport-status viewport-error"
+      role="alert"
+    >
+      {{ t("panorama.frame.unsupported") }}
+    </div>
+    <template #controls>
+      <div class="frame-controls">
+        <label class="control-group">
+          <span class="control-heading">
+            <span>{{ t("panorama.frame.perspective") }}</span>
+            <output>{{ perspectiveLabel }}</output>
+          </span>
+          <input
+            name="perspective"
+            type="range"
+            :min="MIN_PERSPECTIVE_FOV"
+            max="179"
+            step="1"
+            :value="draft.perspectiveFov"
+            @input="setPerspective(numberFromInput($event))"
+          />
+        </label>
 
-      <q-card-section class="panorama-workspace">
-        <div class="preview-column">
-          <div
-            class="panorama-viewport"
-            :style="viewportStyle"
-            :aria-label="t('panorama.frame.preview')"
-            role="region"
-          >
-            <div class="panorama-projection-layer" :style="projectionStyle">
-              <div ref="viewerRoot" class="panorama-viewer-root" />
-            </div>
-            <div v-if="showSeam" class="spread-seam" aria-hidden="true" />
-            <div
-              v-if="loading"
-              class="viewport-status"
-              role="status"
-              aria-live="polite"
-            >
-              {{ t("panorama.frame.loading") }}
-            </div>
-            <div
-              v-else-if="loadError"
-              class="viewport-status viewport-error"
-              role="alert"
-            >
-              {{ t("panorama.frame.unsupported") }}
-            </div>
-          </div>
-        </div>
-
-        <div class="frame-controls">
-          <label class="control-group">
-            <span class="control-heading">
-              <span>{{ t("panorama.frame.perspective") }}</span>
-              <output>{{ perspectiveLabel }}</output>
-            </span>
-            <input
-              name="perspective"
-              type="range"
-              :min="MIN_PERSPECTIVE_FOV"
-              max="179"
-              step="1"
-              :value="draft.perspectiveFov"
-              @input="setPerspective(numberFromInput($event))"
-            />
-          </label>
-
-          <label class="control-group">
-            <span class="control-heading">
-              <span>{{ t("panorama.frame.zoom") }}</span>
-              <output>{{ zoomLabel }}</output>
-            </span>
-            <input
-              name="zoom"
-              type="range"
-              :min="MIN_PANORAMA_ZOOM"
-              :max="MAX_PANORAMA_ZOOM"
-              step="any"
-              :value="draft.zoom"
-              @input="setZoom(numberFromInput($event))"
-            />
-          </label>
-        </div>
-      </q-card-section>
-
-      <q-card-actions class="panorama-actions" align="right">
-        <q-btn
-          class="cancel-button"
-          flat
-          no-caps
-          :disable="applying"
-          :label="t('common.cancel')"
-          @click="cancel"
-        />
-        <q-btn
-          class="apply-button"
-          color="primary"
-          no-caps
-          :disable="loading || loadError || applying"
-          :loading="applying"
-          :label="t('panorama.frame.apply')"
-          @click="apply"
-        />
-      </q-card-actions>
-    </q-card>
-  </q-dialog>
+        <label class="control-group">
+          <span class="control-heading">
+            <span>{{ t("panorama.frame.zoom") }}</span>
+            <output>{{ zoomLabel }}</output>
+          </span>
+          <input
+            name="zoom"
+            type="range"
+            :min="MIN_PANORAMA_ZOOM"
+            :max="MAX_PANORAMA_ZOOM"
+            step="any"
+            :value="draft.zoom"
+            @input="setZoom(numberFromInput($event))"
+          />
+        </label>
+      </div>
+    </template>
+  </PreviewDialog>
 </template>
 <style lang="scss" scoped>
-.panorama-dialog {
-  width: min(62rem, 96vw);
-  max-width: none;
-  max-height: 92vh;
-  overflow: hidden;
-}
-
-.panorama-header,
-.panorama-actions {
-  padding: var(--gap-md-lg) 1.25rem;
-}
-
-.panorama-header {
-  padding-block-end: var(--gap-md);
-}
-
-.panorama-title {
-  margin: 0;
-  color: var(--text-bright);
-  font-size: 1.375rem;
-  font-weight: 700;
-}
-
-.panorama-workspace {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 14rem;
-  gap: 1rem;
-  align-items: start;
-  padding: 0 1.25rem var(--gap-md-lg);
-}
-
-.preview-column {
-  min-width: 0;
-}
-
-.panorama-viewport {
-  position: relative;
-  width: 100%;
-  margin-inline: auto;
-  overflow: hidden;
-  border: 1px solid var(--border-color);
-  background: #11131a;
-  touch-action: none;
-}
-
 .panorama-projection-layer,
 .panorama-viewer-root {
   position: absolute;
@@ -404,21 +317,7 @@ input[type="range"]:focus-visible {
   outline-offset: 0.125rem;
 }
 
-.panorama-actions {
-  gap: var(--gap-sm);
-  border-block-start: 1px solid var(--border-color);
-}
-
 @media (max-width: 56rem) {
-  .panorama-header,
-  .panorama-workspace {
-    grid-template-columns: 1fr;
-  }
-
-  .panorama-header {
-    display: grid;
-  }
-
   .frame-controls {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }

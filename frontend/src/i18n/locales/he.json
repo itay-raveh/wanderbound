@@ -454,5 +454,18 @@
       "body": "תוכלו להתחבר מחדש בכל עת כדי לשדרג קבצים נוספים.",
       "confirm": "ניתוק"
     }
+  },
+  "print": {
+    "title": "הדפסה",
+    "interiorBleed": "גלישה בעמודי התוכן",
+    "coverBleed": "גלישה בכריכה",
+    "spineWidth": "רוחב השדרה",
+    "previewCover": "תצוגה מקדימה של הכריכה הפרושה",
+    "combined": "כריכה ותוכן בקובץ משולב",
+    "separate": "כריכה ותוכן בקבצים נפרדים",
+    "combinedHint": "קובץ PDF לכל פרק שנבחר. מספר פרקים יורדו בקובץ ZIP.",
+    "separateHint": "קובץ ZIP עם cover.pdf ו־content.pdf לכל פרק שנבחר.",
+    "dimensionRange": "יש להזין מספר בין 0 ל־{max}.",
+    "wholeDimensionRange": "יש להזין מספר שלם בין 0 ל־{max}."
   }
 }

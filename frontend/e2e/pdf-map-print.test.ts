@@ -260,7 +260,10 @@ test.describe("PDF map snapshots", () => {
   test("waits for delayed basemap tiles and runtime routes", async ({
     page,
   }) => {
-    const tiles = await installPdfMapFixture(page);
+    const tiles = await installPdfMapFixture(page, null, {
+      ...bundle,
+      album: { ...bundle.album, interior_bleed_mm: 3 },
+    });
 
     await page.goto("/print/aid-1");
     await expect.poll(tiles.tileRequested, { timeout: 30_000 }).toBe(true);

@@ -58,10 +58,10 @@ const coverQuality = computed(() =>
 </template>
 
 <style lang="scss" scoped>
-.step-main {
+:deep(.step-main) {
   display: flex;
   color: var(--text);
-  overflow: hidden;
+  overflow: visible;
 }
 
 .meta-side {
@@ -70,6 +70,8 @@ const coverQuality = computed(() =>
 }
 
 .content-panel {
+  margin-block: calc(-1 * var(--bleed));
+  margin-inline-end: calc(-1 * var(--bleed));
   flex: 1;
   display: flex;
   min-height: 0;

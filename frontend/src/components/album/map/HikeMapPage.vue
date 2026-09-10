@@ -11,7 +11,9 @@ import {
 } from "@/composables/useHikeBoundaryDrag";
 import { useSegmentBoundaryMutation } from "@/queries/useSegmentBoundaryMutation";
 import { useSegmentPointsQuery } from "@/queries/useSegmentPointsQuery";
-import { safeMarginMm, safeMarginPx } from "@/composables/useSafeMargin";
+import { MM_PX } from "@/utils/pageSize";
+import { interiorBleedMm } from "@/composables/usePrintSettings";
+import { safeMarginMm, mapSafeInsetPx } from "@/composables/useSafeMargin";
 import { useUserQuery, KM_TO_MI, M_TO_FT } from "@/queries/useUserQuery";
 import { getCountryColor, ensureSatelliteContrast } from "../colors";
 import along from "@turf/along";
@@ -270,9 +272,11 @@ function refitBounds() {
   // The chart SVG has a 500:70 aspect ratio; the gradient fade above
   // it adds roughly another half-chart of hazard zone.
   const el = container.value;
-  const chartH = el ? el.clientWidth * (70 / 500) : 110;
+  const chartH = el
+    ? (el.clientWidth - 2 * interiorBleedMm.value * MM_PX) * (70 / 500)
+    : 110;
   const bottomPad = Math.round(chartH * 1.5);
-  const sm = safeMarginPx();
+  const sm = mapSafeInsetPx();
   fitBounds(lastAllCoords, {
     top: 80 + sm,
     right: 80 + sm,
@@ -334,19 +338,20 @@ watch(fullHikeSegment, () => {
 });
 
 // Refit bounds when safe margin changes so the route stays within the safe zone
-watch(safeMarginMm, () => {
-  if (!map.value || !fullHikeSegment.value || !map.value.isStyleLoaded())
-    return;
-  refitBounds();
-});
+watch(
+  [safeMarginMm, interiorBleedMm],
+  () => {
+    if (!map.value || !fullHikeSegment.value || !map.value.isStyleLoaded())
+      return;
+    map.value.resize();
+    refitBounds();
+  },
+  { flush: "post" },
+);
 </script>
 
 <template>
-  <AlbumPage
-    role="region"
-    :aria-label="ariaLabel"
-    class="relative-position overflow-hidden"
-  >
+  <AlbumPage role="region" :aria-label="ariaLabel" class="relative-position">
     <div ref="hike-map" class="hike-map-canvas" />
     <div v-if="stats" class="stats-block">
       <div class="stats-bg" aria-hidden="true" />
@@ -395,7 +400,7 @@ watch(safeMarginMm, () => {
 <style lang="scss" scoped>
 .hike-map-canvas {
   position: absolute;
-  inset: 0;
+  inset: calc(-1 * var(--bleed));
 }
 
 // SVG gradient overlay pinned to the bottom of the page, extending past
@@ -404,9 +409,9 @@ watch(safeMarginMm, () => {
 // in gradients as pink. currentColor inherits --bg via the `color` prop.
 .elevation-fade {
   position: absolute;
-  bottom: -2mm;
-  left: 0;
-  width: 100%;
+  bottom: calc(-2mm - var(--bleed));
+  left: calc(-1 * var(--bleed));
+  width: calc(100% + 2 * var(--bleed));
   // Bottom 40% of this element is the opaque zone (chart area);
   // the rest fades to zero so the top edge is imperceptible.
   height: 35%;

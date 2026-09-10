@@ -41,7 +41,9 @@ const stepPagePlan = computed(() =>
   planStepPages(props.step, mediaByName.value, desc.value.pages),
 );
 const continuationPages = computed(() => stepPagePlan.value.continuationPages);
-const continuationPhotos = computed(() => stepPagePlan.value.continuationPhotos);
+const continuationPhotos = computed(
+  () => stepPagePlan.value.continuationPhotos,
+);
 const photoPages = computed(() => stepPagePlan.value.photoPages);
 
 const selectedDescriptionPage = computed(() => {
@@ -60,9 +62,7 @@ const selectedPhotoPage = computed(() => {
     : null;
 });
 
-const hasPhotoDropZone = computed(
-  () => stepPagePlan.value.hasPhotoDropZone,
-);
+const hasPhotoDropZone = computed(() => stepPagePlan.value.hasPhotoDropZone);
 </script>
 
 <template>
@@ -144,9 +144,7 @@ const hasPhotoDropZone = computed(
         v-else-if="selectedPhotoPage"
         :page="selectedPhotoPage.page"
         @update:page="onPageUpdate(selectedPhotoPage.originalIdx, $event.media)"
-        @make-full-page="
-          onMakeFullPage(selectedPhotoPage.originalIdx, $event)
-        "
+        @make-full-page="onMakeFullPage(selectedPhotoPage.originalIdx, $event)"
         @make-panorama-spread="
           onMakePanoramaSpread(selectedPhotoPage.originalIdx, $event)
         "
@@ -206,7 +204,10 @@ const hasPhotoDropZone = computed(
 }
 
 .panorama-spread {
-  width: calc(var(--page-width) * var(--editor-zoom, 1) * 2);
+  width: calc(
+    (var(--page-width) + 2 * var(--interior-bleed, 0mm)) *
+      var(--editor-zoom, 1) * 2
+  );
   margin: 0 auto;
 
   :deep(.page-container) {
@@ -293,10 +294,6 @@ const hasPhotoDropZone = computed(
 
 @media print {
   :deep(.page-container) {
-    width: var(--page-width) !important;
-    height: var(--page-height) !important;
-    max-width: var(--page-width) !important;
-    max-height: var(--page-height) !important;
     overflow: hidden !important;
     box-sizing: border-box !important;
     page-break-after: always;

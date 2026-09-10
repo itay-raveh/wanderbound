@@ -366,6 +366,7 @@ async def generate_chapters_pdf(  # noqa: PLR0913
     session: SessionDep,
     chapter_ids: Annotated[list[str], Depends(_validate_pdf_chapters)],
     dark: Annotated[bool, Query()] = True,  # noqa: FBT002
+    separate: Annotated[bool, Query()] = False,  # noqa: FBT002
 ) -> AsyncIterable[PdfEvent]:
     session_cookie = request.cookies.get("session", "")
     async for event in render_album_chapters_zip_stream(
@@ -375,5 +376,6 @@ async def generate_chapters_pdf(  # noqa: PLR0913
         chapter_ids,
         session_cookie=session_cookie,
         dark=dark,
+        separate=separate,
     ):
         yield event

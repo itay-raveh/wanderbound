@@ -10,7 +10,7 @@ import type { Page } from "@playwright/test";
 async function pageTopIsVisibleBelowHeader(page: Page, text: string) {
   return page.evaluate((targetText) => {
     const pageEl = Array.from(
-      document.querySelectorAll<HTMLElement>(".page-container.step-main"),
+      document.querySelectorAll<HTMLElement>(".page-container:has(.step-main)"),
     ).find((el) => el.textContent?.includes(targetText));
     const headerEl = document.querySelector<HTMLElement>(".editor-header");
     if (!pageEl || !headerEl) return false;
@@ -39,9 +39,11 @@ test.describe("Active step sync", () => {
     focusPage: page,
   }) => {
     await page.goto("/editor");
-    await expect(page.getByRole("main").getByText("South America")).toBeVisible({
-      timeout: 15_000,
-    });
+    await expect(page.getByRole("main").getByText("South America")).toBeVisible(
+      {
+        timeout: 15_000,
+      },
+    );
 
     const beforeClickScrollY = await page.evaluate(() => window.scrollY);
     await clickNavStep(page, 102);

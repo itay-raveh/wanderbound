@@ -1,9 +1,12 @@
 .panorama-spread {
-  width: calc(var(--page-width) * var(--editor-zoom) * 2);
+  width: calc(
+    (var(--page-width) + 2 * var(--interior-bleed)) * var(--editor-zoom) * 2
+  );
   margin: 0 auto;
 
   :deep(.page-container) {
     margin-inline: 0;
+    flex-shrink: 0;
   }
 }
 
@@ -24,21 +27,15 @@
     }
   }
 
-  // Safe margin frame - editor-only visual guide
-  &.has-safe-margin :deep(.page-container)::after {
-    content: "";
-    position: absolute;
-    inset: var(--safe-margin);
-    border: 1px dashed color-mix(in srgb, var(--text) 40%, transparent);
-    pointer-events: none;
-    z-index: 50;
-  }
-
   // Map wrapper: fixed layout size matching zoomed page dimensions
   .map-wrapper {
     position: relative;
-    width: calc(var(--page-width) * var(--editor-zoom));
-    height: calc(var(--page-height) * var(--editor-zoom));
+    width: calc(
+      (var(--page-width) + 2 * var(--interior-bleed, 0mm)) * var(--editor-zoom)
+    );
+    height: calc(
+      (var(--page-height) + 2 * var(--interior-bleed, 0mm)) * var(--editor-zoom)
+    );
     margin: 0 auto var(--gap-md-lg);
     overflow: hidden;
 
@@ -107,5 +104,50 @@
     :deep(.page-container) {
       transform: none !important;
     }
+  }
+}
+
+.album-container:not(.print-mode):not(.cover-preview) {
+  :deep(.trim-guide),
+  :deep(.safe-guide) {
+    display: block;
+  }
+}
+
+.album-container.cover-preview {
+  :deep(.page-container) {
+    --guide-width: calc(1px / var(--editor-zoom, 1));
+  }
+  :deep(.trim-guide),
+  :deep(.spine-guide),
+  :deep(.cover-safe-guide) {
+    display: block;
+  }
+
+  :deep(.trim-guide) {
+    border-width: var(--guide-width);
+    box-shadow: 0 0 0 var(--guide-width) black;
+  }
+
+  :deep(.page-container)::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border: var(--guide-width) dotted white;
+    box-shadow: inset 0 0 0 calc(2 * var(--guide-width)) black;
+    pointer-events: none;
+    z-index: 50;
+  }
+
+  :deep(.editable-display:not(:focus-visible)) {
+    outline: none;
+  }
+
+  padding: 0;
+  overflow: hidden;
+
+  :deep(.page-container) {
+    margin: 0;
+    outline: none;
   }
 }

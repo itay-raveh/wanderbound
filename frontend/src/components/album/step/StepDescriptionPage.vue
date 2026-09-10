@@ -53,10 +53,10 @@ const photoQuality = computed(() =>
 </template>
 
 <style lang="scss" scoped>
-.description-page {
+:deep(.description-page) {
   display: flex;
   color: var(--text);
-  overflow: hidden;
+  overflow: visible;
 }
 
 .description-text {
@@ -75,12 +75,17 @@ const photoQuality = computed(() =>
 }
 
 .description-photo {
+  margin-block: calc(-1 * var(--bleed));
+  margin-inline-end: calc(-1 * var(--bleed));
+  height: calc(100% + 2 * var(--bleed));
   flex: 1;
   min-height: 0;
   cursor: default;
 }
 
 .topo-filler {
+  margin-block: calc(-1 * var(--bleed));
+  margin-inline-end: calc(-1 * var(--bleed));
   flex: 1;
   min-height: 0;
   background: url("/topo-contours.svg") center / cover no-repeat;

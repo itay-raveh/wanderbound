@@ -136,7 +136,7 @@ const photoQualities = computed(() =>
 </template>
 
 <style lang="scss" scoped>
-.page {
+:deep(.page) {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -173,6 +173,10 @@ const photoQualities = computed(() =>
 }
 
 .container.full-bleed-panorama {
+  position: absolute;
+  inset: calc(-1 * var(--bleed));
+  width: calc(100% + 2 * var(--bleed));
+  height: calc(100% + 2 * var(--bleed));
   gap: 0;
   --page-content-inset-bottom: 0mm;
 }
