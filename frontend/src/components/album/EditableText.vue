@@ -24,7 +24,11 @@ const editEl = ref<HTMLTextAreaElement | HTMLElement | null>(null);
 
 function startEdit() {
   editing.value = true;
-  void nextTick(() => (editEl.value as HTMLElement)?.focus());
+  void nextTick(() => {
+    const el = editEl.value;
+    if (el instanceof HTMLTextAreaElement) el.setSelectionRange(0, 0);
+    el?.focus({ preventScroll: true });
+  });
 }
 
 function commit() {
@@ -147,5 +151,9 @@ $outline: 0.125rem dashed color-mix(in srgb, currentColor 35%, transparent);
   outline-offset: var(--gap-sm);
   overflow-y: auto;
   scrollbar-width: none;
+}
+
+textarea.edit-textarea {
+  text-align: start;
 }
 </style>

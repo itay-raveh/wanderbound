@@ -15,11 +15,12 @@
 
   :deep(.page-container) {
     zoom: var(--editor-zoom);
-    border: 3px dashed color-mix(in srgb, var(--text) 25%, transparent);
+    outline: 3px dashed color-mix(in srgb, var(--text) 25%, transparent);
+    outline-offset: -3px;
     margin: 0 auto var(--gap-md-lg);
 
     &.drag-over {
-      border-color: var(--q-primary);
+      outline-color: var(--q-primary);
     }
   }
 
