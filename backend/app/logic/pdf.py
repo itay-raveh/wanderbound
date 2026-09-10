@@ -341,8 +341,9 @@ def _print_url(
     *,
     dark: bool,
     chapter: str | None,
+    part: str = "combined",
 ) -> str:
-    query = {"dark": "true" if dark else "false"}
+    query = {"dark": "true" if dark else "false", "part": part}
     if chapter is not None:
         query["chapter"] = chapter
     return f"{frontend_url.rstrip('/')}/print/{quote(aid)}?{urlencode(query)}"
@@ -463,6 +464,7 @@ async def render_pdf_file(  # noqa: PLR0913
     session_cookie: str,
     dark: bool,
     chapter: str | None = None,
+    part: str = "combined",
 ) -> AsyncGenerator[PdfProgress]:
     settings = get_settings()
     frontend_url = str(settings.INTERNAL_URL).rstrip("/")
@@ -521,7 +523,7 @@ async def render_pdf_file(  # noqa: PLR0913
             )
 
         page.on("response", log_failed_mapbox_response)
-        url = _print_url(frontend_url, aid, dark=dark, chapter=chapter)
+        url = _print_url(frontend_url, aid, dark=dark, chapter=chapter, part=part)
         async for progress in _load_print_page(page, url, aid, dark=dark):
             yield progress
 

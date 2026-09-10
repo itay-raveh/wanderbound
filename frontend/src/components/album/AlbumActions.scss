@@ -1,0 +1,49 @@
+.album-actions {
+  position: absolute;
+  z-index: 51;
+  inset-block-start: var(--gap-md);
+  inset-inline-start: var(--gap-md);
+  display: flex;
+  flex-direction: row;
+  overflow: hidden;
+  border: 1px solid var(--q-primary);
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--surface) 92%, transparent);
+  box-shadow: 0 0.25rem 0.75rem color-mix(in srgb, black 20%, transparent);
+  backdrop-filter: blur(0.5rem);
+}
+
+.album-action {
+  display: grid;
+  width: 2.5rem;
+  height: 2.5rem;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-inline-start: 1px solid
+    color-mix(in srgb, var(--q-primary) 35%, transparent);
+  background: transparent;
+  color: var(--q-primary);
+  cursor: pointer;
+  font: inherit;
+  font-size: var(--type-lg);
+}
+
+.album-action:first-child {
+  border-inline-start: 0;
+}
+
+.album-action:hover {
+  background: color-mix(in srgb, var(--q-primary) 10%, transparent);
+}
+
+.album-action:disabled {
+  cursor: wait;
+  opacity: 0.55;
+}
+
+.album-action:focus-visible {
+  position: relative;
+  outline: 0.125rem solid var(--q-primary);
+  outline-offset: -0.125rem;
+}

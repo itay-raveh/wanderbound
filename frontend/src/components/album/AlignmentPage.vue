@@ -19,19 +19,19 @@ const printMode = usePrintMode();
 </template>
 
 <style lang="scss" scoped>
-.alignment-artwork {
+:deep(.alignment-artwork) {
   position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
-  overflow: hidden;
+  overflow: visible;
 }
 
 .alignment-artwork img {
   position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
+  inset: calc(-1 * var(--bleed));
+  width: calc(100% + 2 * var(--bleed));
+  height: calc(100% + 2 * var(--bleed));
   object-fit: cover;
   opacity: 0.18;
 }

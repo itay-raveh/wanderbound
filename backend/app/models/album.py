@@ -32,6 +32,7 @@ class AlbumChapter(SQLModel):
     front_cover_photo: str = Field(max_length=255)
     back_cover_photo: str = Field(max_length=255)
     front_cover_darkness: float = Field(default=0.45, ge=0.0, le=1.0)
+    spine_width_mm: float = Field(default=0, ge=0, le=100)
 
 
 class AlbumBase(SQLModel):
@@ -62,6 +63,8 @@ class AlbumBase(SQLModel):
         sa_column=Column(String(100), nullable=False, default=DEFAULT_BODY_FONT),
     )
     safe_margin_mm: int = Field(default=5)
+    interior_bleed_mm: float = Field(default=0, ge=0, le=20)
+    cover_bleed_mm: float = Field(default=0, ge=0, le=20)
     media_resolution_warning_preset: MediaResolutionWarningPreset = Field(
         default=DEFAULT_MEDIA_RESOLUTION_WARNING_PRESET,
         sa_column=Column(

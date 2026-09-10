@@ -1599,6 +1599,16 @@
             }
           },
           {
+            "name": "separate",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false,
+              "title": "Separate"
+            }
+          },
+          {
             "name": "chapters",
             "in": "query",
             "required": false,
@@ -2821,6 +2831,13 @@
             "minimum": 0.0,
             "title": "Front Cover Darkness",
             "default": 0.45
+          },
+          "spine_width_mm": {
+            "type": "number",
+            "maximum": 100.0,
+            "minimum": 0.0,
+            "title": "Spine Width Mm",
+            "default": 0
           }
         },
         "type": "object",
@@ -2958,6 +2975,20 @@
             "type": "integer",
             "title": "Safe Margin Mm",
             "default": 5
+          },
+          "interior_bleed_mm": {
+            "type": "number",
+            "maximum": 20.0,
+            "minimum": 0.0,
+            "title": "Interior Bleed Mm",
+            "default": 0
+          },
+          "cover_bleed_mm": {
+            "type": "number",
+            "maximum": 20.0,
+            "minimum": 0.0,
+            "title": "Cover Bleed Mm",
+            "default": 0
           },
           "media_resolution_warning_preset": {
             "type": "string",
@@ -3097,6 +3128,34 @@
             "title": "Safe Margin Mm",
             "default": 5
           },
+          "interior_bleed_mm": {
+            "anyOf": [
+              {
+                "type": "number",
+                "maximum": 20.0,
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Interior Bleed Mm",
+            "default": 0
+          },
+          "cover_bleed_mm": {
+            "anyOf": [
+              {
+                "type": "number",
+                "maximum": 20.0,
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cover Bleed Mm",
+            "default": 0
+          },
           "media_resolution_warning_preset": {
             "anyOf": [
               {
@@ -3168,6 +3227,20 @@
             "type": "integer",
             "title": "Safe Margin Mm",
             "default": 5
+          },
+          "interior_bleed_mm": {
+            "type": "number",
+            "maximum": 20.0,
+            "minimum": 0.0,
+            "title": "Interior Bleed Mm",
+            "default": 0
+          },
+          "cover_bleed_mm": {
+            "type": "number",
+            "maximum": 20.0,
+            "minimum": 0.0,
+            "title": "Cover Bleed Mm",
+            "default": 0
           },
           "media_resolution_warning_preset": {
             "type": "string",

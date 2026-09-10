@@ -12,6 +12,7 @@ const props = defineProps<{ albumId: string; chapters?: AlbumChapter[] }>();
 
 const {
   pdf,
+  separate,
   qualitySummary,
   showChapterDialog,
   showQualityDialog,
@@ -54,6 +55,17 @@ const {
     :confirm-disabled="selectedCount === 0"
     @confirm="confirmChapterExport"
   >
+    <q-option-group
+      v-model="separate"
+      :options="[
+        { label: t('print.combined'), value: false },
+        { label: t('print.separate'), value: true },
+      ]"
+      class="q-mb-md"
+    />
+    <p class="export-hint">
+      {{ t(separate ? "print.separateHint" : "print.combinedHint") }}
+    </p>
     <div class="chapter-export-selector">
       <q-checkbox
         v-model="allChaptersSelected"
@@ -80,6 +92,11 @@ const {
 </template>
 
 <style lang="scss" scoped>
+.export-hint {
+  text-align: start;
+  font-size: var(--type-sm);
+}
+
 .chapter-export-selector {
   text-align: start;
   min-width: min(24rem, calc(100vw - 6rem));
@@ -106,5 +123,4 @@ const {
     font-size: var(--type-sm);
   }
 }
-
 </style>

@@ -1,4 +1,5 @@
 import { ref } from "vue";
+import { interiorBleedMm } from "@/composables/usePrintSettings";
 import { MM_PX } from "@/utils/pageSize";
 
 /**
@@ -8,9 +9,9 @@ import { MM_PX } from "@/utils/pageSize";
  */
 export const safeMarginMm = ref(0);
 
-/** Current safe margin in CSS pixels (for map fitBounds padding). */
-export function safeMarginPx(): number {
-  return Math.round(safeMarginMm.value * MM_PX);
+/** Map padding starts at the bleed edge, outside the finished page. */
+export function mapSafeInsetPx(): number {
+  return Math.round((safeMarginMm.value + interiorBleedMm.value) * MM_PX);
 }
 
 export function setSafeMargin(mm: number) {

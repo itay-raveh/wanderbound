@@ -1,4 +1,5 @@
 <script lang="ts" setup>
+import { useStyleTag } from "@vueuse/core";
 import AlbumViewer from "@/components/AlbumViewer.vue";
 import { usePrintBundleQuery } from "@/queries/queries";
 import { useUserQuery } from "@/queries/useUserQuery";
@@ -17,6 +18,11 @@ import type { SegmentOutline } from "@/client";
 const route = useRoute();
 const aid = computed(() => (route.params.aid as string) || null);
 const darkMode = computed(() => route.query.dark === "true");
+const printPart = computed(() =>
+  route.query.part === "cover" || route.query.part === "content"
+    ? route.query.part
+    : "combined",
+);
 const chapterId = computed(() => {
   const value = route.query.chapter;
   return typeof value === "string" && value ? value : null;
@@ -37,6 +43,22 @@ const printMapsCaptured = ref(false);
 providePrintMediaReady(printMediaReady);
 
 const album = computed(() => bundle.value?.album);
+useStyleTag(
+  computed(() => {
+    const interior = album.value?.interior_bleed_mm ?? 0;
+    const cover = album.value?.cover_bleed_mm ?? 0;
+    const spine = album.value?.chapters?.[0]?.spine_width_mm ?? 0;
+    const coverWidth = printPart.value === "cover" ? 594 + spine : 297;
+    const width =
+      printPart.value === "cover" ? coverWidth + 2 * cover : 297 + 2 * interior;
+    const height = 210 + 2 * (printPart.value === "cover" ? cover : interior);
+    // Matching the body page prevents Chromium from appending an unnamed blank sheet.
+    return `body { page: ${printPart.value === "cover" ? "cover" : "interior"}; }
+    @page { size: ${width}mm ${height}mm; margin: 0; }
+    @page interior { size: ${297 + 2 * interior}mm ${210 + 2 * interior}mm; margin: 0; }
+    @page cover { size: ${coverWidth + 2 * cover}mm ${210 + 2 * cover}mm; margin: 0; }`;
+  }),
+);
 const media = computed(() => bundle.value?.album.media ?? []);
 const steps = computed(() => bundle.value?.steps ?? []);
 const segmentOutlines = computed<SegmentOutline[]>(() => {
@@ -231,6 +253,7 @@ onUnmounted(() => clearTimeout(pollTimer));
       :media="media"
       :steps="steps"
       :segment-outlines="segmentOutlines"
+      :print-part="printPart"
       print-mode
     />
     <div v-else class="status-message flex flex-center text-muted">
@@ -260,9 +283,9 @@ body,
   height: 100vh;
   font-size: 1.5rem;
 }
-
-@page {
-  size: A4 landscape;
-  margin: 0;
+@media print {
+  .q-layout:has(.print-view) {
+    min-height: 0 !important;
+  }
 }
 </style>

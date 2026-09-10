@@ -18,10 +18,11 @@ import { ref, watch, type Ref } from "vue";
 
 type PdfEvent = PdfQueued | PdfProgressEvent | PdfDone | PdfError | PdfBusy;
 
-export type PdfExportTarget =
+export type PdfExportTarget = (
   | { type: "album" }
   | { type: "chapter"; id: string }
-  | { type: "chapters"; ids: string[] };
+  | { type: "chapters"; ids: string[] }
+) & { separate?: boolean };
 
 interface PdfProgress {
   phase: "queued" | "loading" | "rendering" | "done";
@@ -50,7 +51,11 @@ async function openPdfStream(
     current.type === "chapters"
       ? await generateChaptersPdf({
           ...common,
-          query: { dark: Dark.isActive, chapters: current.ids },
+          query: {
+            dark: Dark.isActive,
+            chapters: current.ids,
+            separate: current.separate,
+          },
         })
       : await generatePdf({
           ...common,
@@ -62,7 +67,10 @@ async function openPdfStream(
   return stream as AsyncIterable<PdfEvent>;
 }
 
-function progressMessage(event: PdfProgressEvent, total: number | null): string {
+function progressMessage(
+  event: PdfProgressEvent,
+  total: number | null,
+): string {
   if (event.phase === "loading") {
     return total != null
       ? t("pdf.loadingProgress", { done: event.done, total })

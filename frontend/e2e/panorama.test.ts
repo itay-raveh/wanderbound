@@ -126,7 +126,7 @@ test("frames a panorama globally and prints a two-page spread", async ({
     imageBox!.x + imageBox!.width / 2,
   );
   await treat.click();
-  const dialog = page.locator(".panorama-dialog");
+  const dialog = page.locator(".preview-dialog");
   await expect(dialog).toBeVisible();
   await expect
     .poll(() =>
@@ -135,10 +135,13 @@ test("frames a panorama globally and prints a two-page spread", async ({
       ),
     )
     .toBe(true);
-  const preview = dialog.locator(".panorama-viewport");
+  const preview = dialog.locator(".preview-viewport");
   await expect(preview).toBeVisible();
   await expect(dialog.getByRole("alert")).toHaveCount(0);
-  await expect(dialog.locator('input[name="zoom"]')).toHaveAttribute("max", "3");
+  await expect(dialog.locator('input[name="zoom"]')).toHaveAttribute(
+    "max",
+    "3",
+  );
 
   await dialog.locator('input[name="perspective"]').fill("55");
   await dialog.locator('input[name="zoom"]').fill("1.837");
@@ -191,18 +194,21 @@ test("frames a panorama globally and prints a two-page spread", async ({
   await expect(page.locator(".panorama-page")).toHaveCount(2);
 
   await page.goto("/print/aid-1", { waitUntil: "domcontentloaded" });
+  await expect
+    .poll(
+      () =>
+        page.evaluate(
+          () =>
+            (window as unknown as Record<string, boolean>).__PRINT_READY__ ===
+            true,
+        ),
+      { timeout: 30_000 },
+    )
+    .toBe(true);
+
   await expect(page.locator(".panorama-page")).toHaveCount(2);
   await expect(page.locator(".alignment-item")).toHaveCount(0);
   await expect(page.locator(".panorama-frame-action")).toHaveCount(0);
-  await expect
-    .poll(() =>
-      page.evaluate(
-        () =>
-          (window as unknown as Record<string, boolean>).__PRINT_READY__ ===
-          true,
-      ),
-    )
-    .toBe(true);
 
   await openEditor(page);
   await page.locator(".panorama-disable-action").first().click();

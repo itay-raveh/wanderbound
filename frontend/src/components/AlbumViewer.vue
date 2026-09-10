@@ -1,4 +1,12 @@
 <script lang="ts" setup>
+import {
+  interiorBleedMm,
+  previewCoverChapterId,
+} from "@/composables/usePrintSettings";
+import { useElementSize } from "@vueuse/core";
+import PreviewDialog from "@/components/ui/PreviewDialog.vue";
+import PrintSettings from "@/components/editor/PrintSettings.vue";
+import { useActiveSection } from "@/composables/useActiveSection";
 import AlbumPage from "@/components/album/AlbumPage.vue";
 import type {
   AlbumMedia,
@@ -7,6 +15,7 @@ import type {
   StepRead as Step,
 } from "@/client";
 import StepEntry from "./album/StepEntry.vue";
+import WraparoundCover from "./album/WraparoundCover.vue";
 import CoverPage from "./album/CoverPage.vue";
 import AlignmentPage from "./album/AlignmentPage.vue";
 import PanoramaSpreadPage from "./album/PanoramaSpreadPage.vue";
@@ -42,6 +51,9 @@ import {
   provide,
   ref,
   watchEffect,
+  useTemplateRef,
+  watch,
+  nextTick,
 } from "vue";
 import { useI18n } from "vue-i18n";
 
@@ -75,6 +87,7 @@ const props = defineProps<{
   steps: Step[];
   segmentOutlines: SegmentOutline[];
   printMode?: boolean;
+  printPart?: "combined" | "cover" | "content";
 }>();
 
 const albumId = computed(() => props.album.id);
@@ -97,7 +110,10 @@ provide(PANORAMA_FRAME_KEY, (request) => {
 });
 
 const safeMarginMm = computed(() => props.album.safe_margin_mm ?? 0);
-watchEffect(() => setSafeMargin(safeMarginMm.value));
+watchEffect(() => {
+  setSafeMargin(safeMarginMm.value);
+  interiorBleedMm.value = props.album.interior_bleed_mm ?? 0;
+});
 
 const albumStyle = computed(() => {
   const sm = safeMarginMm.value;
@@ -105,6 +121,8 @@ const albumStyle = computed(() => {
     "--font-album": fontStack(props.album.font ?? DEFAULT_FONT),
     "--font-album-body": fontStack(props.album.body_font ?? DEFAULT_BODY_FONT),
     "--safe-margin": `${sm}mm`,
+    "--interior-bleed": `${props.album.interior_bleed_mm ?? 0}mm`,
+    "--cover-bleed": `${props.album.cover_bleed_mm ?? 0}mm`,
     ...(sm > 0
       ? {
           "--page-inset-x": `max(3rem, ${sm}mm)`,
@@ -143,7 +161,11 @@ const { mediaByName } = provideAlbum({
 });
 
 const activeHeaders = computed(() =>
-  visibleHeaderKeys(props.album.hidden_headers ?? []),
+  visibleHeaderKeys(props.album.hidden_headers ?? []).filter(
+    (key) =>
+      props.printPart !== "content" ||
+      (key !== "cover-front" && key !== "cover-back"),
+  ),
 );
 
 const chapterRenderGroups = computed<ChapterRenderGroup[]>(() =>
@@ -174,7 +196,17 @@ if (!props.printMode) {
 }
 
 const pageH = computed(
-  () => Math.round(PAGE_HEIGHT_MM * MM_PX * editorZoom.value) + 12,
+  () =>
+    Math.round(
+      (PAGE_HEIGHT_MM +
+        2 *
+          Math.max(
+            props.album.interior_bleed_mm ?? 0,
+            props.album.cover_bleed_mm ?? 0,
+          )) *
+        MM_PX *
+        editorZoom.value,
+    ) + 12,
 );
 const editorItems = computed(() =>
   buildEditorItems(chapterRenderGroups.value, mediaByName.value),
@@ -182,7 +214,41 @@ const editorItems = computed(() =>
 const physicalRenderItems = computed(() =>
   buildPhysicalRenderItems(editorItems.value),
 );
-const expectedPageCount = computed(() => physicalRenderItems.value.length);
+const coverPreviewElement = useTemplateRef("cover-preview");
+const { activeStepId, activeSectionKey, scrollTo, scrollToSection, setActive } =
+  useActiveSection();
+let coverPreviewOrigin: number | string | null = null;
+watch(previewCoverChapterId, (id, previousId) => {
+  if (id) {
+    coverPreviewOrigin = activeStepId.value ?? activeSectionKey.value;
+  } else if (previousId && coverPreviewOrigin != null) {
+    const origin = coverPreviewOrigin;
+    void nextTick(() => {
+      if (typeof origin === "number") scrollTo(origin);
+      else if (!scrollToSection(origin)) return;
+      setActive(origin);
+    });
+  }
+});
+const { width: coverPreviewWidth } = useElementSize(coverPreviewElement);
+const coverGroups = computed(() =>
+  chapterRenderGroups.value.filter(
+    (group) =>
+      props.printMode || group.chapter.id === previewCoverChapterId.value,
+  ),
+);
+watch(
+  albumId,
+  () => {
+    previewCoverChapterId.value = null;
+  },
+  { immediate: true },
+);
+const expectedPageCount = computed(() =>
+  props.printPart === "cover"
+    ? coverGroups.value.length
+    : physicalRenderItems.value.length,
+);
 
 function onWheel(e: WheelEvent) {
   if (!e.ctrlKey && !e.metaKey) return;
@@ -206,7 +272,6 @@ const {
   visibleStepIndex,
   printMode: Boolean(props.printMode),
 });
-
 </script>
 
 <template>
@@ -217,7 +282,19 @@ const {
     :data-expected-pages="expectedPageCount"
     :style="albumStyle"
   >
-    <template v-for="item in physicalRenderItems" :key="item.key">
+    <template v-if="printPart === 'cover'">
+      <WraparoundCover
+        v-for="group in coverGroups"
+        :key="group.chapter.id"
+        :album="album"
+        :chapter="group.chapter"
+        :steps="group.steps"
+      />
+    </template>
+    <template
+      v-for="item in printPart === 'cover' ? [] : physicalRenderItems"
+      :key="item.key"
+    >
       <CoverPage
         v-if="item.type === 'header' && item.headerKey === 'cover-front'"
         :album="album"
@@ -279,7 +356,7 @@ const {
   <!-- Editor mode: virtual scrolling - only visible sections are in the DOM -->
   <div
     v-else-if="visibleSteps.length"
-    :class="['album-container', { 'has-safe-margin': safeMarginMm > 0 }]"
+    class="album-container"
     :data-expected-pages="expectedPageCount"
     :style="[{ '--editor-zoom': String(editorZoom) }, albumStyle]"
     @wheel="onWheel"
@@ -312,69 +389,80 @@ const {
               v-for="item in [editorItems[vItem.index]!]"
               :key="item.key"
             >
-            <CoverPage
-              v-if="item.type === 'header' && item.headerKey === 'cover-front'"
-              :album="album"
-              :chapter="item.chapter"
-              :steps="item.steps"
-            />
-            <CoverPage
-              v-else-if="item.type === 'header' && item.headerKey === 'cover-back'"
-              :album="album"
-              :chapter="item.chapter"
-              :steps="item.steps"
-              is-back
-            />
-            <OverviewPage
-              v-else-if="item.type === 'header' && item.headerKey === 'overview'"
-              :album="album"
-              :segments="item.segments"
-              :steps="item.steps"
-            />
-            <div
-              v-else-if="item.type === 'header' && item.headerKey === 'full-map'"
-              class="map-wrapper"
-            >
-              <MapPage :segment-outlines="item.segments" :steps="item.steps" />
-            </div>
-            <div v-else-if="item.type === 'map'" class="map-wrapper">
-              <MapPage
-                :segment-outlines="item.section.segments"
-                :steps="item.section.steps"
-              />
-            </div>
-            <div v-else-if="item.type === 'hike'" class="map-wrapper">
-              <HikeMapPage
-                :segments="item.section.segments"
-                :steps="item.section.steps"
-                :hike-segment="item.section.hikeSegment"
-                :all-segments="segmentOutlines"
-              />
-            </div>
-            <StepEntry
-              v-else-if="item.type === 'step-page' || item.type === 'grid'"
-              :step="item.step"
-              :page-index="item.pageIndex"
-            />
-            <AlignmentPage v-else-if="item.type === 'alignment'" />
-            <div
-              v-else-if="item.type === 'panorama-spread'"
-              class="panorama-spread row no-wrap"
-            >
-              <PanoramaSpreadPage
-                :media="item.media"
-                side="left"
-                @make-full-page="
-                  makeFullPage(item.step, item.originalPageIndex, $event)
+              <CoverPage
+                v-if="
+                  item.type === 'header' && item.headerKey === 'cover-front'
                 "
+                :album="album"
+                :chapter="item.chapter"
+                :steps="item.steps"
               />
-              <PanoramaSpreadPage :media="item.media" side="right" />
-            </div>
-            <StepEntry
-              v-else-if="item.type === 'step-add-zone'"
-              :step="item.step"
-              add-zone-only
-            />
+              <CoverPage
+                v-else-if="
+                  item.type === 'header' && item.headerKey === 'cover-back'
+                "
+                :album="album"
+                :chapter="item.chapter"
+                :steps="item.steps"
+                is-back
+              />
+              <OverviewPage
+                v-else-if="
+                  item.type === 'header' && item.headerKey === 'overview'
+                "
+                :album="album"
+                :segments="item.segments"
+                :steps="item.steps"
+              />
+              <div
+                v-else-if="
+                  item.type === 'header' && item.headerKey === 'full-map'
+                "
+                class="map-wrapper"
+              >
+                <MapPage
+                  :segment-outlines="item.segments"
+                  :steps="item.steps"
+                />
+              </div>
+              <div v-else-if="item.type === 'map'" class="map-wrapper">
+                <MapPage
+                  :segment-outlines="item.section.segments"
+                  :steps="item.section.steps"
+                />
+              </div>
+              <div v-else-if="item.type === 'hike'" class="map-wrapper">
+                <HikeMapPage
+                  :segments="item.section.segments"
+                  :steps="item.section.steps"
+                  :hike-segment="item.section.hikeSegment"
+                  :all-segments="segmentOutlines"
+                />
+              </div>
+              <StepEntry
+                v-else-if="item.type === 'step-page' || item.type === 'grid'"
+                :step="item.step"
+                :page-index="item.pageIndex"
+              />
+              <AlignmentPage v-else-if="item.type === 'alignment'" />
+              <div
+                v-else-if="item.type === 'panorama-spread'"
+                class="panorama-spread row no-wrap"
+              >
+                <PanoramaSpreadPage
+                  :media="item.media"
+                  side="left"
+                  @make-full-page="
+                    makeFullPage(item.step, item.originalPageIndex, $event)
+                  "
+                />
+                <PanoramaSpreadPage :media="item.media" side="right" />
+              </div>
+              <StepEntry
+                v-else-if="item.type === 'step-add-zone'"
+                :step="item.step"
+                add-zone-only
+              />
             </template>
           </template>
         </div>
@@ -384,10 +472,59 @@ const {
 
   <div v-else class="fit relative-position">
     <q-inner-loading
-      :label="t('album.loading', { name: album.chapters?.[0]?.title || album.id })"
+      :label="
+        t('album.loading', { name: album.chapters?.[0]?.title || album.id })
+      "
       showing
     />
   </div>
+
+  <PreviewDialog
+    v-if="!printMode && coverGroups.length && previewCoverChapterId"
+    :model-value="true"
+    :title="t('print.previewCover')"
+    controls-below
+    :preview-label="t('print.previewCover')"
+    :aspect-ratio="
+      (594 +
+        (coverGroups[0]!.chapter.spine_width_mm ?? 0) +
+        2 * (album.cover_bleed_mm ?? 0)) /
+      (210 + 2 * (album.cover_bleed_mm ?? 0))
+    "
+    @update:model-value="previewCoverChapterId = null"
+  >
+    <div
+      ref="cover-preview"
+      class="album-container cover-preview"
+      :style="albumStyle"
+    >
+      <div
+        v-for="group in coverGroups"
+        :key="group.chapter.id"
+        :style="{
+          '--editor-zoom':
+            coverPreviewWidth /
+            ((594 +
+              (group.chapter.spine_width_mm ?? 0) +
+              2 * (album.cover_bleed_mm ?? 0)) *
+              MM_PX),
+        }"
+      >
+        <WraparoundCover
+          :album="album"
+          :chapter="group.chapter"
+          :steps="group.steps"
+        />
+      </div>
+    </div>
+    <template #controls>
+      <PrintSettings
+        :album="album"
+        :chapter="coverGroups[0]!.chapter"
+        cover-only
+      />
+    </template>
+  </PreviewDialog>
 
   <PanoramaFrameDialog
     v-if="panoramaFrame && panoramaFrameMedia"

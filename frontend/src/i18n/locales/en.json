@@ -449,5 +449,18 @@
       "body": "You can reconnect any time to upgrade more files.",
       "confirm": "Disconnect"
     }
+  },
+  "print": {
+    "title": "Print",
+    "interiorBleed": "Interior bleed",
+    "coverBleed": "Cover bleed",
+    "spineWidth": "Spine width",
+    "previewCover": "Preview wraparound cover",
+    "combined": "Combined cover and content",
+    "separate": "Separate cover and content",
+    "combinedHint": "One PDF per selected chapter. Multiple chapters download as a ZIP.",
+    "separateHint": "A ZIP with cover.pdf and content.pdf for each selected chapter.",
+    "dimensionRange": "Enter a number from 0 to {max}.",
+    "wholeDimensionRange": "Enter a whole number from 0 to {max}."
   }
 }

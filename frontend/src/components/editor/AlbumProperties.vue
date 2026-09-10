@@ -7,7 +7,6 @@ import {
   DEFAULT_FONT,
   fontStack,
 } from "@/utils/fonts";
-import { symOutlinedCropFree } from "@quasar/extras/material-symbols-outlined";
 import { useI18n } from "vue-i18n";
 import { computed } from "vue";
 
@@ -24,7 +23,6 @@ const currentFont = computed(() => props.album.font ?? DEFAULT_FONT);
 const currentBodyFont = computed(
   () => props.album.body_font ?? DEFAULT_BODY_FONT,
 );
-const safeMargin = computed(() => props.album.safe_margin_mm ?? 0);
 
 function updateFont(font: string) {
   albumMutation.mutate({ font });
@@ -32,10 +30,6 @@ function updateFont(font: string) {
 
 function updateBodyFont(font: string) {
   albumMutation.mutate({ body_font: font });
-}
-
-function updateSafeMargin(mm: number) {
-  albumMutation.mutate({ safe_margin_mm: mm });
 }
 </script>
 
@@ -83,28 +77,6 @@ function updateSafeMargin(mm: number) {
         </q-item>
       </template>
     </q-select>
-    <div class="margin-group">
-      <div class="margin-header row no-wrap items-center">
-        <q-icon
-          :name="symOutlinedCropFree"
-          size="var(--type-sm)"
-          class="text-muted"
-        />
-        <span class="margin-title text-muted">{{
-          t("editor.safeMargin")
-        }}</span>
-        <span class="margin-label text-muted">{{ safeMargin }}mm</span>
-      </div>
-      <q-slider
-        :model-value="safeMargin"
-        :min="0"
-        :max="15"
-        :step="1"
-        snap
-        :aria-label="t('editor.safeMargin')"
-        @change="updateSafeMargin"
-      />
-    </div>
   </div>
 </template>
 
@@ -131,26 +103,6 @@ function updateSafeMargin(mm: number) {
   &:focus-within {
     border-color: var(--q-primary);
   }
-}
-
-.margin-group {
-  padding-inline: var(--gap-xs);
-}
-
-.margin-header {
-  gap: var(--gap-sm);
-  margin-bottom: var(--gap-xs);
-}
-
-.margin-title {
-  font-size: var(--type-xs);
-  flex: 1;
-}
-
-.margin-label {
-  font-size: var(--type-xs);
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
 }
 
 @media (prefers-reduced-motion: reduce) {
