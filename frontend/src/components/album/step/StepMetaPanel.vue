@@ -1,6 +1,6 @@
 <script lang="ts" setup>
 import type { StepRead as Step } from "@/client";
-import type { JustifiedLine } from "@/composables/useTextLayout";
+import type { TextPage } from "@/composables/useTextLayout";
 import { useUserQuery } from "@/queries/useUserQuery";
 import EditableText from "../EditableText.vue";
 import {
@@ -18,7 +18,7 @@ import { useAlbum } from "@/composables/useAlbum";
 
 const props = defineProps<{
   step: Step;
-  sidebarLines?: JustifiedLine[];
+  sidebarText?: TextPage;
 }>();
 
 const emit = defineEmits<{
@@ -130,9 +130,8 @@ const dateStr = computed(() => {
       :model-value="step.description ?? ''"
       multiline
       :placeholder="t('album.descriptionPlaceholder')"
-      dir="auto"
       class="description"
-      :lines="sidebarLines"
+      :page="sidebarText"
       @update:model-value="emit('update:description', $event)"
     />
 
@@ -281,9 +280,9 @@ const dateStr = computed(() => {
   font-size: var(--type-xs);
   line-height: 1.65;
   white-space: pre-wrap;
-  overflow-wrap: anywhere;
-  text-align: justify;
-  hyphens: auto;
+  overflow-wrap: break-word;
+  text-align: start;
+  hyphens: none;
   overflow: hidden;
   min-width: 0;
   flex: 1;

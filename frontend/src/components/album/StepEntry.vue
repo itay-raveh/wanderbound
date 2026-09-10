@@ -48,7 +48,7 @@ const selectedDescriptionPage = computed(() => {
   if (props.pageIndex == null) return null;
   const index = props.pageIndex - 1;
   return index >= 0 && index < continuationPages.value.length
-    ? { lines: continuationPages.value[index], index }
+    ? { page: continuationPages.value[index], index }
     : null;
 });
 
@@ -92,7 +92,7 @@ const hasPhotoDropZone = computed(
       >
         <StepMainPage
           :step="step"
-          :sidebar-lines="stepPagePlan.sidebarLines"
+          :sidebar-text="stepPagePlan.sidebarText"
           @update:name="saveField({ name: $event })"
           @update:description="saveField({ description: $event })"
         />
@@ -106,16 +106,16 @@ const hasPhotoDropZone = computed(
 
       <StepDescriptionPage
         v-if="selectedDescriptionPage"
-        :lines="selectedDescriptionPage.lines"
+        :page="selectedDescriptionPage.page"
         :description="step.description ?? ''"
         :photo="continuationPhotos[selectedDescriptionPage.index] ?? null"
         @update:description="saveField({ description: $event })"
       />
       <StepDescriptionPage
         v-else-if="pageIndex == null"
-        v-for="(pageLines, i) in continuationPages"
+        v-for="(textPage, i) in continuationPages"
         :key="`desc-${i}`"
-        :lines="pageLines"
+        :page="textPage"
         :description="step.description ?? ''"
         :photo="continuationPhotos[i] ?? null"
         @update:description="saveField({ description: $event })"

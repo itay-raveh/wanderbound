@@ -1,7 +1,7 @@
 <script lang="ts" setup>
 import AlbumPage from "@/components/album/AlbumPage.vue";
 import type { StepRead as Step } from "@/client";
-import type { JustifiedLine } from "@/composables/useTextLayout";
+import type { TextPage } from "@/composables/useTextLayout";
 import { useAlbum } from "@/composables/useAlbum";
 import { mediaQuality, PHOTO_PANEL_FRACTION } from "@/utils/photoQuality";
 import MediaItem from "../MediaItem.vue";
@@ -12,7 +12,7 @@ const { mediaByName, mediaResolutionWarningPreset } = useAlbum();
 
 const props = defineProps<{
   step: Step;
-  sidebarLines?: JustifiedLine[];
+  sidebarText?: TextPage;
 }>();
 
 const emit = defineEmits<{
@@ -37,7 +37,7 @@ const coverQuality = computed(() =>
   <AlbumPage class="step-main">
     <StepMetaPanel
       :step="step"
-      :sidebar-lines="sidebarLines"
+      :sidebar-text="sidebarText"
       class="meta-side"
       @update:name="emit('update:name', $event)"
       @update:description="emit('update:description', $event)"
@@ -65,6 +65,7 @@ const coverQuality = computed(() =>
 }
 
 .meta-side {
+  min-width: 0;
   flex: 0 0 var(--meta-width);
 }
 
