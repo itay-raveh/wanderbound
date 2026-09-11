@@ -114,6 +114,9 @@ exported artwork.
 
 The toolbar export dialog owns chapter selection and combined or separate output.
 
+Properties groups album fonts and country accent colors. Each country row opens
+Quasar's color picker, and its color applies throughout the album.
+
 ## 6. Do's and Don'ts
 
 - Do make the album, photograph, or map the dominant object.

@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import UTC, date, datetime
 from typing import Literal
 
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 from sqlalchemy import DateTime, String
 from sqlmodel import Column, Field, SQLModel
 
@@ -38,6 +38,9 @@ class AlbumChapter(SQLModel):
 class AlbumBase(SQLModel):
     """User-editable settings."""
 
+    colors: dict[CountryCode, HexColor] = Field(
+        sa_column=Column(PydanticJSON(dict[CountryCode, HexColor]), nullable=False)
+    )
     hidden_steps: list[int] = Field(
         sa_column=Column(PydanticJSON(list[int]), nullable=False),
         default_factory=list,
@@ -78,7 +81,12 @@ class AlbumBase(SQLModel):
 
 @all_optional
 class AlbumUpdate(AlbumBase):
-    pass
+    @field_validator("colors")
+    @classmethod
+    def colors_not_null(cls, value: dict[str, str] | None) -> dict[str, str]:
+        if value is None:
+            raise ValueError("Colors must be an object")
+        return value
 
 
 class AlbumMeta(AlbumBase):
@@ -86,9 +94,6 @@ class AlbumMeta(AlbumBase):
 
     uid: int = Field(primary_key=True, foreign_key="user.id", ondelete="CASCADE")
     id: str = Field(primary_key=True)
-    colors: dict[CountryCode, HexColor] = Field(
-        sa_column=Column(PydanticJSON(dict[CountryCode, HexColor]), nullable=False)
-    )
 
 
 class Album(AlbumMeta, table=True):

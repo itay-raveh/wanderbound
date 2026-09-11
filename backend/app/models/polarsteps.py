@@ -14,8 +14,10 @@ from pydantic import (
 
 NullableStr = Annotated[str, BeforeValidator(lambda v: v or "")]
 
-CountryCode = Annotated[str, StringConstraints(to_lower=True, pattern="[a-zA-Z]{2}|00")]
-HexColor = Annotated[str, StringConstraints(to_lower=True, pattern="#[0-9a-fA-F]{6}")]
+CountryCode = Annotated[
+    str, StringConstraints(to_lower=True, pattern="^([a-zA-Z]{2}|00)$")
+]
+HexColor = Annotated[str, StringConstraints(to_lower=True, pattern="^#[0-9a-fA-F]{6}$")]
 
 
 class HasLatLon(Protocol):
