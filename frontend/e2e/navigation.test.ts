@@ -46,6 +46,35 @@ test.describe("Editor", () => {
 });
 
 test.describe("responsive editor rails", () => {
+  test("keeps the scrolled album visible while an overlay rail is open", async ({
+    focusPage: page,
+  }) => {
+    await page.setViewportSize({ width: 1024, height: 768 });
+    await page.goto("/editor");
+    await page.locator('[data-nav-step="103"]').click();
+    const step = page
+      .locator(".album-container .step-main")
+      .filter({ hasText: "Santiago" });
+    await expect(step).toBeInViewport();
+    await expect
+      .poll(() => page.evaluate(() => window.scrollY))
+      .toBeGreaterThan(2000);
+    const position = page.locator(".page-position");
+    const label = await position.innerText();
+
+    await page.getByRole("button", { name: "Show inspector" }).click();
+    await expect(page.locator("body")).toHaveClass(/q-body--prevent-scroll/);
+    await expect(step).toBeInViewport();
+    await expect(position).toHaveText(label);
+
+    await page.getByRole("button", { name: "Hide inspector" }).click();
+    await expect(page.locator("body")).not.toHaveClass(
+      /q-body--prevent-scroll/,
+    );
+    await expect(step).toBeInViewport();
+    await expect(position).toHaveText(label);
+  });
+
   test("opens both rails on a wide desktop and toggles them independently", async ({
     authedPage: page,
   }) => {
@@ -98,6 +127,9 @@ test.describe("responsive editor rails", () => {
     await page.setViewportSize({ width: 1024, height: 768 });
     await page.goto("/editor");
     await expect(page.locator("html")).toHaveAttribute("dir", "rtl");
+    await page
+      .locator('#editor-navigation button[aria-controls="editor-navigation"]')
+      .click();
 
     const navigationBox = await page
       .locator('.editor-rail-control--edge[aria-controls="editor-navigation"]')

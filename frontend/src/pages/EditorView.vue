@@ -36,7 +36,7 @@ useMeta({ title: "Editor" });
 import { LAST_ALBUM_KEY } from "@/utils/storage-keys";
 import { indexSteps } from "@/utils/steps";
 const DRAWER_WIDTH = 280;
-const NAVIGATION_BREAKPOINT = 1199;
+const NAVIGATION_BREAKPOINT = 959;
 const INSPECTOR_BREAKPOINT = 1439;
 
 const $q = useQuasar();

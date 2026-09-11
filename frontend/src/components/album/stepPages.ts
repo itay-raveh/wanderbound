@@ -30,6 +30,24 @@ type StepPagePlan = {
   hasPhotoDropZone: boolean;
 };
 
+export function reorderStepPhotoPages(
+  plan: StepPagePlan,
+  from: number,
+  to: number,
+): StepPageLayout[] | null {
+  if (from === to || !plan.photoPages[from] || !plan.photoPages[to])
+    return null;
+  const pages = plan.photoPages.map(({ page }) => page);
+  const [moved] = pages.splice(from, 1);
+  pages.splice(to, 0, moved);
+  // The planner consumes these portraits before rendering the photo pages.
+  // Keep their selection stable when the remaining pages move.
+  if (plan.continuationPhotos.length) {
+    pages.unshift({ kind: "grid", media: plan.continuationPhotos });
+  }
+  return pages;
+}
+
 export function filterCoverFromPages(
   pages: StepPageLayout[],
   cover: string | null | undefined,

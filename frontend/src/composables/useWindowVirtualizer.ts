@@ -72,7 +72,18 @@ export function useWindowVirtualizer(options: MaybeRef<WindowVirtualizerOpts>) {
     return {
       getScrollElement: () => (typeof document !== "undefined" ? window : null),
       observeElementRect: observeWindowRect,
-      observeElementOffset: observeWindowOffset,
+      observeElementOffset: (instance, callback) =>
+        observeWindowOffset(instance, (offset, scrolling) => {
+          // Quasar fixes the body at its saved offset while a modal is open.
+          const body = document.body;
+          const position = instance.options.horizontal ? "left" : "top";
+          callback(
+            body.classList.contains("q-body--prevent-scroll")
+              ? -parseFloat(body.style[position])
+              : offset,
+            scrolling,
+          );
+        }),
       scrollToFn: windowScroll,
       initialOffset: () =>
         typeof document !== "undefined" ? window.scrollY : 0,
@@ -116,5 +127,10 @@ export function useWindowVirtualizer(options: MaybeRef<WindowVirtualizerOpts>) {
     return virtualizer.getTotalSize();
   });
 
-  return { virtualizer, items, size, version };
+  const scrollOffset = computed(() => {
+    void version.value;
+    return virtualizer.scrollOffset ?? 0;
+  });
+
+  return { virtualizer, items, size, version, scrollOffset };
 }
