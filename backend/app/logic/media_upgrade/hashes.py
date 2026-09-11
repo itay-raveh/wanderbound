@@ -2,11 +2,12 @@ from __future__ import annotations
 
 from collections.abc import Iterable
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Annotated
 
 import imagehash
 import structlog
 from joblib import Parallel, delayed
+from pydantic import StringConstraints, TypeAdapter
 
 from app.core.resources import detect_cpu_count
 from app.logic.layout.media import is_video
@@ -19,6 +20,9 @@ if TYPE_CHECKING:
 logger = structlog.get_logger(__name__)
 
 _HASH_WORKERS = min(2, detect_cpu_count())
+_MEDIA_HASH = TypeAdapter(
+    tuple[Annotated[str, StringConstraints(strict=True, pattern=r"^[0-9a-fA-F]{16}$")]]
+)
 
 
 def serialize_media_hash(media_hash: imagehash.ImageHash) -> list[str]:
@@ -26,16 +30,8 @@ def serialize_media_hash(media_hash: imagehash.ImageHash) -> list[str]:
 
 
 def deserialize_media_hash(value: list[str]) -> imagehash.ImageHash:
-    if len(value) != 1:
-        raise ValueError("A photo must have exactly one perceptual hash")
-    if not isinstance(value[0], str) or len(value[0]) != 16:
-        raise ValueError("Perceptual hashes must be 64-bit hexadecimal strings")
-    try:
-        return imagehash.hex_to_hash(value[0])
-    except ValueError as exc:
-        raise ValueError(
-            "Perceptual hashes must be 64-bit hexadecimal strings"
-        ) from exc
+    (hex_hash,) = _MEDIA_HASH.validate_python(value)
+    return imagehash.hex_to_hash(hex_hash)
 
 
 def compute_media_hash(path: Path) -> imagehash.ImageHash:

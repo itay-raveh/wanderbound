@@ -4,6 +4,8 @@ import { useRouter } from "vue-router";
 import { useQueryCache } from "@pinia/colada";
 import { isSupported, notSupportedReason } from "@mapbox/mapbox-gl-supported";
 import type { UploadResult } from "@/client";
+import { zUploadResult } from "@/client/zod.gen";
+import { z } from "zod";
 import { useTripProcessingStream } from "@/composables/useTripProcessingStream";
 import { useUserQuery } from "@/queries/useUserQuery";
 import { useAuthStateQuery } from "@/queries/useAuthStateQuery";
@@ -29,10 +31,12 @@ const cache = useQueryCache();
 const { data: authStateData } = useAuthStateQuery();
 const { user } = useUserQuery();
 const stream = useTripProcessingStream();
-const handoff = (history.state ?? {}) as {
-  uploadResult?: UploadResult;
-  reupload?: boolean;
-};
+const handoff = z
+  .object({
+    uploadResult: zUploadResult.optional().catch(undefined),
+    reupload: z.boolean().catch(false),
+  })
+  .parse(history.state ?? {});
 const justUploaded = ref<UploadResult | null>(handoff.uploadResult ?? null);
 const reuploadRequested = ref(handoff.reupload === true);
 

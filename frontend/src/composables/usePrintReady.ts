@@ -6,6 +6,7 @@ import {
   type InjectionKey,
   type Ref,
 } from "vue";
+import { z } from "zod";
 
 const KEY: InjectionKey<true> = Symbol("print-mode");
 const MAP_PIXEL_RATIO_KEY: InjectionKey<number> = Symbol(
@@ -15,6 +16,12 @@ const MEDIA_READY_KEY: InjectionKey<Readonly<Ref<boolean>>> =
   Symbol("print-media-ready");
 const MEDIA_READY_DEFAULT = readonly(ref(true));
 const DEFAULT_PRINT_TIMEOUT_MS = 900_000;
+const positiveNumber = z.number().positive();
+const printTimeout = positiveNumber.catch(DEFAULT_PRINT_TIMEOUT_MS);
+const printCpuCount = positiveNumber
+  .transform(Math.floor)
+  .optional()
+  .catch(undefined);
 
 type PrintRuntimeWindow = Window & {
   __PRINT_CPU_COUNT__?: unknown;
@@ -22,17 +29,15 @@ type PrintRuntimeWindow = Window & {
 };
 
 export function getPrintTimeoutMs(): number {
-  const value = (window as PrintRuntimeWindow).__PRINT_TIMEOUT_MS__;
-  return typeof value === "number" && Number.isFinite(value) && value > 0
-    ? value
-    : DEFAULT_PRINT_TIMEOUT_MS;
+  return printTimeout.parse(
+    (window as PrintRuntimeWindow).__PRINT_TIMEOUT_MS__,
+  );
 }
 
 export function getPrintCpuCount(): number | undefined {
-  const value = (window as PrintRuntimeWindow).__PRINT_CPU_COUNT__;
-  return typeof value === "number" && Number.isFinite(value) && value > 0
-    ? Math.floor(value)
-    : undefined;
+  return printCpuCount.parse(
+    (window as PrintRuntimeWindow).__PRINT_CPU_COUNT__,
+  );
 }
 
 /** Call in AlbumViewer when printMode is true. */

@@ -1,9 +1,6 @@
+import { zProcessUserResponse } from "@/client/zod.gen";
 import { ref, type Ref } from "vue";
-import {
-  processUser,
-  type ProcessUserResponse,
-  type ProcessingPhase,
-} from "@/client";
+import { processUser, type ProcessingPhase } from "@/client";
 import { t } from "@/i18n";
 
 export type ProcessingState = "idle" | "running" | "done" | "error";
@@ -40,9 +37,6 @@ interface UseTripProcessingStream {
   errorDetail: Ref<string | null>;
 }
 
-/** hey-api types SSE stream items as an array union, but yields individual events. */
-type ProcessingEvent = ProcessUserResponse[number];
-
 function freshPhaseDone(): PhaseDone {
   return Object.fromEntries(
     PHASE_ORDER.map((p) => [p, { done: 0, total: 0 }]),
@@ -77,7 +71,7 @@ export function useTripProcessingStream(): UseTripProcessingStream {
       });
 
       for await (const raw of stream) {
-        const event = raw as unknown as ProcessingEvent;
+        const event = zProcessUserResponse.element.parse(raw);
         switch (event.type) {
           case "trip_start":
             tripIndex.value = event.trip_index;

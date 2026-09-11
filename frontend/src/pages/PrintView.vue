@@ -14,19 +14,23 @@ import { Dark } from "quasar";
 import { computed, onMounted, onUnmounted, ref } from "vue";
 import { useRoute } from "vue-router";
 import type { SegmentOutline } from "@/client";
+import { z } from "zod";
+
+const printQuery = z.object({
+  dark: z
+    .literal("true")
+    .transform(() => true)
+    .catch(false),
+  part: z.enum(["cover", "content", "combined"]).catch("combined"),
+  chapter: z.string().min(1).nullable().catch(null),
+});
 
 const route = useRoute();
 const aid = computed(() => (route.params.aid as string) || null);
-const darkMode = computed(() => route.query.dark === "true");
-const printPart = computed(() =>
-  route.query.part === "cover" || route.query.part === "content"
-    ? route.query.part
-    : "combined",
-);
-const chapterId = computed(() => {
-  const value = route.query.chapter;
-  return typeof value === "string" && value ? value : null;
-});
+const query = computed(() => printQuery.parse(route.query));
+const darkMode = computed(() => query.value.dark);
+const printPart = computed(() => query.value.part);
+const chapterId = computed(() => query.value.chapter);
 
 onMounted(() => Dark.set(darkMode.value));
 

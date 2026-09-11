@@ -1,23 +1,7 @@
 import { t } from "@/i18n";
 
-interface ImportCompleted {
-  type: "import_completed";
-  names: string[];
-}
-
-interface ImportFailed {
-  type: "import_failed";
-  detail: string;
-}
-
-interface ImportInProgress {
-  type: "import_in_progress";
-  phase: string;
-  done: number;
-  total: number;
-}
-
-type ImportEvent = ImportCompleted | ImportFailed | ImportInProgress;
+import type { ImportCompleted, ImportInProgress } from "@/client";
+import { zAddGoogleMediaResponse } from "@/client/zod.gen";
 
 async function* parseSse(stream: ReadableStream<Uint8Array>) {
   const reader = stream.getReader();
@@ -36,7 +20,7 @@ async function* parseSse(stream: ReadableStream<Uint8Array>) {
         .filter((line) => line.startsWith("data:"))
         .map((line) => line.slice(5).trimStart())
         .join("\n");
-      if (data) yield JSON.parse(data) as ImportEvent;
+      if (data) yield zAddGoogleMediaResponse.element.parse(JSON.parse(data));
       split = buffer.indexOf("\n\n");
     }
   }

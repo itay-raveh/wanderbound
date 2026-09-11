@@ -1,10 +1,11 @@
+import { zUploadProgressResponse } from "@/client/zod.gen";
+import { t } from "@/i18n";
 import {
   completeIngestion,
   pendingUpload,
   selectUploadTrips,
   uploadProgress as streamUploadProgress,
   type TripChoice,
-  type UploadProgressResponse,
   type UploadProgressUpdate,
   type UploadResult,
 } from "@/client";
@@ -16,14 +17,8 @@ const PART_SIZE = 64 * 1024 * 1024;
 const COMPLETION_ATTEMPTS = 3;
 const STREAM_CONNECTIONS = 3;
 
-type UploadState =
-  | "idle"
-  | "uploading"
-  | "processing"
-  | "selecting"
-  | "failed";
+type UploadState = "idle" | "uploading" | "processing" | "selecting" | "failed";
 type UploadIngestionPhase = UploadProgressUpdate["phase"];
-type UploadProgressEvent = UploadProgressResponse[number];
 type UploadMeta = { size_bytes?: number };
 type UploadBody = AwsBody;
 
@@ -84,7 +79,7 @@ async function followUploadIngestion(
     });
     for await (const raw of stream) {
       lastStreamError = null;
-      const event = raw as unknown as UploadProgressEvent;
+      const event = zUploadProgressResponse.element.parse(raw);
       if (event.type === "progress") {
         const phaseOrder = INGESTION_PHASE_ORDER[event.phase];
         const lastPhaseOrder = lastProgress
@@ -136,8 +131,19 @@ export function useDirectZipUpload(options: {
 
   const uppy = new Uppy<UploadMeta, UploadBody>({
     autoProceed: true,
+    locale: {
+      pluralize: (count) => (count === 1 ? 0 : 1),
+      strings: {
+        youCanOnlyUploadFileTypes: t("register.badZip"),
+        inferiorSize: t("register.badZip"),
+        exceedsSize: t("register.fileTooLarge", {
+          max: options.maxFileSize / 1024 ** 3,
+        }),
+      },
+    },
     restrictions: {
       allowedFileTypes: [".zip"],
+      minFileSize: 1,
       maxFileSize: options.maxFileSize,
       maxNumberOfFiles: 1,
     },
@@ -223,17 +229,17 @@ export function useDirectZipUpload(options: {
   uppy.on("upload-error", () => fail());
 
   function addFile(selected: File) {
-    file.value = selected;
-    status.value = "uploading";
-    progress.value = 0;
-    processingPhase.value = null;
-    errorCode.value = null;
     uppy.addFile({
       name: selected.name,
       type: selected.type,
       data: selected,
       meta: { size_bytes: selected.size },
     });
+    file.value = selected;
+    status.value = "uploading";
+    progress.value = 0;
+    processingPhase.value = null;
+    errorCode.value = null;
   }
 
   function cancel() {

@@ -51,11 +51,9 @@ test("cover preview preserves the chapter targeted by spine edits", async ({
   await page.getByRole("button", { name: 'Expand "Print"' }).click();
   const spine = page.getByLabel("Spine width", { exact: true });
   await expect(spine).toHaveValue("22");
-  const cover = page
-    .locator(".page-container")
-    .filter({
-      has: page.locator(".front-title", { hasText: "Second chapter" }),
-    });
+  const cover = page.locator(".page-container").filter({
+    has: page.locator(".front-title", { hasText: "Second chapter" }),
+  });
   await cover.locator(".panorama-frame-action").click({ trial: true });
 
   await page
@@ -72,6 +70,16 @@ test("cover preview preserves the chapter targeted by spine edits", async ({
   await expect(dialog).toBeVisible();
   await expect(dialog.locator(".front-title")).toHaveText("Second chapter");
   await expect(dialog.locator(".cover-background img")).toHaveCount(2);
+  await dialog.getByLabel("Spine width", { exact: true }).fill("101");
+  await dialog.getByLabel("Spine width", { exact: true }).press("Tab");
+  expect(album.chapters.map((chapter) => chapter.spine_width_mm)).toEqual([
+    1, 22,
+  ]);
+  await dialog.getByLabel("Spine width", { exact: true }).fill("");
+  await dialog.getByLabel("Spine width", { exact: true }).press("Tab");
+  expect(album.chapters.map((chapter) => chapter.spine_width_mm)).toEqual([
+    1, 22,
+  ]);
   await dialog.getByLabel("Spine width", { exact: true }).fill("24");
   await dialog.getByLabel("Cover bleed", { exact: true }).fill("6");
   await expect

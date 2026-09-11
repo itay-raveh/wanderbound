@@ -82,20 +82,14 @@ function onDrop(event: DragEvent) {
 
 function handleFile(selected: File) {
   if (status.value !== "idle") return;
-  if (!selected.name.toLowerCase().endsWith(".zip") || selected.size === 0) {
-    $q.notify({ type: "negative", message: t("register.badZip") });
-    return;
-  }
-  if (selected.size > settings.MAX_UPLOAD_SIZE_BYTES) {
+  try {
+    addFile(selected);
+  } catch (error) {
     $q.notify({
       type: "negative",
-      message: t("register.fileTooLarge", {
-        max: settings.MAX_UPLOAD_SIZE_BYTES / 1024 ** 3,
-      }),
+      message: error instanceof Error ? error.message : t("register.badZip"),
     });
-    return;
   }
-  addFile(selected);
 }
 </script>
 
@@ -123,7 +117,11 @@ function handleFile(selected: File) {
       :error="selectionError"
       @submit="submitSelection"
     />
-    <div v-else class="uploader full-width" :class="{ 'uploader--dnd': dragging }">
+    <div
+      v-else
+      class="uploader full-width"
+      :class="{ 'uploader--dnd': dragging }"
+    >
       <div
         v-if="file"
         class="uploader-header row no-wrap items-center q-gutter-x-sm"

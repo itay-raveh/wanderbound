@@ -75,11 +75,6 @@ def _generated_name(suffix: Literal[".jpg", ".mp4"]) -> MediaName:
 
 
 async def save_uploads(files: list[UploadFile], temp_dir: Path) -> list[SavedInput]:
-    if not files:
-        raise ValueError("No files selected")
-    if len(files) > MAX_IMPORT_ITEMS:
-        raise OverflowError("Too many files")
-
     saved: list[SavedInput] = []
     total = 0
     for index, file in enumerate(files):

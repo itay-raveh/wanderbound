@@ -23,12 +23,10 @@ _STORAGE_HEADROOM = 0.9
 _DOCKER_SECRETS_DIR = Path("/run/secrets")
 
 
-def parse_cors(v: Any) -> list[str] | str:
+def parse_cors(v: Any) -> Any:
     if isinstance(v, str) and not v.startswith("["):
         return [i.strip() for i in v.split(",") if i.strip()]
-    if isinstance(v, list | str):
-        return v
-    raise ValueError(v)
+    return v
 
 
 def ensure_psycopg_scheme(v: Any) -> Any:
