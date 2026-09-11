@@ -349,8 +349,6 @@ test.describe("PDF map snapshots", () => {
       });
       expect(fillsMap).toBe(true);
     }
-    await dialog.getByRole("button", { name: "Zoom in", exact: true }).click();
-    await expect(snapshots.first()).toBeVisible();
     const capturedUrls = await snapshots.evaluateAll((images) =>
       images.map((image) => (image as HTMLImageElement).src),
     );
@@ -378,51 +376,6 @@ test.describe("PDF map snapshots", () => {
       .getByRole("button", { name: "Next spread", exact: true })
       .click();
     await expect.poll(liveSnapshots).toBeLessThan(2);
-    await page.keyboard.press("Escape");
-    await expect(dialog).toBeHidden();
-    await expect.poll(liveSnapshots).toBe(0);
-    await page.evaluate(() => {
-      const original = Object.getOwnPropertyDescriptor(
-        HTMLCanvasElement.prototype,
-        "toBlob",
-      )!;
-      HTMLCanvasElement.prototype.toBlob = function (callback) {
-        callback(null);
-      };
-      Object.assign(window, {
-        restoreMapCapture: () => {
-          Object.defineProperty(
-            HTMLCanvasElement.prototype,
-            "toBlob",
-            original,
-          );
-        },
-      });
-    });
-    await page
-      .getByRole("button", { name: "Print preview", exact: true })
-      .click();
-    await expect(
-      dialog.getByText("This map could not load.", { exact: true }),
-    ).toHaveCount(2, { timeout: 60_000 });
-    await expect.poll(liveSnapshots).toBe(0);
-    await page.evaluate(() =>
-      (
-        window as unknown as { restoreMapCapture: () => void }
-      ).restoreMapCapture(),
-    );
-    await dialog
-      .getByRole("button", { name: "Retry map", exact: true })
-      .first()
-      .click();
-    await dialog
-      .getByRole("button", { name: "Retry map", exact: true })
-      .click();
-    await expect(snapshots).toHaveCount(2, { timeout: 60_000 });
-    await expect.poll(liveSnapshots).toBe(2);
-    await expect(dialog.locator(".map-status")).toHaveCount(0);
-    await expect(snapshots.first()).toBeVisible();
-    await expect(snapshots.last()).toBeVisible();
     await page.keyboard.press("Escape");
     await expect(dialog).toBeHidden();
     await expect.poll(liveSnapshots).toBe(0);

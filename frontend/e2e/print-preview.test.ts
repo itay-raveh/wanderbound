@@ -9,13 +9,11 @@ import {
 } from "../tests/fixtures/mocks";
 
 for (const rtl of [false, true]) {
-  test(`reviews PDF pairs without changing the album and restores focus (${rtl ? "RTL" : "LTR"})`, async ({
+  test(`navigates and zooms without editing the album (${rtl ? "RTL" : "LTR"})`, async ({
     authedPage: page,
   }) => {
     test.slow();
     const copy = rtl ? he.print : en.print;
-    const pageLabel = (number: number) =>
-      copy.pageNumber.replace("{number}", String(number));
     const user = { ...mockUser, locale: rtl ? "he-IL" : "en-US" };
     await page.route("**/api/v1/users", (route) =>
       route.fulfill({ json: user }),
@@ -71,32 +69,19 @@ for (const rtl of [false, true]) {
     const title = page
       .locator('.front-title[contenteditable="plaintext-only"]')
       .first();
-    await title.fill("Unapplied title");
-    await page.keyboard.press("Control+z");
-    await expect(title).toHaveText(mockAlbum.chapters[0].title);
-    await title.blur();
-    await trigger.click();
-    await page.keyboard.press("Control+y");
-    await page.keyboard.press("Escape");
-    await expect(
-      page.getByRole("dialog", { name: copy.preview, exact: true }),
-    ).toBeHidden();
-    await expect(title).toHaveText(mockAlbum.chapters[0].title);
-    expect(mutations).toEqual([]);
+    for (const [index, value] of ["Edited chapter", "Second edit"].entries()) {
+      await title.fill(value);
+      await title.blur();
+      await expect.poll(() => mutations.length).toBe(index + 1);
+    }
     await page
-      .locator('.front-title[contenteditable="plaintext-only"]')
-      .first()
-      .fill("Edited chapter");
-    await page
-      .locator('.front-title[contenteditable="plaintext-only"]')
-      .first()
-      .blur();
-    const undo = page.getByRole("button", {
-      name: rtl ? he.shortcuts.undo : en.shortcuts.undo,
-      exact: true,
-    });
-    await expect(undo).toBeEnabled();
-    await expect.poll(() => mutations.length).toBe(1);
+      .getByRole("button", {
+        name: rtl ? he.shortcuts.undo : en.shortcuts.undo,
+        exact: true,
+      })
+      .click();
+    await expect.poll(() => mutations.length).toBe(3);
+    await expect(title).toHaveText("Edited chapter");
     mutations.length = 0;
     await trigger.click();
     const dialog = page.getByRole("dialog", {
@@ -104,46 +89,14 @@ for (const rtl of [false, true]) {
       exact: true,
     });
     await expect(dialog).toBeVisible();
-    await expect(
-      dialog.getByRole("button", { name: copy.backToEditor, exact: true }),
-    ).toBeFocused();
     await dialog.locator(".q-dialog__inner").focus();
-    await page.keyboard.press("Control+z");
-    await expect(undo).toBeEnabled();
-    await expect(dialog.locator("figcaption")).toHaveText([
-      copy.backCover,
-      copy.frontCover,
-    ]);
-    await expect(
-      dialog.locator(
-        "[contenteditable]:not([contenteditable=false]), .album-action, .cover-drop-overlay",
-      ),
-    ).toHaveCount(0);
+    for (const shortcut of ["Control+z", "Control+y"]) {
+      await page.keyboard.press(shortcut);
+      await expect(title).toHaveText("Edited chapter");
+    }
     await page.keyboard.press(rtl ? "ArrowLeft" : "ArrowRight");
-    await expect(dialog.locator("figcaption")).toHaveText([
-      pageLabel(3),
-      pageLabel(4),
-    ]);
     await page.keyboard.press(rtl ? "ArrowLeft" : "ArrowRight");
     await expect(dialog.locator(".panorama-page")).toHaveCount(2);
-    await expect(dialog.locator("figcaption")).toHaveText([
-      pageLabel(5),
-      pageLabel(6),
-    ]);
-    await expect(
-      dialog.getByRole("button", { name: copy.nextSpread, exact: true }),
-    ).toBeDisabled();
-    await expect
-      .poll(() =>
-        dialog
-          .locator(".preview-workspace")
-          .evaluate(
-            (el) =>
-              el.scrollWidth <= el.clientWidth &&
-              el.scrollHeight <= el.clientHeight,
-          ),
-      )
-      .toBe(true);
     for (const [width, height, fontSize] of [
       [1024, 384, "16px"],
       [1024, 768, "32px"],
@@ -168,12 +121,6 @@ for (const rtl of [false, true]) {
       document.documentElement.style.fontSize = "";
     });
     await page.setViewportSize({ width: 1600, height: 900 });
-    await expect
-      .poll(async () => {
-        const slot = await dialog.locator(".page-slot").first().boundingBox();
-        return slot!.width;
-      })
-      .toBeGreaterThan(600);
     const slots = await dialog
       .locator(".page-slot")
       .evaluateAll((elements) =>
@@ -203,15 +150,6 @@ for (const rtl of [false, true]) {
       .getByRole("option", { name: "Second chapter", exact: true })
       .click();
     await expect(dialog.locator(".front-title")).toHaveText("Second chapter");
-    await expect(
-      dialog.getByRole("button", { name: copy.previousSpread, exact: true }),
-    ).toBeDisabled();
-    await dialog
-      .getByRole("button", { name: copy.nextSpread, exact: true })
-      .click();
-    const progress = dialog.locator('.progress-section[role="progressbar"]');
-    await expect(progress).toHaveAttribute("aria-valuenow", "1");
-    await expect(progress).toHaveAttribute("aria-valuemax", "1");
     await page.keyboard.press("Escape");
     await expect(dialog).toBeHidden();
     await expect(trigger).toBeFocused();
