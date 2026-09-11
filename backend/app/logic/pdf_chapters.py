@@ -41,6 +41,7 @@ class ChapterPdfRender:
     dest: Path
     session_cookie: str
     dark: bool
+    part: str = "combined"
 
 
 def _has_output(path: Path) -> bool:
@@ -72,6 +73,7 @@ async def _render_chapter_pdf_file(
             session_cookie=render.session_cookie,
             dark=render.dark,
             chapter=render.chapter_id,
+            part=render.part,
         )
     ) as events:
         async for event in events:
@@ -107,6 +109,7 @@ async def render_album_chapters_zip_stream(  # noqa: C901, PLR0913
     *,
     session_cookie: str,
     dark: bool = True,
+    separate: bool = False,
 ) -> AsyncIterator[PdfEvent]:
     logger.info("pdf.chapter_zip_render_queued", album_id=aid)
     yield PdfQueued()
@@ -130,22 +133,29 @@ async def render_album_chapters_zip_stream(  # noqa: C901, PLR0913
                 zip(chapter_ids, member_names, strict=True),
                 start=1,
             ):
-                pdf_dest = pdf_tokens.make_dest(".pdf")
-                pdf_paths.append(pdf_dest)
-                async for event in _render_chapter_pdf_file(
-                    ChapterPdfRender(
-                        browser=browser,
-                        aid=aid,
-                        chapter_id=chapter_id,
-                        dest=pdf_dest,
-                        session_cookie=session_cookie,
-                        dark=dark,
+                for part in ("cover", "content") if separate else ("combined",):
+                    pdf_dest = pdf_tokens.make_dest(".pdf")
+                    pdf_paths.append(pdf_dest)
+                    async for event in _render_chapter_pdf_file(
+                        ChapterPdfRender(
+                            browser=browser,
+                            aid=aid,
+                            chapter_id=chapter_id,
+                            dest=pdf_dest,
+                            session_cookie=session_cookie,
+                            dark=dark,
+                            part=part,
+                        )
+                    ):
+                        yield event
+                        if isinstance(event, PdfError):
+                            return
+                    zf.write(
+                        pdf_dest,
+                        f"{Path(member_name).stem}/{part}.pdf"
+                        if separate
+                        else member_name,
                     )
-                ):
-                    yield event
-                    if isinstance(event, PdfError):
-                        return
-                zf.write(pdf_dest, member_name)
                 yield PdfProgress(
                     phase="rendering",
                     done=index,

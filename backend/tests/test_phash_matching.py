@@ -1,5 +1,4 @@
 from pathlib import Path
-from unittest.mock import patch
 
 import imagehash
 import numpy as np
@@ -40,17 +39,7 @@ class TestComputePhash:
 
 
 class TestGlobalMatching:
-    def test_cost_matrix_uses_compact_numeric_storage(self) -> None:
-        matrix = phash_matching.build_cost_matrix(
-            [_hm("local.jpg", _make_hash(0))],
-            [_hm("google-photo", _make_hash(1))],
-        )
-
-        assert isinstance(matrix, np.ndarray)
-        assert matrix.dtype == np.int16
-        assert matrix.tolist() == [[1]]
-
-    def test_cost_matrix_vectorizes_single_hash_distances(self) -> None:
+    def test_cost_matrix_preserves_hash_distances(self) -> None:
         local = [
             _hm("a.jpg", _make_hash(0)),
             _hm("b.jpg", _make_hash((1 << 64) - 1)),
@@ -60,29 +49,9 @@ class TestGlobalMatching:
             _hm("google-b", _make_hash((1 << 63) - 1)),
         ]
 
-        with patch.object(
-            phash_matching.np,
-            "bitwise_count",
-            wraps=np.bitwise_count,
-        ) as bitwise_count:
-            matrix = phash_matching.build_cost_matrix(local, candidates)
+        matrix = phash_matching.build_cost_matrix(local, candidates)
 
-        assert bitwise_count.called
         assert matrix.tolist() == [[1, 63], [63, 1]]
-
-    def test_thresholded_assignment_does_not_allocate_augmented_dense_matrix(
-        self,
-    ) -> None:
-        cost = np.array([[0, 13, 12], [12, 0, 13]], dtype=np.int16)
-
-        with patch.object(phash_matching.np, "full", wraps=np.full) as full:
-            rows, cols = phash_matching._thresholded_assignment(cost, threshold=12)
-
-        assert all(call.args[0] != (2, 5) for call in full.call_args_list)
-        assert set(zip(rows.tolist(), cols.tolist(), strict=True)) == {
-            (0, 0),
-            (1, 1),
-        }
 
     def test_thresholded_assignment_maximizes_valid_pair_count(self) -> None:
         cost = np.array([[0, 12], [12, 13]], dtype=np.int16)

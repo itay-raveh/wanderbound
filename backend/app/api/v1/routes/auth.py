@@ -7,7 +7,7 @@ import structlog
 from fastapi import APIRouter, HTTPException, Request, status
 from jwt import PyJWKClient
 from pydantic import BaseModel
-from sqlmodel import select
+from sqlmodel import col, select
 
 from app.core.config import get_settings
 from app.models.user import AuthProvider, OAuthIdentity, User, UserPublic
@@ -178,6 +178,46 @@ async def auth_state(request: Request, session: SessionDep) -> AuthState:
             pending_picture=str(pending.picture) if pending.picture else None,
         )
     return AuthState(state="anonymous")
+
+
+class LocalUser(BaseModel):
+    id: int
+    first_name: str
+
+
+@router.get("/local")
+async def list_local_users(session: SessionDep) -> list[LocalUser]:
+    if not get_settings().local_login_enabled:
+        raise HTTPException(status.HTTP_404_NOT_FOUND)
+    users = await session.exec(
+        select(User)
+        .where(
+            col(User.google_sub).is_(None),
+            col(User.microsoft_sub).is_(None),
+            col(User.is_demo).is_(False),
+        )
+        .order_by(col(User.first_name), col(User.id))
+    )
+    return [LocalUser(id=user.id, first_name=user.first_name) for user in users]
+
+
+@router.post("/local/{uid}")
+async def login_local_user(
+    uid: int, request: Request, session: SessionDep
+) -> UserPublic:
+    if not get_settings().local_login_enabled:
+        raise HTTPException(status.HTTP_404_NOT_FOUND)
+    user = await session.get(User, uid)
+    if (
+        user is None
+        or user.is_demo
+        or user.google_sub is not None
+        or user.microsoft_sub is not None
+    ):
+        raise HTTPException(status.HTTP_404_NOT_FOUND)
+    login_session(request, user.id)
+    logger.info("auth.sign_in", user_id=user.id, provider="local")
+    return await to_user_public(user, session)
 
 
 @router.post("/{provider}")

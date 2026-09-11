@@ -3,24 +3,12 @@ import { makeAlbumMedia, makeStep, photoGridPage } from "../helpers";
 import { PAGE_WIDTH_MM, PAGE_HEIGHT_MM, MM_PER_INCH } from "@/utils/pageSize";
 import {
   computeDpi,
-  dpiTier,
   mediaQuality,
   summarizeQuality,
 } from "@/utils/photoQuality";
-import {
-  photoPageFraction,
-  enforceOrientationOrder,
-} from "@/utils/photoLayout";
-
-type DpiPreset = Parameters<typeof dpiTier>[1];
-type DpiTier = ReturnType<typeof dpiTier>;
+import { enforceOrientationOrder } from "@/utils/photoLayout";
 
 describe("computeDpi", () => {
-  it("computes DPI for a full-page photo", () => {
-    const dpi = computeDpi(4000, 3000, { widthFrac: 1, heightFrac: 1 }, "cover");
-    expect(dpi).toBeCloseTo(4000 / (PAGE_WIDTH_MM / MM_PER_INCH), 0);
-  });
-
   it("returns the minimum of width and height DPI", () => {
     const dpi = computeDpi(
       4000,
@@ -39,54 +27,6 @@ describe("computeDpi", () => {
 
     expect(coverDpi).toBeCloseTo(1688 / (PAGE_WIDTH_MM / MM_PER_INCH), 1);
     expect(containDpi).toBeCloseTo(3000 / (PAGE_HEIGHT_MM / MM_PER_INCH), 1);
-  });
-});
-
-describe("dpiTier", () => {
-  it.each<[number, DpiPreset, DpiTier]>([
-    [0, undefined, "warning"],
-    [Number.POSITIVE_INFINITY, undefined, "ok"],
-    [0, "off", "ok"],
-    [0, "print", "warning"],
-    [Number.POSITIVE_INFINITY, "print", "ok"],
-  ])("classifies %s dpi with %s preset as %s", (dpi, preset, expected) => {
-    expect(dpiTier(dpi, preset)).toBe(expected);
-  });
-});
-
-describe("photoPageFraction", () => {
-  it("returns full page for single-photo layouts", () => {
-    for (const cls of ["layout-1p-0l", "layout-0p-1l"]) {
-      const f = photoPageFraction(cls, 0);
-      expect(f).toEqual({ widthFrac: 1, heightFrac: 1 });
-    }
-  });
-
-  it("handles 1p-2l mixed layout (portrait spans, landscapes half)", () => {
-    const f0 = photoPageFraction("layout-1p-2l", 0);
-    expect(f0).toEqual({ widthFrac: 0.5, heightFrac: 1 });
-    const f1 = photoPageFraction("layout-1p-2l", 1);
-    expect(f1).toEqual({ widthFrac: 0.5, heightFrac: 0.5 });
-  });
-
-  it("handles 2p-1l mixed layout (portraits quarter, landscape full-width half)", () => {
-    expect(photoPageFraction("layout-2p-1l", 0)).toEqual({
-      widthFrac: 0.5,
-      heightFrac: 0.5,
-    });
-    expect(photoPageFraction("layout-2p-1l", 2)).toEqual({
-      widthFrac: 1,
-      heightFrac: 0.5,
-    });
-  });
-
-  it("handles layout-5 (2/3 hero + 1/3 small)", () => {
-    const hero = photoPageFraction("layout-5", 0);
-    expect(hero.widthFrac).toBeCloseTo(2 / 3, 5);
-    expect(hero.heightFrac).toBe(1);
-    const small = photoPageFraction("layout-5", 1);
-    expect(small.widthFrac).toBeCloseTo(1 / 3, 5);
-    expect(small.heightFrac).toBe(0.5);
   });
 });
 

@@ -1,4 +1,5 @@
 <script lang="ts" setup>
+import { useStyleTag } from "@vueuse/core";
 import AlbumViewer from "@/components/AlbumViewer.vue";
 import { usePrintBundleQuery } from "@/queries/queries";
 import { useUserQuery } from "@/queries/useUserQuery";
@@ -17,6 +18,11 @@ import type { SegmentOutline } from "@/client";
 const route = useRoute();
 const aid = computed(() => (route.params.aid as string) || null);
 const darkMode = computed(() => route.query.dark === "true");
+const printPart = computed(() =>
+  route.query.part === "cover" || route.query.part === "content"
+    ? route.query.part
+    : "combined",
+);
 const chapterId = computed(() => {
   const value = route.query.chapter;
   return typeof value === "string" && value ? value : null;
@@ -37,6 +43,22 @@ const printMapsCaptured = ref(false);
 providePrintMediaReady(printMediaReady);
 
 const album = computed(() => bundle.value?.album);
+useStyleTag(
+  computed(() => {
+    const interior = album.value?.interior_bleed_mm ?? 0;
+    const cover = album.value?.cover_bleed_mm ?? 0;
+    const spine = album.value?.chapters?.[0]?.spine_width_mm ?? 0;
+    const coverWidth = printPart.value === "cover" ? 594 + spine : 297;
+    const width =
+      printPart.value === "cover" ? coverWidth + 2 * cover : 297 + 2 * interior;
+    const height = 210 + 2 * (printPart.value === "cover" ? cover : interior);
+    // Matching the body page prevents Chromium from appending an unnamed blank sheet.
+    return `body { page: ${printPart.value === "cover" ? "cover" : "interior"}; }
+    @page { size: ${width}mm ${height}mm; margin: 0; }
+    @page interior { size: ${297 + 2 * interior}mm ${210 + 2 * interior}mm; margin: 0; }
+    @page cover { size: ${coverWidth + 2 * cover}mm ${210 + 2 * cover}mm; margin: 0; }`;
+  }),
+);
 const media = computed(() => bundle.value?.album.media ?? []);
 const steps = computed(() => bundle.value?.steps ?? []);
 const segmentOutlines = computed<SegmentOutline[]>(() => {
@@ -90,7 +112,7 @@ async function loadFonts(): Promise<void> {
 let pollTimer = 0;
 
 type PrintError = {
-  code: "map-render-failed" | "render-timeout";
+  code: "map-render-failed" | "font-load-failed" | "render-timeout";
   message: string;
   mapError?: string;
 };
@@ -104,10 +126,19 @@ function setPrintError(error: PrintError) {
 function waitForPrintReady() {
   const MAX_WAIT = getPrintTimeoutMs();
   const startTime = Date.now();
-  let waiting = false;
+  let fontsLoaded = false;
 
-  // Kick off font loading immediately - don't wait for images
-  const fontsReady = loadFonts();
+  void loadFonts().then(
+    () => {
+      fontsLoaded = true;
+    },
+    () => {
+      setPrintError({
+        code: "font-load-failed",
+        message: "An album font could not be loaded for PDF export.",
+      });
+    },
+  );
 
   function schedulePoll(ms: number) {
     clearTimeout(pollTimer);
@@ -115,11 +146,11 @@ function waitForPrintReady() {
   }
 
   function poll() {
-    if (waiting) return;
+    if (printPhase.value === "error") return;
     if (Date.now() - startTime > MAX_WAIT) {
       setPrintError({
         code: "render-timeout",
-        message: "Album rendering timed out before every map was ready.",
+        message: "Album rendering timed out before all content was ready.",
       });
       return;
     }
@@ -190,16 +221,11 @@ function waitForPrintReady() {
       return;
     }
 
-    // All DOM content + maps ready - wait for fonts before signaling
-    waiting = true;
-    fontsReady
-      .then(() => {
-        setReady();
-      })
-      .catch(() => {
-        console.warn("[print] font load failed, proceeding");
-        setReady();
-      });
+    if (!fontsLoaded) {
+      schedulePoll(100);
+      return;
+    }
+    setReady();
   }
 
   function setReady() {
@@ -231,6 +257,7 @@ onUnmounted(() => clearTimeout(pollTimer));
       :media="media"
       :steps="steps"
       :segment-outlines="segmentOutlines"
+      :print-part="printPart"
       print-mode
     />
     <div v-else class="status-message flex flex-center text-muted">
@@ -260,9 +287,9 @@ body,
   height: 100vh;
   font-size: 1.5rem;
 }
-
-@page {
-  size: A4 landscape;
-  margin: 0;
+@media print {
+  .q-layout:has(.print-view) {
+    min-height: 0 !important;
+  }
 }
 </style>

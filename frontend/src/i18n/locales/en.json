@@ -51,6 +51,11 @@
     "signInGoogle": "Sign in with Google",
     "signInMicrosoft": "Sign in with Microsoft",
     "localZip": "Log in with Polarsteps ZIP",
+    "localContinue": "Continue as…",
+    "localRetry": "Try again",
+    "localAccountId": "Polarsteps ID: {id}",
+    "localEmpty": "No local accounts yet. Upload a ZIP to get started.",
+    "localLoadFailed": "Could not load local accounts.",
     "signInFailed": "Sign-in failed. @:common.retry"
   },
   "register": {
@@ -452,5 +457,39 @@
       "body": "You can reconnect any time to upgrade more files.",
       "confirm": "Disconnect"
     }
+  },
+  "print": {
+    "mapLoading": "Loading map…",
+    "mapFailed": "This map could not load.",
+    "retryMap": "Retry map",
+    "preview": "Print preview",
+    "backToEditor": "Back to editor",
+    "chapter": "Chapter",
+    "covers": "Covers",
+    "interior": "Interior",
+    "frontCover": "Front cover",
+    "backCover": "Back cover",
+    "pageNumber": "Page {number}",
+    "spreadCount": "{current} of {total}",
+    "spreadNavigation": "Browse spreads",
+    "previousSpread": "Previous spread",
+    "nextSpread": "Next spread",
+    "zoomIn": "Zoom in",
+    "zoomOut": "Zoom out",
+    "fitSpread": "Fit spread",
+    "previewNote": "Page numbers follow the chapter PDF.",
+    "emptyPreview": "No pages to preview.",
+
+    "title": "Print",
+    "interiorBleed": "Interior bleed",
+    "coverBleed": "Cover bleed",
+    "spineWidth": "Spine width",
+    "previewCover": "Preview wraparound cover",
+    "combined": "Combined cover and content",
+    "separate": "Separate cover and content",
+    "combinedHint": "One PDF per selected chapter. Multiple chapters download as a ZIP.",
+    "separateHint": "A ZIP with cover.pdf and content.pdf for each selected chapter.",
+    "dimensionRange": "Enter a number from 0 to {max}.",
+    "wholeDimensionRange": "Enter a whole number from 0 to {max}."
   }
 }

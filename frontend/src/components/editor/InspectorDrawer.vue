@@ -1,5 +1,6 @@
 <script lang="ts" setup>
 import type { AlbumMedia, AlbumMeta, StepRead as Step } from "@/client";
+import PrintSettings from "./PrintSettings.vue";
 import AlbumProperties from "./AlbumProperties.vue";
 import CoverCell from "./CoverCell.vue";
 import MediaPanel from "./MediaPanel.vue";
@@ -72,10 +73,17 @@ const albumMutation = useAlbumMutation(() => props.album.id);
 const coverContext = computed(() =>
   parseChapterHeaderSectionKey(props.sectionKey),
 );
-const activeChapter = computed(() =>
-  (props.album.chapters ?? []).find(
-    (chapter) => chapter.id === coverContext.value?.chapterId,
-  ),
+const activeChapter = computed(
+  () =>
+    (props.album.chapters ?? []).find((chapter) => {
+      if (props.step) return chapter.step_ids?.includes(props.step.id);
+      const key = props.sectionKey;
+      return (
+        chapter.id === coverContext.value?.chapterId ||
+        key?.startsWith(`chapter-${chapter.id}-map-`) ||
+        key?.startsWith(`chapter-${chapter.id}-hike-`)
+      );
+    }) ?? props.album.chapters?.[0],
 );
 const isCoverBack = computed(
   () => coverContext.value?.headerKey === "cover-back",
@@ -201,6 +209,16 @@ const importTargetLabel = computed<string | null>(() => {
       :label="t('editor.properties')"
     >
       <AlbumProperties :album="album" :media="media" />
+    </q-expansion-item>
+
+    <q-expansion-item
+      group="inspector-primary"
+      class="panel-section"
+      header-class="panel-section-header"
+      expand-icon-class="text-faint"
+      :label="t('print.title')"
+    >
+      <PrintSettings :album="album" :chapter="activeChapter" />
     </q-expansion-item>
 
     <q-expansion-item

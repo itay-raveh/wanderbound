@@ -1,9 +1,4 @@
 import { computed, ref, watch, type ComputedRef, type Ref } from "vue";
-import {
-  prepareWithSegments,
-  layoutWithLines,
-  clearCache as clearPretextCache,
-} from "@chenglou/pretext";
 import { ALLOWED_FONTS } from "@/utils/fonts";
 import {
   PAGE_WIDTH_MM,
@@ -13,12 +8,15 @@ import {
 } from "@/utils/pageSize";
 import { safeMarginMm } from "./useSafeMargin";
 
-export interface JustifiedLine {
+export interface TextPage {
   text: string;
+  offset: number;
+  lineIndex: number;
+  direction: string;
 }
 
 interface TextLayout {
-  pages: JustifiedLine[][]; // pages[0] = sidebar, pages[1..N] = continuation
+  pages: TextPage[]; // pages[0] = sidebar, pages[1..N] = continuation
 }
 
 const cache = new Map<string, TextLayout>();
@@ -49,7 +47,6 @@ if (
     debounceTimer = setTimeout(() => {
       fontsRevision.value++;
       cache.clear();
-      clearPretextCache();
       layoutConfig = null;
     }, 100);
   };
@@ -144,57 +141,51 @@ function ensureConfig(): LayoutConfig {
   return layoutConfig;
 }
 
-/** Insert zero-width spaces into long unbreakable runs so pretext can wrap them. */
-const LONG_RUN = /(\S{20})(?=\S)/g;
-function addBreakOpportunities(text: string): string {
-  return text.replace(LONG_RUN, "$1\u200B");
-}
-
-function breakParagraph(
-  para: string,
-  columnWidth: number,
-  font: string,
-  lineHeightPx: number,
-): JustifiedLine[] {
-  const prepared = prepareWithSegments(addBreakOpportunities(para), font);
-  const { lines } = layoutWithLines(prepared, columnWidth, lineHeightPx);
-  return lines.map((line) => ({ text: line.text.replaceAll("\u200B", "") }));
-}
-
-function breakText(
-  text: string,
-  columnWidth: number,
-  font: string,
-  lineHeightPx: number,
-): JustifiedLine[] {
-  const lines: JustifiedLine[] = [];
-
-  for (const para of text.split("\n")) {
-    if (!para) {
-      lines.push({ text: "" });
-      continue;
+function paginateText(text: string, config: LayoutConfig): TextPage[] {
+  text = text.replace(/\r\n?/g, "\n");
+  const { columnWidth, font, lineHeightPx } = config.sidebar;
+  const measure = document.createElement("div");
+  measure.dir = "auto";
+  // Keep the temporary measurement out of the document's scrollable area.
+  measure.style.cssText = `position: fixed; visibility: hidden; pointer-events: none;
+    left: 0; top: 0; width: ${columnWidth}px; font: ${font};
+    line-height: ${lineHeightPx}px; white-space: pre-wrap;
+    overflow-wrap: break-word; hyphens: none; tab-size: 8;`;
+  const node = document.createTextNode("\u200b");
+  measure.append(node);
+  document.body.append(measure);
+  const lineHeight = measure.getBoundingClientRect().height;
+  // The sentinel gives a trailing newline its own line, as in a textarea.
+  node.data = text + "\u200b";
+  const direction = getComputedStyle(measure).direction;
+  const bounds = measure.getBoundingClientRect();
+  const lineCount = Math.round(bounds.height / lineHeight);
+  const range = document.createRange();
+  range.setStart(node, 0);
+  const pages: TextPage[] = [];
+  let offset = 0;
+  for (let lineIndex = 0; lineIndex < lineCount; ) {
+    const maxLines = pages.length
+      ? config.continuation.maxLines
+      : config.sidebar.maxLines;
+    const nextLine = lineIndex + Math.max(1, maxLines);
+    const bottom = bounds.top + nextLine * lineHeight;
+    let low = nextLine >= lineCount ? text.length : offset;
+    let high = text.length;
+    while (low < high) {
+      const mid = Math.floor((low + high) / 2);
+      range.setEnd(node, mid + 1);
+      // Bounding rectangles discard the zero-width rectangles of blank lines.
+      const rects = range.getClientRects();
+      if ((rects[rects.length - 1]?.bottom ?? bounds.top) <= bottom)
+        low = mid + 1;
+      else high = mid;
     }
-    lines.push(...breakParagraph(para, columnWidth, font, lineHeightPx));
+    pages.push({ text: text.slice(offset, low), offset, lineIndex, direction });
+    offset = low;
+    lineIndex = nextLine;
   }
-
-  return lines;
-}
-
-export function distributePages(
-  allLines: JustifiedLine[],
-  sidebarMax: number,
-  continuationMax: number,
-): JustifiedLine[][] {
-  if (allLines.length === 0) return [[]];
-  if (!Number.isFinite(sidebarMax) || sidebarMax < 1)
-    sidebarMax = allLines.length;
-  if (!Number.isFinite(continuationMax) || continuationMax < 1)
-    continuationMax = allLines.length;
-
-  const pages: JustifiedLine[][] = [allLines.slice(0, sidebarMax)];
-  for (let i = sidebarMax; i < allLines.length; i += continuationMax) {
-    pages.push(allLines.slice(i, i + continuationMax));
-  }
+  measure.remove();
   return pages;
 }
 
@@ -207,17 +198,7 @@ export function layoutDescription(text: string): TextLayout {
   if (hit) return hit;
 
   const config = ensureConfig();
-  const allLines = breakText(
-    text,
-    config.sidebar.columnWidth,
-    config.sidebar.font,
-    config.sidebar.lineHeightPx,
-  );
-  const pages = distributePages(
-    allLines,
-    config.sidebar.maxLines,
-    config.continuation.maxLines,
-  );
+  const pages = paginateText(text, config);
 
   return cached(text, { pages });
 }

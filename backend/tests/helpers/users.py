@@ -60,9 +60,6 @@ class UserRoutes:
         assert resp.status_code == 200
         return resp.json()
 
-    async def update(self, **payload: object) -> Response:
-        return await self.client.patch("/api/v1/users", json=payload)
-
     async def delete(self) -> Response:
         return await self.client.delete("/api/v1/users")
 
@@ -71,16 +68,11 @@ class UserRoutes:
         assert resp.status_code == 200
         return resp.json()
 
-    async def demo(self, *, accept_language: str | None = None) -> Response:
-        headers = (
-            {"Accept-Language": accept_language}
-            if accept_language is not None
-            else None
-        )
-        return await self.client.post("/api/v1/users/demo", headers=headers)
+    async def demo(self) -> Response:
+        return await self.client.post("/api/v1/users/demo")
 
-    async def demo_ok(self, *, accept_language: str | None = None) -> dict:
-        resp = await self.demo(accept_language=accept_language)
+    async def demo_ok(self) -> dict:
+        resp = await self.demo()
         assert resp.status_code == 200
         return resp.json()
 

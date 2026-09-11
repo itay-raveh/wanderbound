@@ -1,7 +1,7 @@
 """Add album page numbers
 
 Revision ID: b45c61407294
-Revises: c071165892df
+Revises: fffe0591309b
 Create Date: 2026-09-10 00:49:12.693598
 
 """
@@ -12,7 +12,7 @@ import sqlmodel.sql.sqltypes
 
 # revision identifiers, used by Alembic.
 revision = 'b45c61407294'
-down_revision = 'c071165892df'
+down_revision = 'fffe0591309b'
 branch_labels = None
 depends_on = None
 

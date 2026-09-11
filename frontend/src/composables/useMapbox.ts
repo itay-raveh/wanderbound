@@ -5,6 +5,8 @@ import { useResizeObserver } from "@vueuse/core";
 import {
   getPrintCpuCount,
   getPrintTimeoutMs,
+  usePrintMapPixelRatio,
+  usePrintMapState,
 } from "@/composables/usePrintReady";
 import { getSettings } from "@/config";
 import {
@@ -35,7 +37,6 @@ const MAP_INIT_ROOT_MARGIN_PX = 200;
 const MAP_VISIBILITY_SETTLE_MS = 100;
 const MAX_CONCURRENT_PRINT_MAPS = 4;
 const PRINT_MAPS_PER_CPU = 2;
-const PRINT_PIXEL_RATIO = 2;
 const PRINT_TILE_SETTLE_MS = 2_000;
 
 let activePrintMaps = 0;
@@ -49,12 +50,12 @@ function maxConcurrentPrintMaps(): number {
   );
 }
 
-function acquirePrintPixelRatio(): () => void {
+function acquirePrintPixelRatio(pixelRatio: number): () => void {
   printPixelRatioUsers++;
   if (printPixelRatioUsers === 1) {
     Object.defineProperty(window, "devicePixelRatio", {
       configurable: true,
-      value: PRINT_PIXEL_RATIO,
+      value: pixelRatio,
     });
   }
   let released = false;
@@ -107,6 +108,8 @@ interface UseMapboxOptions {
   interactive?: boolean;
   onReady?: (map: mapboxgl.Map) => void;
   preserveDrawingBuffer?: boolean;
+  contentReady?: MaybeRefOrGetter<boolean>;
+  contentError?: MaybeRefOrGetter<boolean>;
   deferInit?: boolean;
   onNearViewport?: () => void;
   /** BCP 47 locale for map labels (e.g. "he-IL", "en-US"). Accepts ref/getter. */
@@ -118,11 +121,14 @@ function langFromLocale(locale: string | undefined): string {
 }
 
 export function useMapbox(options: UseMapboxOptions) {
+  const printPixelRatio = usePrintMapPixelRatio();
+  const printState = usePrintMapState();
   mapboxgl.accessToken = getSettings().MAPBOX_TOKEN ?? "";
   const map = shallowRef<mapboxgl.Map | null>(null);
   let pendingRender: (() => void) | null = null;
   let readinessTimer: ReturnType<typeof setTimeout> | null = null;
   let readinessGeneration = 0;
+  let snapshotUrl: string | null = null;
   let initIdleHandle: number | null = null;
   let initTimeout: ReturnType<typeof setTimeout> | null = null;
   let visibilityTimeout: ReturnType<typeof setTimeout> | null = null;
@@ -173,6 +179,7 @@ export function useMapbox(options: UseMapboxOptions) {
       console.warn("[mapbox] failed to initialise map:", e);
       if (options.preserveDrawingBuffer) {
         el.dataset.mapError = "initialization-failed";
+        if (printState) printState.value = "error";
         releasePrintMapSlot();
       } else {
         el.dataset.mapReady = "";
@@ -200,9 +207,11 @@ export function useMapbox(options: UseMapboxOptions) {
     delete el.dataset.mapReady;
     delete el.dataset.mapSnapshotReady;
     delete el.dataset.mapError;
+    if (printState) printState.value = "loading";
     const markReady = () => {
       if (generation !== readinessGeneration) return;
       el.dataset.mapReady = "";
+      if (printState) printState.value = "ready";
       pendingRender = null;
       if (readinessTimer !== null) {
         clearTimeout(readinessTimer);
@@ -217,6 +226,7 @@ export function useMapbox(options: UseMapboxOptions) {
     const markError = (code: string) => {
       if (generation !== readinessGeneration) return;
       el.dataset.mapError = code;
+      if (printState) printState.value = "error";
       pendingRender = null;
       if (readinessTimer !== null) {
         clearTimeout(readinessTimer);
@@ -251,7 +261,16 @@ export function useMapbox(options: UseMapboxOptions) {
     const check = () => {
       if (generation !== readinessGeneration) return;
       readinessTimer = null;
-      if (!m.isStyleLoaded() || !m.areTilesLoaded()) {
+      if (options.preserveDrawingBuffer && toValue(options.contentError)) {
+        markError("content-load-failed");
+        return;
+      }
+      if (
+        (options.preserveDrawingBuffer &&
+          toValue(options.contentReady) === false) ||
+        !m.isStyleLoaded() ||
+        !m.areTilesLoaded()
+      ) {
         tilesLoadedAt = null;
         readinessTimer = setTimeout(check, 250);
         return;
@@ -316,6 +335,7 @@ export function useMapbox(options: UseMapboxOptions) {
     m: mapboxgl.Map,
     generation: number,
   ): Promise<boolean> {
+    let pendingUrl: string | null = null;
     try {
       const canvas = m.getCanvas();
       if (canvas.width === 0 || canvas.height === 0) return false;
@@ -334,7 +354,7 @@ export function useMapbox(options: UseMapboxOptions) {
       snapshot.alt = "";
       snapshot.setAttribute("aria-hidden", "true");
       snapshot.decoding = "async";
-      const objectUrl = URL.createObjectURL(blob);
+      pendingUrl = URL.createObjectURL(blob);
       await new Promise<void>((resolve, reject) => {
         snapshot.addEventListener("load", () => resolve(), { once: true });
         snapshot.addEventListener(
@@ -342,15 +362,21 @@ export function useMapbox(options: UseMapboxOptions) {
           () => reject(new Error("image load failed")),
           { once: true },
         );
-        snapshot.src = objectUrl;
+        snapshot.src = pendingUrl!;
       });
       if (generation !== readinessGeneration) return false;
+      el.querySelector(".mapbox-print-snapshot")?.remove();
+      if (snapshotUrl) URL.revokeObjectURL(snapshotUrl);
+      snapshotUrl = pendingUrl;
+      pendingUrl = null;
       el.prepend(snapshot);
       el.dataset.mapSnapshotReady = "";
       return true;
     } catch (e) {
       console.warn("[mapbox] failed to snapshot print canvas:", e);
       return false;
+    } finally {
+      if (pendingUrl) URL.revokeObjectURL(pendingUrl);
     }
   }
 
@@ -371,6 +397,8 @@ export function useMapbox(options: UseMapboxOptions) {
 
   function destroy() {
     readinessGeneration++;
+    if (snapshotUrl) URL.revokeObjectURL(snapshotUrl);
+    snapshotUrl = null;
     if (map.value) disarmIdleReady(map.value);
     map.value?.remove();
     map.value = null;
@@ -400,7 +428,7 @@ export function useMapbox(options: UseMapboxOptions) {
     if (options.preserveDrawingBuffer) {
       const el = options.container.value;
       if (el) el.dataset.map = "";
-      releasePrintPixelRatio = acquirePrintPixelRatio();
+      releasePrintPixelRatio = acquirePrintPixelRatio(printPixelRatio);
       releasePrintSlot = enqueuePrintMap((release) => {
         releasePrintSlot = release;
         init();

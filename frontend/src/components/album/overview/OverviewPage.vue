@@ -264,7 +264,7 @@ const factColumns = computed(() => {
 </template>
 
 <style lang="scss" scoped>
-.overview {
+:deep(.overview) {
   display: flex;
   flex-direction: column;
   position: relative;
@@ -272,7 +272,7 @@ const factColumns = computed(() => {
   &::before {
     content: "";
     position: absolute;
-    inset: 0;
+    inset: calc(-1 * var(--bleed));
     z-index: 0;
     background: url("/topo-contours.svg") center / cover no-repeat;
     opacity: 0.22;

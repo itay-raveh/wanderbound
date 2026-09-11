@@ -59,21 +59,21 @@ function openPanoramaFrame(): void {
 </template>
 
 <style lang="scss" scoped>
-.panorama-page {
+:deep(.panorama-page) {
   position: relative;
-  overflow: hidden;
+  overflow: visible;
 }
 
 .panorama-media {
   position: absolute;
-  top: 0;
-  left: 0;
-  width: 200%;
-  height: 100%;
+  top: calc(-1 * var(--bleed));
+  left: calc(-1 * var(--bleed));
+  width: calc(2 * var(--page-width) + 2 * var(--bleed));
+  height: calc(var(--page-height) + 2 * var(--bleed));
   object-fit: cover;
 }
 
 .side-right .panorama-media {
-  left: -100%;
+  left: calc(-1 * var(--page-width) - var(--bleed));
 }
 </style>

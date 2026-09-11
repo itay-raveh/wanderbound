@@ -24,6 +24,12 @@ import { computed, watch, nextTick, onBeforeUnmount, ref } from "vue";
 
 const { t } = useI18n();
 const pagePosition = ref("");
+const previewOpen = ref(false);
+const albumToolbar = ref<InstanceType<typeof AlbumToolbar> | null>(null);
+function closePreview() {
+  previewOpen.value = false;
+  void nextTick(() => albumToolbar.value?.focusPreview());
+}
 
 useMeta({ title: "Editor" });
 
@@ -42,12 +48,12 @@ const inspectorStandard = computed(
 );
 const navigationOpen = ref(navigationStandard.value);
 const inspectorOpen = ref(inspectorStandard.value);
-const navigationOpenControl = ref<InstanceType<typeof EditorRailControl> | null>(
-  null,
-);
-const navigationEdgeControl = ref<InstanceType<typeof EditorRailControl> | null>(
-  null,
-);
+const navigationOpenControl = ref<InstanceType<
+  typeof EditorRailControl
+> | null>(null);
+const navigationEdgeControl = ref<InstanceType<
+  typeof EditorRailControl
+> | null>(null);
 const inspectorOpenControl = ref<InstanceType<typeof EditorRailControl> | null>(
   null,
 );
@@ -68,8 +74,9 @@ function toggleNavigation() {
 function toggleInspector() {
   inspectorOpen.value = !inspectorOpen.value;
   void nextTick(() =>
-    (
-      inspectorOpen.value ? inspectorOpenControl : inspectorEdgeControl
+    (inspectorOpen.value
+      ? inspectorOpenControl
+      : inspectorEdgeControl
     ).value?.focus(),
   );
 }
@@ -117,6 +124,7 @@ useEditorKeyboard();
 const undoStack = useUndoStack();
 const photoFocus = usePhotoFocus();
 watch(selectedAlbumId, () => {
+  previewOpen.value = false;
   undoStack.clear();
   photoFocus.blur();
   resetActiveSection();
@@ -126,7 +134,9 @@ const { activeStepId, activeSectionKey, resetActiveSection } =
   useActiveSection();
 onBeforeUnmount(resetActiveSection);
 const displayedSteps = computed(() => steps.value);
-const displayedStepIndex = computed(() => indexSteps(displayedSteps.value ?? []));
+const displayedStepIndex = computed(() =>
+  indexSteps(displayedSteps.value ?? []),
+);
 const activeStep = computed(() =>
   activeStepId.value != null
     ? displayedStepIndex.value.byId.get(activeStepId.value)
@@ -151,7 +161,13 @@ const activeStep = computed(() =>
       </div>
     </template>
 
-    <AlbumToolbar v-if="album" :album="album" :page-position="pagePosition" />
+    <AlbumToolbar
+      :page-position="pagePosition"
+      ref="albumToolbar"
+      v-if="album"
+      :album="album"
+      @preview="previewOpen = true"
+    />
   </EditorHeader>
 
   <q-drawer
@@ -243,6 +259,8 @@ const activeStep = computed(() =>
       :steps="displayedSteps"
       :segment-outlines="segmentOutlines"
       @page-position="pagePosition = $event"
+      :preview-open="previewOpen"
+      @close-preview="closePreview"
     />
     <q-page-sticky
       v-if="!navigationOpen"

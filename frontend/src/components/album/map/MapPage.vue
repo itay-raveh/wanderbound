@@ -7,7 +7,8 @@ import { usePrintMode } from "@/composables/usePrintReady";
 import { drawSegmentsAndMarkers } from "./mapSegments";
 import { useUserQuery } from "@/queries/useUserQuery";
 import { useSegmentPointsQuery } from "@/queries/useSegmentPointsQuery";
-import { safeMarginMm, safeMarginPx } from "@/composables/useSafeMargin";
+import { interiorBleedMm } from "@/composables/usePrintSettings";
+import { safeMarginMm, mapSafeInsetPx } from "@/composables/useSafeMargin";
 import { useI18n } from "vue-i18n";
 import type { Map } from "mapbox-gl";
 import { useTemplateRef, computed, ref, watch } from "vue";
@@ -35,18 +36,22 @@ const toTime = computed(() =>
 
 const printMode = usePrintMode();
 const loadSegments = ref(printMode);
-const { data: segments } = useSegmentPointsQuery(
-  fromTime,
-  toTime,
-  loadSegments,
-  !printMode,
-);
+const {
+  data: segments,
+  status: segmentStatus,
+  asyncStatus: segmentAsyncStatus,
+} = useSegmentPointsQuery(fromTime, toTime, loadSegments, !printMode);
 const container = useTemplateRef("map");
 const { map, fitBounds } = useMapbox({
   container,
   locale,
   onReady: draw,
   preserveDrawingBuffer: printMode,
+  contentReady: () => segments.value !== undefined,
+  contentError: () =>
+    segments.value === undefined &&
+    segmentStatus.value === "error" &&
+    segmentAsyncStatus.value !== "loading",
   deferInit: !printMode,
   onNearViewport: () => {
     loadSegments.value = true;
@@ -65,7 +70,7 @@ function draw(m: Map) {
     s.location.lon,
     s.location.lat,
   ]);
-  fitBounds(coords, 60 + safeMarginPx());
+  fitBounds(coords, 60 + mapSafeInsetPx());
 }
 
 watch(segments, () => {
@@ -75,15 +80,20 @@ watch(segments, () => {
   else m.once("load", () => draw(m));
 });
 
-watch(safeMarginMm, () => {
-  const m = map.value;
-  if (!m || !segments.value || !m.isStyleLoaded()) return;
-  const coords: [number, number][] = props.steps.map((s) => [
-    s.location.lon,
-    s.location.lat,
-  ]);
-  fitBounds(coords, 60 + safeMarginPx());
-});
+watch(
+  [safeMarginMm, interiorBleedMm],
+  () => {
+    const m = map.value;
+    if (!m || !segments.value || !m.isStyleLoaded()) return;
+    m.resize();
+    const coords: [number, number][] = props.steps.map((s) => [
+      s.location.lon,
+      s.location.lat,
+    ]);
+    fitBounds(coords, 60 + mapSafeInsetPx());
+  },
+  { flush: "post" },
+);
 </script>
 
 <template>
@@ -91,8 +101,15 @@ watch(safeMarginMm, () => {
     number-placement="image"
     role="img"
     :aria-label="t('album.tripRouteMap')"
-    class="map-page relative-position overflow-hidden"
+    class="map-page relative-position"
   >
-    <div ref="map" class="absolute-full" />
+    <div ref="map" class="map-background" />
   </AlbumPage>
 </template>
+
+<style scoped>
+.map-background {
+  position: absolute;
+  inset: calc(-1 * var(--bleed));
+}
+</style>

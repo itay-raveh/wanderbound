@@ -1,6 +1,6 @@
 <script lang="ts" setup>
 import AlbumPage from "@/components/album/AlbumPage.vue";
-import type { JustifiedLine } from "@/composables/useTextLayout";
+import type { TextPage } from "@/composables/useTextLayout";
 import { useAlbum } from "@/composables/useAlbum";
 import { mediaQuality, PHOTO_PANEL_FRACTION } from "@/utils/photoQuality";
 import EditableText from "../EditableText.vue";
@@ -10,7 +10,7 @@ import { computed } from "vue";
 const { mediaByName, mediaResolutionWarningPreset } = useAlbum();
 
 const props = defineProps<{
-  lines: JustifiedLine[];
+  page: TextPage;
   description: string;
   photo: string | null;
 }>();
@@ -40,9 +40,8 @@ const photoQuality = computed(() =>
     <EditableText
       :model-value="description"
       multiline
-      dir="auto"
       class="description-text"
-      :lines="lines"
+      :page="page"
       @update:model-value="emit('update:description', $event)"
     />
     <MediaItem
@@ -57,10 +56,10 @@ const photoQuality = computed(() =>
 </template>
 
 <style lang="scss" scoped>
-.description-page {
+:deep(.description-page) {
   display: flex;
   color: var(--text);
-  overflow: hidden;
+  overflow: visible;
 }
 
 .description-text {
@@ -71,18 +70,25 @@ const photoQuality = computed(() =>
   font-size: var(--type-xs);
   line-height: 1.65;
   white-space: pre-wrap;
-  text-align: justify;
+  text-align: start;
+  overflow-wrap: break-word;
+  hyphens: none;
   overflow: hidden;
   box-sizing: border-box;
 }
 
 .description-photo {
+  margin-block: calc(-1 * var(--bleed));
+  margin-inline-end: calc(-1 * var(--bleed));
+  height: calc(100% + 2 * var(--bleed));
   flex: 1;
   min-height: 0;
   cursor: default;
 }
 
 .topo-filler {
+  margin-block: calc(-1 * var(--bleed));
+  margin-inline-end: calc(-1 * var(--bleed));
   flex: 1;
   min-height: 0;
   background: url("/topo-contours.svg") center / cover no-repeat;

@@ -67,7 +67,7 @@ export type EditorItem =
     }
   | { type: "step-add-zone"; key: string; step: Step };
 
-type PhysicalRenderItem =
+export type PhysicalRenderItem =
   | Exclude<EditorItem, { type: "step-add-zone" | "panorama-spread" }>
   | {
       type: "panorama-spread-left" | "panorama-spread-right";

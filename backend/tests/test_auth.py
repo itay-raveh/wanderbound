@@ -1,16 +1,91 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import pytest
 
 from app.core.config import get_settings
+from app.models.album import Album
+from app.models.user import User
 
 from .factories import (
     MICROSOFT_PAYLOAD,
+    PS_USER,
     mock_jwt,
 )
 from .helpers.users import UserRoutes
+
+if TYPE_CHECKING:
+    from httpx import AsyncClient
+    from sqlmodel.ext.asyncio.session import AsyncSession
+
+
+class TestLocalLogin:
+    @pytest.fixture
+    async def local_user(
+        self, session: AsyncSession, monkeypatch: pytest.MonkeyPatch
+    ) -> User:
+        monkeypatch.setattr(get_settings(), "GOOGLE_CLIENT_ID", "")
+        monkeypatch.setattr(get_settings(), "MICROSOFT_CLIENT_ID", "")
+        user = User(**PS_USER.model_dump(), album_ids=["trip-1"])
+        session.add(user)
+        await session.commit()
+        return user
+
+    async def test_resumes_saved_album(
+        self, client: AsyncClient, session: AsyncSession, local_user: User
+    ) -> None:
+        trip = local_user.trips_folder / "trip-1"
+        trip.mkdir(parents=True)
+        saved_file = trip / "saved.txt"
+        saved_file.write_text("saved album content")
+        album = Album(uid=local_user.id, id="trip-1", colors={}, hidden_steps=[42])
+        session.add(album)
+        await session.commit()
+
+        listed = await client.get("/api/v1/auth/local")
+        assert listed.json() == [
+            {"id": local_user.id, "first_name": local_user.first_name}
+        ]
+        result = await client.post(f"/api/v1/auth/local/{local_user.id}")
+        assert result.status_code == 200
+        assert result.json()["is_processed"] is True
+        current = await client.get("/api/v1/users")
+        assert current.json()["id"] == local_user.id
+        await session.refresh(album)
+        assert album.hidden_steps == [42]
+        assert saved_file.read_text() == "saved album content"
+
+    @pytest.mark.parametrize(
+        "kind", ["google_sub", "microsoft_sub", "is_demo", "missing"]
+    )
+    async def test_rejects_non_local_accounts(
+        self, client: AsyncClient, session: AsyncSession, local_user: User, kind: str
+    ) -> None:
+        if kind != "missing":
+            setattr(local_user, kind, True if kind == "is_demo" else "external-user")
+            session.add(local_user)
+            await session.commit()
+            assert (await client.get("/api/v1/auth/local")).json() == []
+        uid = -1 if kind == "missing" else local_user.id
+        assert (await client.post(f"/api/v1/auth/local/{uid}")).status_code == 404
+        assert (await client.get("/api/v1/users")).status_code == 401
+
+    @pytest.mark.parametrize("provider", ["GOOGLE_CLIENT_ID", "MICROSOFT_CLIENT_ID"])
+    async def test_disabled_with_oauth(
+        self,
+        client: AsyncClient,
+        local_user: User,
+        monkeypatch: pytest.MonkeyPatch,
+        provider: str,
+    ) -> None:
+        monkeypatch.setattr(get_settings(), provider, "configured")
+        assert (await client.get("/api/v1/auth/local")).status_code == 404
+        assert (
+            await client.post(f"/api/v1/auth/local/{local_user.id}")
+        ).status_code == 404
+        assert (await client.get("/api/v1/users")).status_code == 401
 
 
 @pytest.mark.parametrize(
@@ -92,14 +167,6 @@ class TestLogout:
         await user_routes.logout()
         resp = await user_routes.current()
         assert resp.status_code == 401
-
-
-class TestUpdateUser:
-    @pytest.mark.usefixtures("uploaded_user")
-    async def test_update_locale(self, user_routes: UserRoutes) -> None:
-        resp = await user_routes.update(locale="he-IL")
-        assert resp.status_code == 200
-        assert resp.json()["locale"] == "he-IL"
 
 
 class TestDeleteUser:

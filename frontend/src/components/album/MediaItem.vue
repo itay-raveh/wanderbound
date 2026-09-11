@@ -401,8 +401,19 @@ function onVideoKey(e: KeyboardEvent) {
       @frame="openPanoramaFrame"
       @make-full-page="emit('make-full-page', $event)"
       @make-panorama-spread="emit('make-panorama-spread', $event)"
-    />
+    >
+      <slot name="actions" />
+    </PanoramaActions>
+    <div
+      v-else-if="!printMode && $slots.actions"
+      class="album-actions"
+      @click.stop
+    >
+      <slot name="actions" />
+    </div>
   </div>
 </template>
 
 <style lang="scss" scoped src="./MediaItem.scss"></style>
+
+<style lang="scss" scoped src="./AlbumActions.scss"></style>

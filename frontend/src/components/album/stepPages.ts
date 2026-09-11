@@ -3,10 +3,7 @@ import type {
   StepPageLayout,
   StepRead as Step,
 } from "@/client";
-import {
-  layoutDescription,
-  type JustifiedLine,
-} from "@/composables/useTextLayout";
+import { layoutDescription, type TextPage } from "@/composables/useTextLayout";
 import { isPortrait } from "@/utils/media";
 
 interface IndexedPage {
@@ -24,8 +21,8 @@ type PlannedStepPage =
     };
 
 type StepPagePlan = {
-  sidebarLines: JustifiedLine[];
-  continuationPages: JustifiedLine[][];
+  sidebarText: TextPage | undefined;
+  continuationPages: TextPage[];
   continuationPhotos: string[];
   photoPages: IndexedPage[];
   editorPages: PlannedStepPage[];
@@ -95,7 +92,7 @@ export function planStepPages(
     step.unused.length;
 
   return {
-    sidebarLines: descriptionPages[0] ?? [],
+    sidebarText: descriptionPages[0],
     continuationPages,
     continuationPhotos,
     photoPages,

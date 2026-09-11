@@ -14,10 +14,13 @@ import {
 } from "@/composables/useEditorZoom";
 import {
   symOutlinedKeyboard,
+  symOutlinedMenuBook,
   symOutlinedRedo,
   symOutlinedUndo,
   symOutlinedZoomIn,
 } from "@quasar/extras/material-symbols-outlined";
+import { useTemplateRef } from "vue";
+import type { QBtn } from "quasar";
 import { useI18n } from "vue-i18n";
 
 const { t } = useI18n();
@@ -26,6 +29,13 @@ defineProps<{
   album?: AlbumMeta;
   pagePosition?: string;
 }>();
+
+defineEmits<{ preview: [] }>();
+
+const previewButton = useTemplateRef<QBtn>("preview-button");
+defineExpose({
+  focusPreview: () => previewButton.value?.$el.focus({ preventScroll: true }),
+});
 
 const undoStack = useUndoStack();
 </script>
@@ -100,6 +110,14 @@ const undoStack = useUndoStack();
         >
       </div>
       <q-separator vertical class="action-divider" />
+      <q-btn
+        flat
+        no-caps
+        ref="preview-button"
+        :icon="symOutlinedMenuBook"
+        :label="t('print.preview')"
+        @click="$emit('preview')"
+      />
       <PdfExportButton
         v-if="album"
         :album-id="album.id"

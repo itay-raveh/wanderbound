@@ -51,6 +51,11 @@
     "signInGoogle": "התחברות עם Google",
     "signInMicrosoft": "התחברות עם Microsoft",
     "localZip": "התחברות עם קובץ ZIP מ-Polarsteps",
+    "localContinue": "המשך עם חשבון קיים…",
+    "localRetry": "נסו שוב",
+    "localAccountId": "מזהה Polarsteps: {id}",
+    "localEmpty": "אין עדיין חשבונות מקומיים. העלו קובץ ZIP כדי להתחיל.",
+    "localLoadFailed": "לא ניתן לטעון את החשבונות המקומיים.",
     "signInFailed": "ההתחברות נכשלה. @:common.retry"
   },
   "register": {
@@ -452,5 +457,39 @@
       "body": "תוכלו להתחבר מחדש בכל עת כדי לשדרג קבצים נוספים.",
       "confirm": "ניתוק"
     }
+  },
+  "print": {
+    "mapLoading": "המפה בטעינה…",
+    "mapFailed": "לא ניתן לטעון את המפה.",
+    "retryMap": "טעינת המפה מחדש",
+    "preview": "תצוגה מקדימה להדפסה",
+    "backToEditor": "חזרה לעריכה",
+    "chapter": "פרק",
+    "covers": "כריכות",
+    "interior": "תוכן",
+    "frontCover": "כריכה קדמית",
+    "backCover": "כריכה אחורית",
+    "pageNumber": "עמוד {number}",
+    "spreadCount": "{current} מתוך {total}",
+    "spreadNavigation": "דפדוף בכפולות",
+    "previousSpread": "הכפולה הקודמת",
+    "nextSpread": "הכפולה הבאה",
+    "zoomIn": "הגדלה",
+    "zoomOut": "הקטנה",
+    "fitSpread": "התאמה למסך",
+    "previewNote": "מספרי העמודים תואמים לקובץ ה-PDF של הפרק.",
+    "emptyPreview": "אין עמודים להצגה.",
+
+    "title": "הדפסה",
+    "interiorBleed": "גלישה בעמודי התוכן",
+    "coverBleed": "גלישה בכריכה",
+    "spineWidth": "רוחב השדרה",
+    "previewCover": "תצוגה מקדימה של הכריכה הפרושה",
+    "combined": "כריכה ותוכן בקובץ משולב",
+    "separate": "כריכה ותוכן בקבצים נפרדים",
+    "combinedHint": "קובץ PDF לכל פרק שנבחר. מספר פרקים יורדו בקובץ ZIP.",
+    "separateHint": "קובץ ZIP עם cover.pdf ו־content.pdf לכל פרק שנבחר.",
+    "dimensionRange": "יש להזין מספר בין 0 ל־{max}.",
+    "wholeDimensionRange": "יש להזין מספר שלם בין 0 ל־{max}."
   }
 }

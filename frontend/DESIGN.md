@@ -96,9 +96,23 @@ Controls are familiar, compact, keyboard-visible, and equivalent across light,
 dark, LTR, and RTL modes. Reuse shared components under `src/components/ui/`
 and Quasar primitives before creating another interaction pattern.
 
-The A4 landscape album page is the signature surface. Its preview and PDF must
-remain visually identical. Album geometry uses millimeters; application UI uses
-rem units.
+The A4 landscape album page is the signature surface and defines the finished
+interior size. Bleed extends outside its trim boundary. Wraparound covers combine
+two cover panels and a configurable spine on a wider sheet. Preview and PDF share
+the same artwork and geometry. Album geometry uses millimeters; application UI
+uses rem units.
+
+The inspector's Print section owns safe margin, interior and cover bleed, and
+per-chapter spine width. Front and back cover pages open their chapter's
+wraparound preview from a shared action row alongside panorama controls.
+Wraparound previews, panorama framing, and the full-screen print overview share
+`PreviewDialog`. Its header, workspace, and action slots keep feature controls
+inside the shared dialog shell, with common typography, focus, and button sizing.
+Cover bleed and spine controls sit below the cover preview, which shows bleed, trim, spine,
+and safe-area guides. Print guides are editor overlays and never appear in
+exported artwork.
+
+The toolbar export dialog owns chapter selection and combined or separate output.
 
 ## 6. Do's and Don'ts
 

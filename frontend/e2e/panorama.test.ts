@@ -111,7 +111,7 @@ async function mockPanoramaAlbum(page: Page) {
 
 test("frames a panorama globally and prints a two-page spread", async ({
   authedPage: page,
-}) => {
+}, testInfo) => {
   await page.setViewportSize({ width: 1440, height: 760 });
   const state = await mockPanoramaAlbum(page);
   await openEditor(page);
@@ -131,7 +131,7 @@ test("frames a panorama globally and prints a two-page spread", async ({
     imageBox!.x + imageBox!.width / 2,
   );
   await treat.click();
-  const dialog = page.locator(".panorama-dialog");
+  const dialog = page.locator(".preview-dialog");
   await expect(dialog).toBeVisible();
   await expect
     .poll(() =>
@@ -140,10 +140,13 @@ test("frames a panorama globally and prints a two-page spread", async ({
       ),
     )
     .toBe(true);
-  const preview = dialog.locator(".panorama-viewport");
+  const preview = dialog.locator(".preview-viewport");
   await expect(preview).toBeVisible();
   await expect(dialog.getByRole("alert")).toHaveCount(0);
-  await expect(dialog.locator('input[name="zoom"]')).toHaveAttribute("max", "3");
+  await expect(dialog.locator('input[name="zoom"]')).toHaveAttribute(
+    "max",
+    "3",
+  );
 
   await dialog.locator('input[name="perspective"]').fill("55");
   await dialog.locator('input[name="zoom"]').fill("1.837");
@@ -197,19 +200,46 @@ test("frames a panorama globally and prints a two-page spread", async ({
   await page.locator(".panorama-spread").scrollIntoViewIfNeeded();
   await expect(page.locator(".page-position")).toHaveText("Pages 3–4 of 4");
 
+  await page
+    .getByRole("button", { name: "Print preview", exact: true })
+    .click();
+  const printPreview = page.getByRole("dialog", {
+    name: "Print preview",
+    exact: true,
+  });
+  await printPreview
+    .getByRole("button", { name: "Next spread", exact: true })
+    .click();
+  await printPreview
+    .getByRole("button", { name: "Next spread", exact: true })
+    .click();
+  expect(
+    await printPreview
+      .locator(".album-page-number")
+      .evaluateAll((labels) =>
+        labels.map((label) =>
+          getComputedStyle(label).getPropertyValue("--page-number").trim(),
+        ),
+      ),
+  ).toEqual(["3", "4"]);
+  await page.keyboard.press("Escape");
+
   await page.goto("/print/aid-1", { waitUntil: "domcontentloaded" });
+  await expect
+    .poll(
+      () =>
+        page.evaluate(
+          () =>
+            (window as unknown as Record<string, boolean>).__PRINT_READY__ ===
+            true,
+        ),
+      { timeout: 30_000 },
+    )
+    .toBe(true);
+
   await expect(page.locator(".panorama-page")).toHaveCount(2);
   await expect(page.locator(".alignment-item")).toHaveCount(0);
   await expect(page.locator(".panorama-frame-action")).toHaveCount(0);
-  await expect
-    .poll(() =>
-      page.evaluate(
-        () =>
-          (window as unknown as Record<string, boolean>).__PRINT_READY__ ===
-          true,
-      ),
-    )
-    .toBe(true);
 
   const numbers = await page.locator(".page-container").evaluateAll((pages) =>
     pages.map((page) => {
@@ -221,6 +251,11 @@ test("frames a panorama globally and prints a two-page spread", async ({
   );
   expect(numbers).toEqual([null, "2", "3", "4"]);
   await expect(page.locator(".album-page-number:visible")).toHaveCount(3);
+  await page.pdf({
+    path: testInfo.outputPath("page-numbers.pdf"),
+    preferCSSPageSize: true,
+    printBackground: true,
+  });
 
   await openEditor(page);
   await page.locator(".panorama-disable-action").first().click();
