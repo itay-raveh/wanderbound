@@ -3053,6 +3053,11 @@
             "title": "Safe Margin Mm",
             "default": 5
           },
+          "show_page_numbers": {
+            "type": "boolean",
+            "title": "Show Page Numbers",
+            "default": false
+          },
           "interior_bleed_mm": {
             "type": "number",
             "maximum": 20.0,
@@ -3212,6 +3217,18 @@
             "title": "Safe Margin Mm",
             "default": 5
           },
+          "show_page_numbers": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Show Page Numbers",
+            "default": false
+          },
           "interior_bleed_mm": {
             "anyOf": [
               {
@@ -3321,6 +3338,11 @@
             "type": "integer",
             "title": "Safe Margin Mm",
             "default": 5
+          },
+          "show_page_numbers": {
+            "type": "boolean",
+            "title": "Show Page Numbers",
+            "default": false
           },
           "interior_bleed_mm": {
             "type": "number",

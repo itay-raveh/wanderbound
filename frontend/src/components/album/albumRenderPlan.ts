@@ -67,7 +67,7 @@ export type EditorItem =
     }
   | { type: "step-add-zone"; key: string; step: Step };
 
-type PhysicalRenderItem =
+export type PhysicalRenderItem =
   | Exclude<EditorItem, { type: "step-add-zone" | "panorama-spread" }>
   | {
       type: "panorama-spread-left" | "panorama-spread-right";
@@ -223,5 +223,16 @@ export function buildPhysicalRenderItems(
         media: item.media,
       },
     ];
+  });
+}
+
+export function buildEditorPageRanges(editorItems: EditorItem[]) {
+  let total = 0;
+  return editorItems.map((item) => {
+    const count = buildPhysicalRenderItems([item]).length;
+    if (!count) return null;
+    const start = total + 1;
+    total += count;
+    return { start, end: total };
   });
 }

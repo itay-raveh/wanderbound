@@ -14,17 +14,28 @@ import {
 } from "@/composables/useEditorZoom";
 import {
   symOutlinedKeyboard,
+  symOutlinedMenuBook,
   symOutlinedRedo,
   symOutlinedUndo,
   symOutlinedZoomIn,
 } from "@quasar/extras/material-symbols-outlined";
+import { useTemplateRef } from "vue";
+import type { QBtn } from "quasar";
 import { useI18n } from "vue-i18n";
 
 const { t } = useI18n();
 
 defineProps<{
   album?: AlbumMeta;
+  pagePosition?: string;
 }>();
+
+defineEmits<{ preview: [] }>();
+
+const previewButton = useTemplateRef<QBtn>("preview-button");
+defineExpose({
+  focusPreview: () => previewButton.value?.$el.focus({ preventScroll: true }),
+});
 
 const undoStack = useUndoStack();
 </script>
@@ -77,6 +88,7 @@ const undoStack = useUndoStack();
         /></q-tooltip>
       </q-btn>
       <q-separator vertical class="action-divider" />
+      <span v-if="pagePosition" class="page-position">{{ pagePosition }}</span>
       <div class="zoom-control row no-wrap items-center">
         <q-icon
           :name="symOutlinedZoomIn"
@@ -98,6 +110,14 @@ const undoStack = useUndoStack();
         >
       </div>
       <q-separator vertical class="action-divider" />
+      <q-btn
+        flat
+        no-caps
+        ref="preview-button"
+        :icon="symOutlinedMenuBook"
+        :label="t('print.preview')"
+        @click="$emit('preview')"
+      />
       <PdfExportButton
         v-if="album"
         :album-id="album.id"
@@ -151,6 +171,13 @@ const undoStack = useUndoStack();
   &:hover {
     color: var(--text-bright);
   }
+}
+
+.page-position {
+  color: var(--text);
+  font-size: var(--type-sm);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 
 .zoom-control {

@@ -36,18 +36,22 @@ const toTime = computed(() =>
 
 const printMode = usePrintMode();
 const loadSegments = ref(printMode);
-const { data: segments } = useSegmentPointsQuery(
-  fromTime,
-  toTime,
-  loadSegments,
-  !printMode,
-);
+const {
+  data: segments,
+  status: segmentStatus,
+  asyncStatus: segmentAsyncStatus,
+} = useSegmentPointsQuery(fromTime, toTime, loadSegments, !printMode);
 const container = useTemplateRef("map");
 const { map, fitBounds } = useMapbox({
   container,
   locale,
   onReady: draw,
   preserveDrawingBuffer: printMode,
+  contentReady: () => segments.value !== undefined,
+  contentError: () =>
+    segments.value === undefined &&
+    segmentStatus.value === "error" &&
+    segmentAsyncStatus.value !== "loading",
   deferInit: !printMode,
   onNearViewport: () => {
     loadSegments.value = true;
@@ -94,6 +98,7 @@ watch(
 
 <template>
   <AlbumPage
+    number-placement="image"
     role="img"
     :aria-label="t('album.tripRouteMap')"
     class="map-page relative-position"

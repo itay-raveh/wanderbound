@@ -105,8 +105,10 @@ uses rem units.
 The inspector's Print section owns safe margin, interior and cover bleed, and
 per-chapter spine width. Front and back cover pages open their chapter's
 wraparound preview from a shared action row alongside panorama controls.
-Wraparound previews and panorama framing share the preview dialog. Cover bleed
-and spine controls sit below the cover preview, which shows bleed, trim, spine,
+Wraparound previews, panorama framing, and the full-screen print overview share
+`PreviewDialog`. Its header, workspace, and action slots keep feature controls
+inside the shared dialog shell, with common typography, focus, and button sizing.
+Cover bleed and spine controls sit below the cover preview, which shows bleed, trim, spine,
 and safe-area guides. Print guides are editor overlays and never appear in
 exported artwork.
 

@@ -4,6 +4,8 @@ import {
   previewCoverChapterId,
 } from "@/composables/usePrintSettings";
 import { useElementSize } from "@vueuse/core";
+import PhysicalAlbumPage from "./album/PhysicalAlbumPage.vue";
+import PrintPreviewDialog from "./editor/PrintPreviewDialog.vue";
 import PreviewDialog from "@/components/ui/PreviewDialog.vue";
 import PrintSettings from "@/components/editor/PrintSettings.vue";
 import { useActiveSection } from "@/composables/useActiveSection";
@@ -35,6 +37,7 @@ import { visibleHeaderKeys } from "./album/albumSections";
 import {
   buildChapterRenderGroups,
   buildEditorItems,
+  buildEditorPageRanges,
   buildPhysicalRenderItems,
   type ChapterRenderGroup,
 } from "./album/albumRenderPlan";
@@ -86,8 +89,14 @@ const props = defineProps<{
   media: AlbumMedia[];
   steps: Step[];
   segmentOutlines: SegmentOutline[];
+  previewOpen?: boolean;
   printMode?: boolean;
   printPart?: "combined" | "cover" | "content";
+}>();
+
+const emit = defineEmits<{
+  closePreview: [];
+  "page-position": [label: string];
 }>();
 
 const albumId = computed(() => props.album.id);
@@ -121,6 +130,8 @@ const albumStyle = computed(() => {
     "--font-album": fontStack(props.album.font ?? DEFAULT_FONT),
     "--font-album-body": fontStack(props.album.body_font ?? DEFAULT_BODY_FONT),
     "--safe-margin": `${sm}mm`,
+    "--page-number-display": props.album.show_page_numbers ? "block" : "none",
+    "--page-number-clearance": props.album.show_page_numbers ? "7mm" : "0mm",
     "--interior-bleed": `${props.album.interior_bleed_mm ?? 0}mm`,
     "--cover-bleed": `${props.album.cover_bleed_mm ?? 0}mm`,
     ...(sm > 0
@@ -214,6 +225,13 @@ const editorItems = computed(() =>
 const physicalRenderItems = computed(() =>
   buildPhysicalRenderItems(editorItems.value),
 );
+const editorPageRanges = computed(() =>
+  buildEditorPageRanges(editorItems.value),
+);
+const currentPageRange = computed(
+  () => editorPageRanges.value[activeItemIndex.value],
+);
+
 const coverPreviewElement = useTemplateRef("cover-preview");
 const { activeStepId, activeSectionKey, scrollTo, scrollToSection, setActive } =
   useActiveSection();
@@ -264,6 +282,7 @@ const {
   items,
   size,
   makeFullPage,
+  activeItemIndex,
 } = useAlbumViewerEditor({
   albumId,
   editorItems,
@@ -271,6 +290,25 @@ const {
   visibleSteps,
   visibleStepIndex,
   printMode: Boolean(props.printMode),
+});
+watchEffect(() => {
+  if (props.printMode) return;
+  const range = currentPageRange.value;
+  emit(
+    "page-position",
+    range && visibleSteps.value.length
+      ? range.start === range.end
+        ? t("editor.pagePosition", {
+            page: range.start,
+            total: expectedPageCount.value,
+          })
+        : t("editor.pageRangePosition", {
+            start: range.start,
+            end: range.end,
+            total: expectedPageCount.value,
+          })
+      : "",
+  );
 });
 </script>
 
@@ -291,66 +329,18 @@ const {
         :steps="group.steps"
       />
     </template>
-    <template
-      v-for="item in printPart === 'cover' ? [] : physicalRenderItems"
+    <div
+      class="physical-page"
+      :style="{ '--page-number': index + 1 }"
+      v-for="(item, index) in printPart === 'cover' ? [] : physicalRenderItems"
       :key="item.key"
     >
-      <CoverPage
-        v-if="item.type === 'header' && item.headerKey === 'cover-front'"
+      <PhysicalAlbumPage
+        :item="item"
         :album="album"
-        :chapter="item.chapter"
-        :steps="item.steps"
+        :segment-outlines="segmentOutlines"
       />
-      <CoverPage
-        v-else-if="item.type === 'header' && item.headerKey === 'cover-back'"
-        :album="album"
-        :chapter="item.chapter"
-        :steps="item.steps"
-        is-back
-      />
-      <OverviewPage
-        v-else-if="item.type === 'header' && item.headerKey === 'overview'"
-        :album="album"
-        :segments="item.segments"
-        :steps="item.steps"
-      />
-      <div
-        v-else-if="item.type === 'header' && item.headerKey === 'full-map'"
-        class="map-wrapper"
-      >
-        <MapPage :segment-outlines="item.segments" :steps="item.steps" />
-      </div>
-      <div v-else-if="item.type === 'map'" class="map-wrapper">
-        <MapPage
-          :segment-outlines="item.section.segments"
-          :steps="item.section.steps"
-        />
-      </div>
-      <div v-else-if="item.type === 'hike'" class="map-wrapper">
-        <HikeMapPage
-          :segments="item.section.segments"
-          :steps="item.section.steps"
-          :hike-segment="item.section.hikeSegment"
-          :all-segments="segmentOutlines"
-        />
-      </div>
-      <StepEntry
-        v-else-if="item.type === 'step-page' || item.type === 'grid'"
-        :step="item.step"
-        :page-index="item.pageIndex"
-      />
-      <AlignmentPage v-else-if="item.type === 'alignment'" />
-      <PanoramaSpreadPage
-        v-else-if="item.type === 'panorama-spread-left'"
-        :media="item.media"
-        side="left"
-      />
-      <PanoramaSpreadPage
-        v-else-if="item.type === 'panorama-spread-right'"
-        :media="item.media"
-        side="right"
-      />
-    </template>
+    </div>
   </div>
 
   <!-- Editor mode: virtual scrolling - only visible sections are in the DOM -->
@@ -382,7 +372,10 @@ const {
           v-for="vItem in items"
           :key="vItem.key as PropertyKey"
           :data-index="vItem.index"
-          :style="{ minHeight: `${vItem.size}px` }"
+          :style="{
+            minHeight: `${vItem.size}px`,
+            '--page-number': editorPageRanges[vItem.index]?.start,
+          }"
         >
           <template v-if="!pageContentSuspended && editorItems[vItem.index]">
             <template
@@ -456,7 +449,13 @@ const {
                     makeFullPage(item.step, item.originalPageIndex, $event)
                   "
                 />
-                <PanoramaSpreadPage :media="item.media" side="right" />
+                <PanoramaSpreadPage
+                  :media="item.media"
+                  side="right"
+                  :style="{
+                    '--page-number': editorPageRanges[vItem.index]?.end,
+                  }"
+                />
               </div>
               <StepEntry
                 v-else-if="item.type === 'step-add-zone'"
@@ -478,6 +477,15 @@ const {
       showing
     />
   </div>
+
+  <PrintPreviewDialog
+    v-if="previewOpen && !printMode"
+    :album="album"
+    :groups="chapterRenderGroups"
+    :segment-outlines="segmentOutlines"
+    :style="albumStyle"
+    @close="emit('closePreview')"
+  />
 
   <PreviewDialog
     v-if="!printMode && coverGroups.length && previewCoverChapterId"

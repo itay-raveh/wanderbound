@@ -8,7 +8,7 @@ const printMode = usePrintMode();
 
 <template>
   <div class="alignment-item">
-    <AlbumPage class="alignment-artwork">
+    <AlbumPage number-placement="none" class="alignment-artwork">
       <img src="/topo-contours.svg" alt="" />
       <div v-if="!printMode" class="alignment-note" role="note">
         <strong>{{ t("panorama.alignment.title") }}</strong>

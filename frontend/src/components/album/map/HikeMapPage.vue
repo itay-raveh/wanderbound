@@ -67,12 +67,11 @@ const toTime = computed(
   () => (adjAfter.value || null)?.end_time ?? props.hikeSegment.end_time,
 );
 
-const { data: fetchedSegments } = useSegmentPointsQuery(
-  fromTime,
-  toTime,
-  true,
-  !printMode,
-);
+const {
+  data: fetchedSegments,
+  status: segmentStatus,
+  asyncStatus: segmentAsyncStatus,
+} = useSegmentPointsQuery(fromTime, toTime, true, !printMode);
 
 const fullHikeSegment = computed(() =>
   fetchedSegments.value?.find(
@@ -289,6 +288,11 @@ const { map, fitBounds } = useMapbox({
   container,
   locale,
   preserveDrawingBuffer: printMode,
+  contentReady: () => fetchedSegments.value !== undefined,
+  contentError: () =>
+    fetchedSegments.value === undefined &&
+    segmentStatus.value === "error" &&
+    segmentAsyncStatus.value !== "loading",
   deferInit: !printMode,
   onReady: (m) => {
     m.resize();

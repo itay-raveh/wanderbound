@@ -1,6 +1,8 @@
+import { buildPrintSpreads } from "@/components/album/printSpreads";
 import type { AlbumChapter } from "@/client";
 import {
   buildEditorItems,
+  buildEditorPageRanges,
   buildPhysicalRenderItems,
   type ChapterRenderGroup,
 } from "@/components/album/albumRenderPlan";
@@ -58,12 +60,7 @@ describe("album render planning", () => {
     });
 
     const editorItems = buildEditorItems(
-      [
-        group(
-          [step],
-          ["cover-front", "cover-back", "overview", "full-map"],
-        ),
-      ],
+      [group([step], ["cover-front", "cover-back", "overview", "full-map"])],
       new Map(),
     );
 
@@ -108,12 +105,17 @@ describe("album render planning", () => {
         .map((item) => item.step.id),
     ).toEqual([2]);
     expect(
-      reordered.filter((item) => item.type === "alignment").map((item) => item.step.id),
+      reordered
+        .filter((item) => item.type === "alignment")
+        .map((item) => item.step.id),
     ).toEqual([3]);
   });
 
   test("restarts spread parity for each chapter", () => {
-    const firstChapterStep = makeStep({ id: 1 });
+    const firstChapterStep = makeStep({
+      id: 1,
+      unused: ["first.jpg", "second.jpg"],
+    });
     const secondChapterSpread = makeStep({
       id: 2,
       pages: [{ kind: "panorama_spread", media: ["wide.jpg"] }],
@@ -124,7 +126,7 @@ describe("album render planning", () => {
     };
 
     const editorItems = buildEditorItems(
-      [group([firstChapterStep]), secondChapter],
+      [group([firstChapterStep], ["cover-front", "cover-back"]), secondChapter],
       new Map(),
     );
 
@@ -133,5 +135,83 @@ describe("album render planning", () => {
         .filter((item) => item.type === "alignment")
         .map((item) => item.step.id),
     ).toEqual([2]);
+    expect(buildEditorPageRanges(editorItems)).toEqual([
+      { start: 1, end: 1 },
+      { start: 2, end: 2 },
+      { start: 3, end: 3 },
+      null,
+      { start: 4, end: 4 },
+      { start: 5, end: 5 },
+      { start: 6, end: 7 },
+    ]);
+  });
+});
+
+describe("print preview pairing", () => {
+  test("separates covers and preserves every PDF page and panorama pair", () => {
+    const items = buildPhysicalRenderItems(
+      buildEditorItems(
+        [
+          group(
+            [
+              makeStep({
+                pages: [{ kind: "panorama_spread", media: ["wide.jpg"] }],
+              }),
+            ],
+            ["cover-front", "cover-back", "overview", "full-map"],
+          ),
+        ],
+        new Map(),
+      ),
+    );
+    const spreads = buildPrintSpreads(items);
+    expect(spreads[0].pages.map((page) => page?.number)).toEqual([2, 1]);
+    expect(spreads[1].pages.map((page) => page?.number)).toEqual([3, 4]);
+    expect(spreads.at(-1)!.pages.map((page) => page?.item.type)).toEqual([
+      "panorama-spread-left",
+      "panorama-spread-right",
+    ]);
+    expect(
+      spreads
+        .flatMap((spread) => spread.pages)
+        .filter((page) => page !== null)
+        .map((page) => page.number)
+        .sort((a, b) => a - b),
+    ).toEqual(items.map((_, i) => i + 1));
+  });
+
+  test("retains the PDF side when a single cover is visible and adds no blank page", () => {
+    const items = buildPhysicalRenderItems(
+      buildEditorItems(
+        [group([makeStep()], ["cover-front", "overview", "full-map"])],
+        new Map(),
+      ),
+    );
+    const spreads = buildPrintSpreads(items);
+    expect(
+      spreads.map((spread) => spread.pages.map((page) => page?.number ?? null)),
+    ).toEqual([
+      [null, 1],
+      [null, 2],
+      [3, 4],
+    ]);
+  });
+
+  test("leaves an unmatched last side empty and handles no pages", () => {
+    const items = buildPhysicalRenderItems(
+      buildEditorItems(
+        [group([makeStep()], ["overview", "full-map"])],
+        new Map(),
+      ),
+    );
+    expect(
+      buildPrintSpreads(items).map((spread) =>
+        spread.pages.map((page) => page?.number ?? null),
+      ),
+    ).toEqual([
+      [1, 2],
+      [3, null],
+    ]);
+    expect(buildPrintSpreads([])).toEqual([]);
   });
 });

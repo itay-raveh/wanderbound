@@ -11,6 +11,7 @@ import {
 import { expect, test } from "./fixtures";
 
 const API = "**/api/v1";
+
 const BASEMAP_COLOR = [20, 107, 58] as const;
 const OVERVIEW_ROUTE_COLOR = [74, 144, 217] as const;
 const HIKE_ROUTE_COLOR = [231, 124, 49] as const;
@@ -50,6 +51,7 @@ const hike: Segment = {
 const bundle: PrintBundle = {
   album: {
     ...mockAlbum,
+    show_page_numbers: true,
     hidden_headers: ["cover-front", "cover-back", "overview"],
     maps_ranges: [["2024-01-01", "2024-01-01"]],
     chapters: [
@@ -257,12 +259,149 @@ async function snapshotColorCounts(page: Page) {
 test.describe("PDF map snapshots", () => {
   test.describe.configure({ timeout: 120_000 });
 
+  test("keeps maps visible in the screen spread preview after capture", async ({
+    authedPage: page,
+  }) => {
+    test.slow();
+    await installPdfMapFixture(page, 0);
+    await page.addInitScript(() => {
+      const active = new Set<string>();
+      const create = URL.createObjectURL.bind(URL);
+      const revoke = URL.revokeObjectURL.bind(URL);
+      URL.createObjectURL = (blob) => {
+        const url = create(blob);
+        if (blob instanceof Blob && blob.type === "image/jpeg") active.add(url);
+        return url;
+      };
+      URL.revokeObjectURL = (url) => {
+        active.delete(url);
+        revoke(url);
+      };
+      Object.assign(window, { activeMapSnapshots: active });
+    });
+    const liveSnapshots = () =>
+      page.evaluate(
+        () =>
+          (window as unknown as { activeMapSnapshots: Set<string> })
+            .activeMapSnapshots.size,
+      );
+    let failRoutes = true;
+    await page.route(`${API}/albums/*/segments/points*`, (route) =>
+      failRoutes
+        ? route.fulfill({ status: 503, json: { detail: "Unavailable" } })
+        : route.fulfill({ json: [hike] }),
+    );
+    await page.emulateMedia({ media: "screen" });
+    await page.route(`${API}/albums/aid-1`, (route) =>
+      route.fulfill({ json: bundle.album }),
+    );
+    await page.route(`${API}/albums/aid-1/steps`, (route) =>
+      route.fulfill({ json: bundle.steps }),
+    );
+    await page.route(`${API}/albums/aid-1/segments`, (route) =>
+      route.fulfill({ json: bundle.segments }),
+    );
+    await page.goto("/editor");
+    await page
+      .getByRole("button", { name: "Print preview", exact: true })
+      .click();
+    const dialog = page.getByRole("dialog", {
+      name: "Print preview",
+      exact: true,
+    });
+    await expect(dialog.locator("[data-map]")).toHaveCount(2);
+    await dialog
+      .getByRole("button", { name: "Next spread", exact: true })
+      .click();
+    await dialog
+      .getByRole("button", { name: "Previous spread", exact: true })
+      .click();
+    await expect(
+      dialog.locator('[data-map-error="content-load-failed"]'),
+    ).toHaveCount(2, { timeout: 30_000 });
+    await expect.poll(liveSnapshots).toBe(0);
+    failRoutes = false;
+    await dialog
+      .getByRole("button", { name: "Retry map", exact: true })
+      .first()
+      .click();
+    await dialog
+      .getByRole("button", { name: "Retry map", exact: true })
+      .click();
+    await expect(
+      dialog.getByText("Loading map…", { exact: true }).first(),
+    ).toBeVisible();
+    const snapshots = dialog.locator(
+      "[data-map-snapshot-ready] > .mapbox-print-snapshot",
+    );
+    await expect(snapshots).toHaveCount(2, { timeout: 120_000 });
+    await expect(dialog.locator(".mapboxgl-canvas")).toHaveCount(0);
+    await expect(dialog.locator(".map-status")).toHaveCount(0);
+    await expect.poll(liveSnapshots).toBe(2);
+    for (const snapshot of await snapshots.all()) {
+      await expect(snapshot).toBeVisible();
+      const fillsMap = await snapshot.evaluate((image) => {
+        const bounds = image.getBoundingClientRect();
+        const parent = image.parentElement!.getBoundingClientRect();
+        return (
+          Math.abs(bounds.width - parent.width) < 1 &&
+          Math.abs(bounds.height - parent.height) < 1
+        );
+      });
+      expect(fillsMap).toBe(true);
+    }
+    const capturedUrls = await snapshots.evaluateAll((images) =>
+      images.map((image) => (image as HTMLImageElement).src),
+    );
+    await dialog
+      .getByRole("button", { name: "Next spread", exact: true })
+      .click();
+    await expect(snapshots).toHaveCount(0);
+    await expect.poll(liveSnapshots).toBe(2);
+    await dialog
+      .getByRole("button", { name: "Previous spread", exact: true })
+      .click();
+    await expect(snapshots).toHaveCount(2);
+    expect(
+      await snapshots.evaluateAll((images) =>
+        images.map((image) => (image as HTMLImageElement).src),
+      ),
+    ).toEqual(capturedUrls);
+    await expect(dialog.locator(".mapboxgl-canvas, .map-status")).toHaveCount(
+      0,
+    );
+    await dialog
+      .getByRole("button", { name: "Next spread", exact: true })
+      .click();
+    await dialog
+      .getByRole("button", { name: "Next spread", exact: true })
+      .click();
+    await expect.poll(liveSnapshots).toBeLessThan(2);
+    await page.keyboard.press("Escape");
+    await expect(dialog).toBeHidden();
+    await expect.poll(liveSnapshots).toBe(0);
+  });
+
   test("waits for delayed basemap tiles and runtime routes", async ({
     page,
   }) => {
     const tiles = await installPdfMapFixture(page, null, {
       ...bundle,
-      album: { ...bundle.album, interior_bleed_mm: 3 },
+      album: {
+        ...bundle.album,
+        safe_margin_mm: 15,
+        interior_bleed_mm: 3,
+        hidden_headers: ["cover-front", "cover-back"],
+      },
+    });
+
+    let releaseRoutes!: () => void;
+    const routes = new Promise<void>((resolve) => {
+      releaseRoutes = resolve;
+    });
+    await page.route(`${API}/albums/*/segments/points*`, async (route) => {
+      await routes;
+      await route.fulfill({ json: [hike] });
     });
 
     await page.goto("/print/aid-1");
@@ -278,8 +417,12 @@ test.describe("PDF map snapshots", () => {
     const mapMemoryReleased = releasePrintMapMemory(page);
 
     await expect.poll(tiles.tileFulfilled, { timeout: 30_000 }).toBe(true);
-    await page.waitForTimeout(400);
-    await expect(page.locator("[data-map-snapshot-ready]")).toHaveCount(0);
+    try {
+      await page.waitForTimeout(20_000);
+      await expect(page.locator("[data-map-snapshot-ready]")).toHaveCount(0);
+    } finally {
+      releaseRoutes();
+    }
 
     await page.waitForFunction(
       () => document.querySelectorAll("[data-map-snapshot-ready]").length >= 1,
@@ -297,10 +440,22 @@ test.describe("PDF map snapshots", () => {
       "ready",
     );
     expect(tiles.tileFulfilled()).toBe(true);
+    const overview = page
+      .locator(".page-container")
+      .filter({ has: page.locator(".overview") });
+    const labels = await overview.locator(".country-labels").boundingBox();
+    const number = await overview.locator(".album-page-number").boundingBox();
+    expect(labels!.y + labels!.height).toBeLessThan(number!.y);
     const snapshots = page.locator(
       "[data-map][data-map-snapshot-ready] > .mapbox-print-snapshot",
     );
     await expect(snapshots).toHaveCount(2);
+    await expect(
+      page
+        .locator(".page-container")
+        .filter({ has: page.locator(".mapbox-print-snapshot") })
+        .locator(".album-page-number:visible"),
+    ).toHaveCount(2);
     const elevationProfile = page.locator(
       ".hike-map-canvas ~ .elevation-chart svg[role='img']",
     );

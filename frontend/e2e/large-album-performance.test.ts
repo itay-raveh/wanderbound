@@ -274,6 +274,9 @@ test.describe("Large album editor performance", () => {
       await expect(page.getByText(`Large Step ${step}`).first()).toBeVisible({
         timeout: 10_000,
       });
+      await expect(page.locator(".page-position")).toHaveText(
+        `Page ${step * 2 + 3} of 484`,
+      );
       await expect
         .poll(() => page.locator("[data-media]").count())
         .toBeLessThan(120);

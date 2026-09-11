@@ -1,5 +1,9 @@
 import { expect, openEditor, test } from "./fixtures";
-import { mockAlbum, mockUser } from "../tests/fixtures/mocks";
+import {
+  mockAlbum,
+  mockUser,
+  mockAuthStateAuthenticated,
+} from "../tests/fixtures/mocks";
 
 for (const width of [1600, 1024]) {
   test(`color picker commits on blur and supports undo at ${width}px`, async ({
@@ -11,8 +15,12 @@ for (const width of [1600, 1024]) {
       colorScheme: rtl ? "dark" : "light",
       reducedMotion: "reduce",
     });
+    const user = { ...mockUser, locale: rtl ? "he" : "en-US" };
     await page.route("**/api/v1/users", (route) =>
-      route.fulfill({ json: { ...mockUser, locale: rtl ? "he" : "en-US" } }),
+      route.fulfill({ json: user }),
+    );
+    await page.route("**/api/v1/auth/state", (route) =>
+      route.fulfill({ json: { ...mockAuthStateAuthenticated, user } }),
     );
     const album = {
       ...mockAlbum,

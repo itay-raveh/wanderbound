@@ -1,6 +1,13 @@
 <script setup lang="ts">
 defineOptions({ inheritAttrs: false });
-defineProps<{ cover?: boolean; widthMm?: number }>();
+withDefaults(
+  defineProps<{
+    cover?: boolean;
+    widthMm?: number;
+    numberPlacement?: "margin" | "image" | "none";
+  }>(),
+  { numberPlacement: "margin" },
+);
 </script>
 
 <template>
@@ -9,7 +16,18 @@ defineProps<{ cover?: boolean; widthMm?: number }>();
     :class="{ 'cover-sheet': cover }"
     :style="widthMm ? { '--trim-width': `${widthMm}mm` } : undefined"
   >
-    <div class="page-artwork" v-bind="$attrs"><slot /></div>
+    <div
+      class="page-artwork"
+      :class="`number-${numberPlacement}`"
+      v-bind="$attrs"
+    >
+      <slot />
+      <span
+        v-if="!cover && numberPlacement !== 'none'"
+        class="album-page-number"
+        aria-hidden="true"
+      />
+    </div>
     <div class="trim-guide" aria-hidden="true" />
     <div class="safe-guide" aria-hidden="true" />
   </div>
@@ -58,5 +76,36 @@ defineProps<{ cover?: boolean; widthMm?: number }>();
   inset: calc(var(--bleed) + var(--safe-margin, 0mm));
   border: 1px dashed white;
   box-shadow: 0 0 0 1px black;
+}
+.number-margin > :slotted(.page-content) {
+  padding-bottom: calc(
+    var(--page-content-inset-bottom) + var(--page-number-clearance, 0mm)
+  );
+}
+
+.album-page-number {
+  display: var(--page-number-display, none);
+  position: absolute;
+  inset-block-end: max(5mm, var(--safe-margin, 0mm));
+  inset-inline: 0;
+  margin-inline: auto;
+  width: max-content;
+  z-index: 3;
+  color: var(--text-muted);
+  font: 500 3.2mm / 1 var(--font-album);
+  font-variant-numeric: tabular-nums;
+  pointer-events: none;
+}
+
+.number-image > .album-page-number {
+  color: var(--text-on-color);
+  text-shadow:
+    0 0.2mm 0.5mm #000,
+    0 0.1mm 0.15mm #000;
+}
+
+.album-page-number::after {
+  counter-reset: album-page var(--page-number);
+  content: counter(album-page);
 }
 </style>
