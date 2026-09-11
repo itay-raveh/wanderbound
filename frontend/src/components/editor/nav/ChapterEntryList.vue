@@ -13,6 +13,7 @@ const props = defineProps<{
   group: ChapterVisit;
   open: boolean;
   activeStepId: number | null;
+  expandedStepId: number | null;
   activeSectionKey: string | null;
   hiddenSet: ReadonlySet<number>;
   formatMapRange: (dr: DateRange) => string;
@@ -39,12 +40,14 @@ function scrollActiveIntoVirtualView() {
   void nextTick(() => {
     requestAnimationFrame(() => {
       const scrollEl = virtualScrollRef.value?.$el;
-      if (!scrollEl) return;
-      scrollEl.scrollTop = Math.max(
-        0,
-        index * NAV_ENTRY_ROW_SIZE -
-          (scrollEl.clientHeight - NAV_ENTRY_ROW_SIZE) / 2,
+      const row = scrollEl?.querySelector(
+        `[data-nav-step="${props.activeStepId}"]`,
       );
+      if (!scrollEl || !row) return;
+      scrollEl.scrollTop +=
+        row.getBoundingClientRect().top -
+        scrollEl.getBoundingClientRect().top -
+        (scrollEl.clientHeight - row.clientHeight) / 2;
     });
   });
 }
@@ -94,10 +97,20 @@ defineEmits<{
           :thumb="entry.item.thumb"
           :color="entry.item.color"
           :active="activeStepId === entry.item.id"
+          :aria-expanded="expandedStepId === entry.item.id"
           :hidden="hiddenSet.has(entry.item.id)"
           :lazy-root="lazyRoot"
           @click="$emit('scrollToStep', entry.item.id)"
           @toggle="$emit('toggleStep', entry.item.id)"
+        />
+        <slot
+          v-if="
+            entry.type === 'step' &&
+            expandedStepId === entry.item.id &&
+            !hiddenSet.has(entry.item.id)
+          "
+          name="step-pages"
+          :step-id="entry.item.id"
         />
       </div>
     </template>

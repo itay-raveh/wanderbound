@@ -5,7 +5,9 @@ import { inDateRange, isoDate } from "@/utils/date";
 import { rangeSectionKey } from "@/components/album/albumSections";
 import { useAlbumNavScrollSync } from "./nav/useAlbumNavScrollSync";
 import { useAlbumNavModel } from "./nav/useAlbumNavModel";
-import { nextTick, ref } from "vue";
+import { computed, nextTick, ref, watch } from "vue";
+import { indexSteps } from "@/utils/steps";
+import NavStepPages from "./nav/NavStepPages.vue";
 import NavMapRanges from "./nav/NavMapRanges.vue";
 import MapRangeDialog from "./nav/MapRangeDialog.vue";
 import NavChapterGroup from "./nav/NavChapterGroup.vue";
@@ -20,6 +22,14 @@ const props = withDefaults(defineProps<AlbumNavProps>(), {
 });
 
 const selectedAlbumId = defineModel<string | null>("albumId");
+const stepIndex = computed(() => indexSteps(props.steps));
+const selectedStepId = ref<number | null>(null);
+watch(
+  () => props.album.id,
+  () => {
+    selectedStepId.value = null;
+  },
+);
 
 const listRef = ref<HTMLElement>();
 const {
@@ -52,6 +62,11 @@ const {
   openChapterKey,
   listRef,
 });
+
+function selectStep(id: number) {
+  selectedStepId.value = id;
+  scrollToStep(id);
+}
 
 const mapDialogOpen = ref(false);
 const editingMap = ref<{ rangeIdx: number; dateRange: DateRange } | null>(null);
@@ -124,6 +139,7 @@ async function saveMap(range: DateRange) {
           :group="row.group"
           :open="openChapterKey === row.group.key"
           :active-step-id="activeStepId"
+          :expanded-step-id="selectedStepId ?? activeStepId"
           :active-section-key="activeSectionKey"
           :hidden-set="hiddenSet"
           :hidden-header-set="hiddenHeaderSet"
@@ -138,14 +154,24 @@ async function saveMap(range: DateRange) {
           @split-chapter="onSplitChapter(row.group.chapter.id)"
           @delete-chapter="onDeleteChapter(row.group.chapter.id)"
           @adjust-boundary="onAdjustChapterBoundaryFromRow(index, $event)"
-          @scroll-to-step="scrollToStep"
-          @scroll-to-map="scrollToMap"
-          @scroll-to-header="scrollToHeader"
+          @scroll-to-step="selectStep"
+          @scroll-to-map="
+            selectedStepId = null;
+            scrollToMap($event);
+          "
+          @scroll-to-header="
+            selectedStepId = null;
+            scrollToHeader($event);
+          "
           @toggle-step="toggleStep"
           @toggle-header="toggleHeader"
           @delete-map="deleteMap"
           @edit-map="openEditMap"
-        />
+        >
+          <template #step-pages="{ stepId }">
+            <NavStepPages :step="stepIndex.byId.get(stepId)!" :media="media" />
+          </template>
+        </NavChapterGroup>
       </template>
     </div>
 

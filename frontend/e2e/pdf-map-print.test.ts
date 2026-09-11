@@ -302,6 +302,9 @@ test.describe("PDF map snapshots", () => {
       route.fulfill({ json: bundle.segments }),
     );
     await page.goto("/editor");
+    const originalPixelRatio = await page.evaluate(
+      () => window.devicePixelRatio,
+    );
     await page
       .getByRole("button", { name: "Print preview", exact: true })
       .click();
@@ -380,6 +383,9 @@ test.describe("PDF map snapshots", () => {
     await page.keyboard.press("Escape");
     await expect(dialog).toBeHidden();
     await expect.poll(liveSnapshots).toBe(0);
+    expect(await page.evaluate(() => window.devicePixelRatio)).toBe(
+      originalPixelRatio,
+    );
   });
 
   test("waits for delayed basemap tiles and runtime routes", async ({

@@ -42,6 +42,7 @@ const PRINT_TILE_SETTLE_MS = 2_000;
 let activePrintMaps = 0;
 const queuedPrintMaps: Array<() => void> = [];
 let printPixelRatioUsers = 0;
+let originalPixelRatio: PropertyDescriptor | undefined;
 
 function maxConcurrentPrintMaps(): number {
   return Math.min(
@@ -53,6 +54,10 @@ function maxConcurrentPrintMaps(): number {
 function acquirePrintPixelRatio(pixelRatio: number): () => void {
   printPixelRatioUsers++;
   if (printPixelRatioUsers === 1) {
+    originalPixelRatio = Object.getOwnPropertyDescriptor(
+      window,
+      "devicePixelRatio",
+    );
     Object.defineProperty(window, "devicePixelRatio", {
       configurable: true,
       value: pixelRatio,
@@ -63,8 +68,13 @@ function acquirePrintPixelRatio(pixelRatio: number): () => void {
     if (released) return;
     released = true;
     printPixelRatioUsers--;
-    if (printPixelRatioUsers === 0)
-      Reflect.deleteProperty(window, "devicePixelRatio");
+    if (printPixelRatioUsers === 0) {
+      // Restore the browser getter so later canvases and display changes work.
+      if (originalPixelRatio)
+        Object.defineProperty(window, "devicePixelRatio", originalPixelRatio);
+      else Reflect.deleteProperty(window, "devicePixelRatio");
+      originalPixelRatio = undefined;
+    }
   };
 }
 

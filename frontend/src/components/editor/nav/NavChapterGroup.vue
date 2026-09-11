@@ -19,6 +19,7 @@ defineProps<{
   group: ChapterVisit;
   open: boolean;
   activeStepId: number | null;
+  expandedStepId: number | null;
   activeSectionKey: string | null;
   hiddenSet: ReadonlySet<number>;
   hiddenHeaderSet: ReadonlySet<string>;
@@ -103,6 +104,7 @@ const emit = defineEmits<{
       :group="group"
       :open="open"
       :active-step-id="activeStepId"
+      :expanded-step-id="expandedStepId"
       :active-section-key="activeSectionKey"
       :hidden-set="hiddenSet"
       :format-map-range="formatMapRange"
@@ -112,7 +114,11 @@ const emit = defineEmits<{
       @scroll-to-map="emit('scrollToMap', $event)"
       @scroll-to-step="emit('scrollToStep', $event)"
       @toggle-step="emit('toggleStep', $event)"
-    />
+    >
+      <template #step-pages="{ stepId }">
+        <slot name="step-pages" :step-id="stepId" />
+      </template>
+    </ChapterEntryList>
   </q-expansion-item>
 </template>
 

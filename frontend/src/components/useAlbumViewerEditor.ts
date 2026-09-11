@@ -53,7 +53,7 @@ export function useAlbumViewerEditor({
   const scrollMargin = ref(0);
   const scrollPaddingStart = ref(0);
 
-  const { virtualizer, items, size, version } = useWindowVirtualizer(
+  const { virtualizer, items, size, version, scrollOffset } = useWindowVirtualizer(
     computed(() => ({
       count: editorItems.value.length,
       estimateSize: (index: number) =>
@@ -75,7 +75,7 @@ export function useAlbumViewerEditor({
     );
     return pickBestItem(
       pages,
-      window.scrollY,
+      scrollOffset.value,
       scrollMargin.value,
       window.innerHeight / 2,
     )?.index ?? 0;
@@ -181,19 +181,9 @@ export function useAlbumViewerEditor({
     });
     return result;
   });
-  const sectionKeyToIndex = computed(() => {
-    const result = new Map<string, number>();
-    editorItems.value.forEach((item, index) => {
-      if (
-        item.type === "header" ||
-        item.type === "map" ||
-        item.type === "hike"
-      ) {
-        result.set(item.key, index);
-      }
-    });
-    return result;
-  });
+  const sectionKeyToIndex = computed(
+    () => new Map(editorItems.value.map((item, index) => [item.key, index])),
+  );
 
   function sectionIdAt(index: number) {
     const item = editorItems.value[index];
@@ -377,7 +367,7 @@ export function useAlbumViewerEditor({
     }
     const best = pickBestItem(
       visibleItems,
-      window.scrollY,
+      scrollOffset.value,
       scrollMargin.value,
       window.innerHeight / 2,
     );

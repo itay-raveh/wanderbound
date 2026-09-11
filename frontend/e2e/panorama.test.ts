@@ -142,6 +142,15 @@ test("frames a panorama globally and prints a two-page spread", async ({
     .toBe(true);
   const preview = dialog.locator(".preview-viewport");
   await expect(preview).toBeVisible();
+  await expect
+    .poll(() =>
+      preview
+        .locator("canvas")
+        .evaluate(
+          (canvas: HTMLCanvasElement) => canvas.width > 0 && canvas.height > 0,
+        ),
+    )
+    .toBe(true);
   await expect(dialog.getByRole("alert")).toHaveCount(0);
   await expect(dialog.locator('input[name="zoom"]')).toHaveAttribute(
     "max",
