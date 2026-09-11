@@ -36,11 +36,9 @@ function updateBodyFont(font: string) {
   albumMutation.mutate({ body_font: font });
 }
 
-function updateColor(code: string, color: string | null) {
-  if (!color || !/^#[\da-f]{6}$/i.test(color)) return;
-  const value = color.toLowerCase();
-  if (value === colors.value[code]?.toLowerCase()) return;
-  albumMutation.mutate({ colors: { ...colors.value, [code]: value } });
+function updateColor(code: string, color: string) {
+  if (color === colors.value[code]) return;
+  albumMutation.mutate({ colors: { ...colors.value, [code]: color } });
 }
 </script>
 
