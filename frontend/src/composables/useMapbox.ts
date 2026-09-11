@@ -6,6 +6,7 @@ import {
   getPrintCpuCount,
   getPrintTimeoutMs,
   usePrintMapPixelRatio,
+  usePrintMapState,
 } from "@/composables/usePrintReady";
 import { getSettings } from "@/config";
 import {
@@ -121,6 +122,7 @@ function langFromLocale(locale: string | undefined): string {
 
 export function useMapbox(options: UseMapboxOptions) {
   const printPixelRatio = usePrintMapPixelRatio();
+  const printState = usePrintMapState();
   mapboxgl.accessToken = getSettings().MAPBOX_TOKEN ?? "";
   const map = shallowRef<mapboxgl.Map | null>(null);
   let pendingRender: (() => void) | null = null;
@@ -177,6 +179,7 @@ export function useMapbox(options: UseMapboxOptions) {
       console.warn("[mapbox] failed to initialise map:", e);
       if (options.preserveDrawingBuffer) {
         el.dataset.mapError = "initialization-failed";
+        if (printState) printState.value = "error";
         releasePrintMapSlot();
       } else {
         el.dataset.mapReady = "";
@@ -204,9 +207,11 @@ export function useMapbox(options: UseMapboxOptions) {
     delete el.dataset.mapReady;
     delete el.dataset.mapSnapshotReady;
     delete el.dataset.mapError;
+    if (printState) printState.value = "loading";
     const markReady = () => {
       if (generation !== readinessGeneration) return;
       el.dataset.mapReady = "";
+      if (printState) printState.value = "ready";
       pendingRender = null;
       if (readinessTimer !== null) {
         clearTimeout(readinessTimer);
@@ -221,6 +226,7 @@ export function useMapbox(options: UseMapboxOptions) {
     const markError = (code: string) => {
       if (generation !== readinessGeneration) return;
       el.dataset.mapError = code;
+      if (printState) printState.value = "error";
       pendingRender = null;
       if (readinessTimer !== null) {
         clearTimeout(readinessTimer);

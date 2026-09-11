@@ -56,3 +56,17 @@ export function providePrintMediaReady(ready: Ref<boolean>): void {
 export function usePrintMediaReady(): Readonly<Ref<boolean>> {
   return inject(MEDIA_READY_KEY, MEDIA_READY_DEFAULT);
 }
+
+type PrintMapState = "loading" | "ready" | "error";
+const MAP_STATE_KEY: InjectionKey<Ref<PrintMapState>> =
+  Symbol("print-map-state");
+
+export function providePrintMapState(): Ref<PrintMapState> {
+  const state = ref<PrintMapState>("loading");
+  provide(MAP_STATE_KEY, state);
+  return state;
+}
+
+export function usePrintMapState(): Ref<PrintMapState> | null {
+  return inject(MAP_STATE_KEY, null);
+}

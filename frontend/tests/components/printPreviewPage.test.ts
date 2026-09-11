@@ -1,17 +1,18 @@
 import { mount } from "@vue/test-utils";
-import { defineComponent, h, nextTick, onMounted, ref } from "vue";
+import { defineComponent, h, nextTick, onMounted } from "vue";
 import { createI18n } from "vue-i18n";
 import PrintPreviewPage from "@/components/editor/PrintPreviewPage.vue";
+import { usePrintMapState } from "@/composables/usePrintReady";
 import type { AlbumMeta } from "@/client";
 
 vi.mock("@/components/album/PhysicalAlbumPage.vue", () => ({
   default: defineComponent({
     setup() {
-      const el = ref<HTMLElement>();
+      const state = usePrintMapState();
       onMounted(() => {
-        el.value!.dataset.mapError = "initialization-failed";
+        state!.value = "error";
       });
-      return () => h("div", { ref: el, "data-map": "" });
+      return () => h("div");
     },
   }),
 }));
@@ -62,7 +63,6 @@ test("surfaces synchronous map initialization failure on first mount", async () 
     },
   });
   await nextTick();
-  await new Promise((resolve) => setTimeout(resolve, 0));
   expect(wrapper.get('[role="status"]').text()).toBe("Failed");
   expect(wrapper.get("button").text()).toBe("Retry");
   wrapper.unmount();

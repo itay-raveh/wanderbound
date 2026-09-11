@@ -4,14 +4,14 @@ import {
   onActivated,
   onDeactivated,
   onErrorCaptured,
-  onMounted,
   ref,
-  useTemplateRef,
+  watch,
 } from "vue";
-import { useMutationObserver, useTimeoutFn } from "@vueuse/core";
+import { useTimeoutFn } from "@vueuse/core";
 import { useI18n } from "vue-i18n";
 import type { AlbumMeta, SegmentOutline } from "@/client";
 import type { PhysicalRenderItem } from "../album/albumRenderPlan";
+import { providePrintMapState } from "@/composables/usePrintReady";
 import PhysicalAlbumPage from "../album/PhysicalAlbumPage.vue";
 
 const props = defineProps<{
@@ -23,14 +23,13 @@ const props = defineProps<{
   scale: number;
 }>();
 const { t } = useI18n();
-const artwork = useTemplateRef("artwork");
 const isMap = computed(
   () =>
     props.item.type === "map" ||
     props.item.type === "hike" ||
     (props.item.type === "header" && props.item.headerKey === "full-map"),
 );
-const state = ref<"loading" | "ready" | "error">("loading");
+const state = providePrintMapState();
 const attempt = ref(0);
 const active = ref(true);
 const slow = ref(false);
@@ -43,23 +42,9 @@ const { start, stop } = useTimeoutFn(
     immediate: isMap.value,
   },
 );
-function syncMapState() {
-  const map = artwork.value?.querySelector<HTMLElement>("[data-map]");
-  if (!map) return;
-  state.value = map.hasAttribute("data-map-error")
-    ? "error"
-    : map.hasAttribute("data-map-snapshot-ready")
-      ? "ready"
-      : "loading";
-  if (state.value !== "loading") stop();
-}
-useMutationObserver(artwork, syncMapState, {
-  subtree: true,
-  childList: true,
-  attributes: true,
-  attributeFilter: ["data-map-error", "data-map-snapshot-ready"],
+watch(state, (value) => {
+  if (value !== "loading") stop();
 });
-onMounted(syncMapState);
 onErrorCaptured(() => {
   if (isMap.value) {
     state.value = "error";
@@ -86,7 +71,6 @@ onActivated(() => {
 
 <template>
   <div
-    ref="artwork"
     class="page-scale"
     :dir="$q.lang.rtl ? 'rtl' : 'ltr'"
     :style="{
@@ -153,13 +137,5 @@ onActivated(() => {
 }
 .map-status p {
   margin: 0;
-}
-.map-status .q-btn {
-  min-width: 2.75rem;
-  min-height: 2.75rem;
-}
-.map-status .q-btn:focus-visible {
-  outline: 2px solid var(--primary-text) !important;
-  outline-offset: 2px;
 }
 </style>

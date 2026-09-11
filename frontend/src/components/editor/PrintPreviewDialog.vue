@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { computed, ref, useId, useTemplateRef, watch } from "vue";
-import { useElementSize, useResizeObserver } from "@vueuse/core";
+import { computed, ref, useTemplateRef, watch } from "vue";
+import { useElementSize } from "@vueuse/core";
 import { useI18n } from "vue-i18n";
 import type { AlbumMeta, SegmentOutline } from "@/client";
 import { providePrintMode } from "@/composables/usePrintReady";
@@ -16,11 +16,11 @@ import {
   type ChapterRenderGroup,
 } from "../album/albumRenderPlan";
 import { buildPrintSpreads } from "../album/printSpreads";
+import PreviewDialog from "../ui/PreviewDialog.vue";
 import PrintPreviewPage from "./PrintPreviewPage.vue";
 import { daysBetween, parseLocalDate } from "@/utils/date";
 import { MM_PX, PAGE_WIDTH_MM, PAGE_HEIGHT_MM } from "@/utils/pageSize";
 import {
-  symOutlinedArrowBack,
   symOutlinedChevronLeft,
   symOutlinedChevronRight,
   symOutlinedZoomIn,
@@ -34,7 +34,6 @@ const props = defineProps<{
 }>();
 const emit = defineEmits<{ close: [] }>();
 const { t } = useI18n();
-const titleId = useId();
 const show = ref(true);
 providePrintMode(1);
 const albumContext = useAlbum();
@@ -85,44 +84,8 @@ const spreads = computed(() =>
 const position = ref(0);
 const current = computed(() => spreads.value[position.value]);
 const zoom = ref(1);
-const viewport = useTemplateRef("viewport");
-const spread = useTemplateRef("spread");
-const captions = useTemplateRef<HTMLElement[]>("captions");
-const { width, height } = useElementSize(viewport);
-const spreadInsets = ref({ horizontal: 0, vertical: 0 });
-function measureSpreadInsets() {
-  if (!spread.value) return;
-  const style = getComputedStyle(spread.value);
-  const captionHeight = Math.max(
-    0,
-    ...(captions.value ?? []).map((caption) => {
-      const style = getComputedStyle(caption);
-      return (
-        caption.offsetHeight +
-        parseFloat(style.marginBlockStart) +
-        parseFloat(style.marginBlockEnd)
-      );
-    }),
-  );
-  const insets = {
-    horizontal:
-      parseFloat(style.paddingInlineStart) +
-      parseFloat(style.paddingInlineEnd) +
-      (parseFloat(style.columnGap) || 0),
-    vertical:
-      parseFloat(style.paddingBlockStart) +
-      parseFloat(style.paddingBlockEnd) +
-      captionHeight,
-  };
-  if (
-    insets.horizontal !== spreadInsets.value.horizontal ||
-    insets.vertical !== spreadInsets.value.vertical
-  )
-    spreadInsets.value = insets;
-}
-useResizeObserver(viewport, measureSpreadInsets);
-useResizeObserver(() => captions.value ?? [], measureSpreadInsets);
-watch(current, measureSpreadInsets, { flush: "post" });
+const pageAreas = useTemplateRef<HTMLElement[]>("pageAreas");
+const { width, height } = useElementSize(() => pageAreas.value?.[0]);
 const bleed = computed(() =>
   current.value?.covers
     ? (props.album.cover_bleed_mm ?? 0)
@@ -130,15 +93,11 @@ const bleed = computed(() =>
 );
 const pageWidth = computed(() => (PAGE_WIDTH_MM + 2 * bleed.value) * MM_PX);
 const pageHeight = computed(() => (PAGE_HEIGHT_MM + 2 * bleed.value) * MM_PX);
-const scale = computed(
-  () =>
-    Math.max(
-      0.01,
-      Math.min(
-        (width.value - spreadInsets.value.horizontal) / (2 * pageWidth.value),
-        (height.value - spreadInsets.value.vertical) / pageHeight.value,
-      ),
-    ) * zoom.value,
+const scale = computed(() =>
+  Math.max(
+    0.01,
+    Math.min(width.value / pageWidth.value, height.value / pageHeight.value),
+  ),
 );
 const pageStyle = computed(() => ({
   width: `${pageWidth.value * scale.value}px`,
@@ -182,53 +141,56 @@ function onKeydown(event: KeyboardEvent) {
 </script>
 
 <template>
-  <q-dialog
+  <PreviewDialog
     v-model="show"
     maximized
-    :aria-labelledby="titleId"
+    :title="t('print.preview')"
+    :preview-label="t('print.preview')"
+    :close-label="t('print.backToEditor')"
     @hide="emit('close')"
     @keydown="onKeydown"
   >
-    <q-card class="print-preview">
-      <header class="preview-header">
-        <q-btn flat no-caps autofocus @click="show = false">
-          <q-icon :name="symOutlinedArrowBack" class="rtl-flip q-me-sm" />
-          {{ t("print.backToEditor") }}
-        </q-btn>
-        <h2 :id="titleId">{{ t("print.preview") }}</h2>
-        <label v-if="groups.length > 1" class="chapter-picker">
-          <select v-model="chapterId" :aria-label="t('print.chapter')">
-            <option
-              v-for="chapterGroup in groups"
-              :key="chapterGroup.chapter.id"
-              :value="chapterGroup.chapter.id"
-            >
-              {{ chapterGroup.chapter.title }}
-            </option>
-          </select>
-        </label>
-        <span v-else class="chapter-title">{{ group?.chapter.title }}</span>
-      </header>
+    <template #header>
+      <q-select
+        v-if="groups.length > 1"
+        v-model="chapterId"
+        class="chapter-picker"
+        :options="
+          groups.map(({ chapter }) => ({
+            label: chapter.title,
+            value: chapter.id,
+          }))
+        "
+        :aria-label="t('print.chapter')"
+        outlined
+        dense
+        options-dense
+        emit-value
+        map-options
+      />
+      <span v-else class="chapter-title">{{ group?.chapter.title }}</span>
+    </template>
+    <template #workspace>
       <div
-        ref="viewport"
-        class="preview-workspace"
-        role="region"
+        v-if="current"
+        class="spread"
+        :style="{
+          transform: `scale(${zoom})`,
+          transformOrigin: $q.lang.rtl ? 'top right' : 'top left',
+        }"
         :aria-label="t('print.preview')"
+        role="region"
         tabindex="0"
+        :dir="current.covers ? 'ltr' : $q.lang.rtl ? 'rtl' : 'ltr'"
+        :class="{ 'cover-spread': current.covers }"
       >
-        <div
-          v-if="current"
-          ref="spread"
-          class="spread"
-          :dir="current.covers ? 'ltr' : $q.lang.rtl ? 'rtl' : 'ltr'"
-          :class="{ 'cover-spread': current.covers }"
+        <figure
+          v-for="(page, side) in current.pages"
+          :key="side"
+          class="preview-page"
+          :style="{ gridColumn: side + 1 }"
         >
-          <figure
-            v-for="(page, side) in current.pages"
-            :key="side"
-            class="preview-page"
-            :style="{ width: pageStyle.width, order: side }"
-          >
+          <div ref="pageAreas" class="page-area">
             <div
               class="page-slot"
               :class="{ 'has-page': page }"
@@ -247,112 +209,83 @@ function onKeydown(event: KeyboardEvent) {
                 />
               </KeepAlive>
             </div>
-            <figcaption v-if="page" ref="captions">
-              {{
-                current.covers
-                  ? t(side === 0 ? "print.backCover" : "print.frontCover")
-                  : t("print.pageNumber", { number: page.number })
-              }}
-            </figcaption>
-          </figure>
-        </div>
-        <p v-else class="empty-preview">{{ t("print.emptyPreview") }}</p>
-      </div>
-      <footer class="preview-footer">
-        <div class="zoom-controls">
-          <q-btn
-            flat
-            round
-            dense
-            :icon="symOutlinedZoomOut"
-            :aria-label="t('print.zoomOut')"
-            :disable="zoom <= 1"
-            @click="zoom = Math.max(1, zoom - 0.5)"
-          />
-          <q-btn
-            flat
-            no-caps
-            :label="
-              zoom === 1 ? t('print.fitSpread') : `${Math.round(zoom * 100)}%`
-            "
-            :aria-label="t('print.fitSpread')"
-            @click="zoom = 1"
-          />
-          <q-btn
-            flat
-            round
-            dense
-            :icon="symOutlinedZoomIn"
-            :aria-label="t('print.zoomIn')"
-            :disable="zoom >= 3"
-            @click="zoom = Math.min(3, zoom + 0.5)"
-          />
-        </div>
-        <nav
-          class="spread-navigation"
-          :aria-label="t('print.spreadNavigation')"
-        >
-          <q-btn
-            flat
-            round
-            :icon="symOutlinedChevronLeft"
-            class="rtl-flip"
-            :aria-label="t('print.previousSpread')"
-            :disable="position === 0"
-            @click="move(-1)"
-          />
-          <span role="status" aria-live="polite"
-            >{{ current?.covers ? t("print.covers") : t("print.interior") }} ·
+          </div>
+          <figcaption v-if="page" :style="{ width: pageStyle.width }">
             {{
-              t("print.spreadCount", {
-                current: spreads.length ? position + 1 : 0,
-                total: spreads.length,
-              })
-            }}</span
-          >
-          <q-btn
-            flat
-            round
-            :icon="symOutlinedChevronRight"
-            class="rtl-flip"
-            :aria-label="t('print.nextSpread')"
-            :disable="position >= spreads.length - 1"
-            @click="move(1)"
-          />
-        </nav>
-        <span class="preview-note">{{ t("print.previewNote") }}</span>
-      </footer>
-    </q-card>
-  </q-dialog>
+              current.covers
+                ? t(side === 0 ? "print.backCover" : "print.frontCover")
+                : t("print.pageNumber", { number: page.number })
+            }}
+          </figcaption>
+        </figure>
+      </div>
+      <p v-else class="empty-preview">{{ t("print.emptyPreview") }}</p>
+    </template>
+    <template #actions>
+      <div class="zoom-controls">
+        <q-btn
+          flat
+          round
+          dense
+          :icon="symOutlinedZoomOut"
+          :aria-label="t('print.zoomOut')"
+          :disable="zoom <= 1"
+          @click="zoom = Math.max(1, zoom - 0.5)"
+        />
+        <q-btn
+          flat
+          no-caps
+          :label="
+            zoom === 1 ? t('print.fitSpread') : `${Math.round(zoom * 100)}%`
+          "
+          :aria-label="t('print.fitSpread')"
+          @click="zoom = 1"
+        />
+        <q-btn
+          flat
+          round
+          dense
+          :icon="symOutlinedZoomIn"
+          :aria-label="t('print.zoomIn')"
+          :disable="zoom >= 3"
+          @click="zoom = Math.min(3, zoom + 0.5)"
+        />
+      </div>
+      <nav class="spread-navigation" :aria-label="t('print.spreadNavigation')">
+        <q-btn
+          flat
+          round
+          :icon="symOutlinedChevronLeft"
+          class="rtl-flip"
+          :aria-label="t('print.previousSpread')"
+          :disable="position === 0"
+          @click="move(-1)"
+        />
+        <span role="status" aria-live="polite"
+          >{{ current?.covers ? t("print.covers") : t("print.interior") }} ·
+          {{
+            t("print.spreadCount", {
+              current: spreads.length ? position + 1 : 0,
+              total: spreads.length,
+            })
+          }}</span
+        >
+        <q-btn
+          flat
+          round
+          :icon="symOutlinedChevronRight"
+          class="rtl-flip"
+          :aria-label="t('print.nextSpread')"
+          :disable="position >= spreads.length - 1"
+          @click="move(1)"
+        />
+      </nav>
+      <span class="preview-note">{{ t("print.previewNote") }}</span>
+    </template>
+  </PreviewDialog>
 </template>
 
 <style scoped>
-.print-preview {
-  display: flex;
-  flex-direction: column;
-  height: 100%;
-  background: var(--bg);
-  color: var(--text);
-}
-.preview-header,
-.preview-footer {
-  display: flex;
-  align-items: center;
-  gap: var(--gap-lg);
-  padding: var(--gap-md-lg) 1.5rem;
-  flex-shrink: 0;
-  background: var(--surface);
-}
-.preview-header {
-  border-block-end: 1px solid var(--border-color);
-}
-.preview-header h2 {
-  margin: 0;
-  font-size: var(--type-xl);
-  font-weight: 700;
-  line-height: 1.2;
-  color: var(--text-bright);
-}
 .chapter-picker,
 .chapter-title {
   margin-inline-start: auto;
@@ -364,34 +297,37 @@ function onKeydown(event: KeyboardEvent) {
   white-space: nowrap;
   color: var(--text-muted);
 }
-select {
-  font: inherit;
-  color: var(--text-bright);
-  background: var(--bg);
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-sm);
-  padding: var(--gap-md);
-  width: 100%;
-}
-.preview-workspace {
-  flex: 1;
-  min-height: 0;
-  overflow: auto;
-  scrollbar-color: var(--text-muted) var(--bg);
+.chapter-picker {
+  width: 20rem;
 }
 .spread {
-  display: flex;
-  justify-content: center;
-  align-items: start;
-  width: fit-content;
-  min-height: 100%;
-  margin-inline: auto;
-  padding: 1.5rem;
-  box-sizing: border-box;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-rows: minmax(0, 1fr) auto;
+  width: 100%;
+  flex-shrink: 0;
 }
 .preview-page {
-  margin: auto 0;
-  flex-shrink: 0;
+  display: grid;
+  grid-template-rows: subgrid;
+  grid-row: 1 / 3;
+  min-width: 0;
+  margin: 0;
+}
+.page-area {
+  min-height: 0;
+  min-width: 0;
+  display: grid;
+  place-items: center;
+}
+.preview-page:first-child .page-area {
+  justify-items: end;
+}
+.preview-page:last-child .page-area {
+  justify-items: start;
+}
+.preview-page:first-child figcaption {
+  justify-self: end;
 }
 .page-slot {
   position: relative;
@@ -409,11 +345,6 @@ figcaption {
 .cover-spread {
   gap: var(--gap-lg);
 }
-.preview-footer {
-  display: grid;
-  grid-template-columns: 1fr auto 1fr;
-  border-block-start: 1px solid var(--border-color);
-}
 .zoom-controls,
 .spread-navigation {
   display: flex;
@@ -426,22 +357,13 @@ figcaption {
   font-variant-numeric: tabular-nums;
 }
 .preview-note {
-  justify-self: end;
+  margin-inline: auto;
   color: var(--text-muted);
   font-size: var(--type-sm);
 }
 .empty-preview {
   text-align: center;
   padding: 3rem;
-}
-.print-preview :focus-visible {
-  outline: 2px solid var(--primary-text) !important;
-  outline-offset: -2px;
-}
-.print-preview .q-btn,
-.chapter-picker select {
-  min-width: 2.75rem;
-  min-height: 2.75rem;
 }
 @media (max-width: 75rem) {
   .preview-note {

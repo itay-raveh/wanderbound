@@ -168,6 +168,12 @@ for (const rtl of [false, true]) {
       document.documentElement.style.fontSize = "";
     });
     await page.setViewportSize({ width: 1600, height: 900 });
+    await expect
+      .poll(async () => {
+        const slot = await dialog.locator(".page-slot").first().boundingBox();
+        return slot!.width;
+      })
+      .toBeGreaterThan(600);
     const slots = await dialog
       .locator(".page-slot")
       .evaluateAll((elements) =>
@@ -180,12 +186,22 @@ for (const rtl of [false, true]) {
       .click();
     const after = await dialog.locator(".page-slot").first().boundingBox();
     expect(after!.width).toBeGreaterThan(before!.width);
+    const workspace = await dialog.locator(".preview-workspace").boundingBox();
+    for (const slot of await dialog.locator(".page-slot").all()) {
+      await slot.scrollIntoViewIfNeeded();
+      const bounds = await slot.boundingBox();
+      expect(bounds!.x).toBeGreaterThanOrEqual(workspace!.x);
+      expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(
+        workspace!.x + workspace!.width,
+      );
+    }
     await dialog
       .getByRole("button", { name: copy.fitSpread, exact: true })
       .click();
-    await dialog
-      .getByLabel(copy.chapter, { exact: true })
-      .selectOption("chapter-2");
+    await dialog.getByLabel(copy.chapter, { exact: true }).click();
+    await page
+      .getByRole("option", { name: "Second chapter", exact: true })
+      .click();
     await expect(dialog.locator(".front-title")).toHaveText("Second chapter");
     await expect(
       dialog.getByRole("button", { name: copy.previousSpread, exact: true }),
@@ -249,8 +265,8 @@ test("opens the chapter containing the active inserted map", async ({
     name: "Print preview",
     exact: true,
   });
-  await expect(dialog.getByLabel("Chapter", { exact: true })).toHaveValue(
-    "chapter-2",
-  );
+  await expect(
+    dialog.getByRole("combobox", { name: "Chapter", exact: true }),
+  ).toHaveValue("Second chapter");
   await expect(dialog.locator(".front-title")).toHaveText("Second chapter");
 });
