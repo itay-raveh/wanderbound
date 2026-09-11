@@ -432,10 +432,17 @@ async def _load_print_page(
                     maps_ready=map_counts["ready"],
                     maps_total=map_counts["total"],
                 )
-                detail = (
-                    "A map could not be rendered for PDF export. Please try again."
-                    if code == "map-render-failed"
-                    else "Album rendering did not finish in time. Please try again."
+                detail = {
+                    "map-render-failed": (
+                        "A map could not be rendered for PDF export. Please try again."
+                    ),
+                    "font-load-failed": (
+                        "An album font could not be loaded for PDF export. "
+                        "Please try again."
+                    ),
+                }.get(
+                    code,
+                    "Album rendering did not finish in time. Please try again.",
                 )
                 raise PdfPageRenderError(detail)
             counts = (finished, started)

@@ -112,7 +112,7 @@ async function loadFonts(): Promise<void> {
 let pollTimer = 0;
 
 type PrintError = {
-  code: "map-render-failed" | "render-timeout";
+  code: "map-render-failed" | "font-load-failed" | "render-timeout";
   message: string;
   mapError?: string;
 };
@@ -126,10 +126,19 @@ function setPrintError(error: PrintError) {
 function waitForPrintReady() {
   const MAX_WAIT = getPrintTimeoutMs();
   const startTime = Date.now();
-  let waiting = false;
+  let fontsLoaded = false;
 
-  // Kick off font loading immediately - don't wait for images
-  const fontsReady = loadFonts();
+  void loadFonts().then(
+    () => {
+      fontsLoaded = true;
+    },
+    () => {
+      setPrintError({
+        code: "font-load-failed",
+        message: "An album font could not be loaded for PDF export.",
+      });
+    },
+  );
 
   function schedulePoll(ms: number) {
     clearTimeout(pollTimer);
@@ -137,11 +146,11 @@ function waitForPrintReady() {
   }
 
   function poll() {
-    if (waiting) return;
+    if (printPhase.value === "error") return;
     if (Date.now() - startTime > MAX_WAIT) {
       setPrintError({
         code: "render-timeout",
-        message: "Album rendering timed out before every map was ready.",
+        message: "Album rendering timed out before all content was ready.",
       });
       return;
     }
@@ -212,16 +221,11 @@ function waitForPrintReady() {
       return;
     }
 
-    // All DOM content + maps ready - wait for fonts before signaling
-    waiting = true;
-    fontsReady
-      .then(() => {
-        setReady();
-      })
-      .catch(() => {
-        console.warn("[print] font load failed, proceeding");
-        setReady();
-      });
+    if (!fontsLoaded) {
+      schedulePoll(100);
+      return;
+    }
+    setReady();
   }
 
   function setReady() {
