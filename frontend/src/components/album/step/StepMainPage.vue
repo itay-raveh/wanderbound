@@ -34,7 +34,10 @@ const coverQuality = computed(() =>
 </script>
 
 <template>
-  <AlbumPage class="step-main">
+  <AlbumPage
+    :number-placement="step.cover ? 'image' : 'margin'"
+    class="step-main"
+  >
     <StepMetaPanel
       :step="step"
       :sidebar-text="sidebarText"

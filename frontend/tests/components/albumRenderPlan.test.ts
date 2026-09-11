@@ -2,6 +2,7 @@ import { buildPrintSpreads } from "@/components/album/printSpreads";
 import type { AlbumChapter } from "@/client";
 import {
   buildEditorItems,
+  buildEditorPageRanges,
   buildPhysicalRenderItems,
   type ChapterRenderGroup,
 } from "@/components/album/albumRenderPlan";
@@ -111,7 +112,10 @@ describe("album render planning", () => {
   });
 
   test("restarts spread parity for each chapter", () => {
-    const firstChapterStep = makeStep({ id: 1 });
+    const firstChapterStep = makeStep({
+      id: 1,
+      unused: ["first.jpg", "second.jpg"],
+    });
     const secondChapterSpread = makeStep({
       id: 2,
       pages: [{ kind: "panorama_spread", media: ["wide.jpg"] }],
@@ -122,7 +126,7 @@ describe("album render planning", () => {
     };
 
     const editorItems = buildEditorItems(
-      [group([firstChapterStep]), secondChapter],
+      [group([firstChapterStep], ["cover-front", "cover-back"]), secondChapter],
       new Map(),
     );
 
@@ -131,6 +135,15 @@ describe("album render planning", () => {
         .filter((item) => item.type === "alignment")
         .map((item) => item.step.id),
     ).toEqual([2]);
+    expect(buildEditorPageRanges(editorItems)).toEqual([
+      { start: 1, end: 1 },
+      { start: 2, end: 2 },
+      { start: 3, end: 3 },
+      null,
+      { start: 4, end: 4 },
+      { start: 5, end: 5 },
+      { start: 6, end: 7 },
+    ]);
   });
 });
 

@@ -77,6 +77,12 @@ function updateBodyFont(font: string) {
         </q-item>
       </template>
     </q-select>
+    <q-toggle
+      :model-value="album.show_page_numbers ?? false"
+      :label="t('editor.showPageNumbers')"
+      dense
+      @update:model-value="albumMutation.mutate({ show_page_numbers: $event })"
+    />
   </div>
 </template>
 

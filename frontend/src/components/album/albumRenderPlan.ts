@@ -225,3 +225,14 @@ export function buildPhysicalRenderItems(
     ];
   });
 }
+
+export function buildEditorPageRanges(editorItems: EditorItem[]) {
+  let total = 0;
+  return editorItems.map((item) => {
+    const count = buildPhysicalRenderItems([item]).length;
+    if (!count) return null;
+    const start = total + 1;
+    total += count;
+    return { start, end: total };
+  });
+}

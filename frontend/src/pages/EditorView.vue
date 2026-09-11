@@ -23,6 +23,7 @@ import { useI18n } from "vue-i18n";
 import { computed, watch, nextTick, onBeforeUnmount, ref } from "vue";
 
 const { t } = useI18n();
+const pagePosition = ref("");
 const previewOpen = ref(false);
 const albumToolbar = ref<InstanceType<typeof AlbumToolbar> | null>(null);
 function closePreview() {
@@ -161,6 +162,7 @@ const activeStep = computed(() =>
     </template>
 
     <AlbumToolbar
+      :page-position="pagePosition"
       ref="albumToolbar"
       v-if="album"
       :album="album"
@@ -256,6 +258,7 @@ const activeStep = computed(() =>
       :media="media"
       :steps="displayedSteps"
       :segment-outlines="segmentOutlines"
+      @page-position="pagePosition = $event"
       :preview-open="previewOpen"
       @close-preview="closePreview"
     />

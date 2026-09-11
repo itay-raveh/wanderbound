@@ -119,6 +119,9 @@
     "getDataGuide": "למדריך המפורט של Polarsteps"
   },
   "editor": {
+    "showPageNumbers": "הצגת מספרי עמודים",
+    "pagePosition": "עמוד {page} מתוך {total}",
+    "pageRangePosition": "עמודים {start}–{end} מתוך {total}",
     "toolbar": "כלים",
     "exportPdf": "הורדת PDF",
     "exportChaptersTitle": "ייצוא פרקים",

@@ -188,7 +188,7 @@ function onKeydown(event: KeyboardEvent) {
           v-for="(page, side) in current.pages"
           :key="side"
           class="preview-page"
-          :style="{ gridColumn: side + 1 }"
+          :style="{ gridColumn: side + 1, '--page-number': page?.number }"
         >
           <div ref="pageAreas" class="page-area">
             <div

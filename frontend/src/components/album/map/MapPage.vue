@@ -98,6 +98,7 @@ watch(
 
 <template>
   <AlbumPage
+    number-placement="image"
     role="img"
     :aria-label="t('album.tripRouteMap')"
     class="map-page relative-position"
