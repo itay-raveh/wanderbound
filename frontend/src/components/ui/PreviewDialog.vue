@@ -6,7 +6,8 @@ const show = defineModel<boolean>({ required: true });
 defineProps<{
   title: string;
   previewLabel: string;
-  aspectRatio: number;
+  aspectRatio?: number;
+  maximized?: boolean;
   closeLabel?: string;
   applyLabel?: string;
   applyDisabled?: boolean;
@@ -22,23 +23,26 @@ const { t } = useI18n();
 <template>
   <q-dialog
     v-model="show"
+    :maximized="maximized"
     :aria-labelledby="id"
     :persistent="persistent || applying"
   >
-    <q-card class="preview-dialog">
+    <q-card class="preview-dialog" :class="{ maximized }">
       <q-card-section class="preview-header">
         <h2 :id="id" class="preview-title">{{ title }}</h2>
+        <slot name="header" />
       </q-card-section>
       <q-card-section
         class="preview-workspace"
         :class="{ 'has-controls': $slots.controls && !controlsBelow }"
       >
-        <div class="preview-column">
+        <slot v-if="$slots.workspace" name="workspace" />
+        <div v-else class="preview-column">
           <div
             class="preview-viewport"
             :style="{
               aspectRatio: String(aspectRatio),
-              maxWidth: `${aspectRatio * 56}vh`,
+              maxWidth: aspectRatio ? `${aspectRatio * 56}vh` : undefined,
             }"
             :aria-label="previewLabel"
             role="region"
@@ -51,8 +55,10 @@ const { t } = useI18n();
         </div>
       </q-card-section>
       <q-card-actions class="preview-actions" align="right">
+        <slot name="actions" />
         <q-btn
           class="cancel-button"
+          :autofocus="maximized"
           flat
           no-caps
           :disable="applying"
@@ -85,23 +91,26 @@ const { t } = useI18n();
 }
 .preview-header,
 .preview-actions {
-  padding: var(--gap-md-lg) 1.25rem;
+  padding: var(--gap-md-lg) var(--gap-lg);
   flex-shrink: 0;
 }
 .preview-header {
-  padding-block-end: var(--gap-md);
+  display: flex;
+  align-items: center;
+  gap: var(--gap-lg);
 }
 .preview-title {
   margin: 0;
   color: var(--text-bright);
-  font-size: 1.375rem;
+  font-size: var(--type-xl);
+  line-height: 1.2;
   font-weight: 700;
 }
 .preview-workspace {
   display: grid;
-  gap: 1rem;
+  gap: var(--gap-lg);
   align-items: start;
-  padding: 0 1.25rem var(--gap-md-lg);
+  padding: 0 var(--gap-lg) var(--gap-md-lg);
   overflow: auto;
 }
 .preview-workspace.has-controls {
@@ -116,11 +125,40 @@ const { t } = useI18n();
   margin-inline: auto;
   overflow: hidden;
   border: 1px solid var(--border-color);
-  background: #11131a;
+  background: var(--bg);
 }
 .preview-actions {
   gap: var(--gap-sm);
   border-block-start: 1px solid var(--border-color);
+}
+.maximized {
+  width: 100%;
+  height: 100%;
+  max-height: none;
+  background: var(--bg);
+  color: var(--text);
+}
+.maximized .preview-workspace {
+  display: flex;
+  align-items: stretch;
+  flex: 1;
+  min-height: 0;
+  padding: var(--gap-lg);
+}
+.maximized .preview-header,
+.maximized .preview-actions {
+  background: var(--surface);
+}
+.maximized .preview-header {
+  border-block-end: 1px solid var(--border-color);
+}
+.preview-dialog :deep(.q-btn) {
+  min-width: 2.75rem;
+  min-height: 2.75rem;
+}
+.preview-dialog :deep(:focus-visible) {
+  outline: 2px solid var(--primary-text) !important;
+  outline-offset: -2px;
 }
 @media (max-width: 56rem) {
   .preview-workspace.has-controls {

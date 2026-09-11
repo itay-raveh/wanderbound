@@ -25,7 +25,13 @@
 }
 
 .mapbox-print-snapshot {
-  display: none;
+  display: block;
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  pointer-events: none;
 }
 
 .mapbox-print-marker-overlay {
@@ -37,16 +43,6 @@
 @media print {
   [data-map][data-map-snapshot-ready] .mapboxgl-canvas {
     opacity: 0;
-  }
-
-  .mapbox-print-snapshot {
-    display: block;
-    position: absolute;
-    inset: 0;
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-    pointer-events: none;
   }
 }
 

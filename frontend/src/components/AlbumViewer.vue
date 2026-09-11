@@ -4,6 +4,8 @@ import {
   previewCoverChapterId,
 } from "@/composables/usePrintSettings";
 import { useElementSize } from "@vueuse/core";
+import PhysicalAlbumPage from "./album/PhysicalAlbumPage.vue";
+import PrintPreviewDialog from "./editor/PrintPreviewDialog.vue";
 import PreviewDialog from "@/components/ui/PreviewDialog.vue";
 import PrintSettings from "@/components/editor/PrintSettings.vue";
 import { useActiveSection } from "@/composables/useActiveSection";
@@ -86,9 +88,12 @@ const props = defineProps<{
   media: AlbumMedia[];
   steps: Step[];
   segmentOutlines: SegmentOutline[];
+  previewOpen?: boolean;
   printMode?: boolean;
   printPart?: "combined" | "cover" | "content";
 }>();
+
+const emit = defineEmits<{ closePreview: [] }>();
 
 const albumId = computed(() => props.album.id);
 const albumColors = computed(
@@ -295,60 +300,10 @@ const {
       v-for="item in printPart === 'cover' ? [] : physicalRenderItems"
       :key="item.key"
     >
-      <CoverPage
-        v-if="item.type === 'header' && item.headerKey === 'cover-front'"
+      <PhysicalAlbumPage
+        :item="item"
         :album="album"
-        :chapter="item.chapter"
-        :steps="item.steps"
-      />
-      <CoverPage
-        v-else-if="item.type === 'header' && item.headerKey === 'cover-back'"
-        :album="album"
-        :chapter="item.chapter"
-        :steps="item.steps"
-        is-back
-      />
-      <OverviewPage
-        v-else-if="item.type === 'header' && item.headerKey === 'overview'"
-        :album="album"
-        :segments="item.segments"
-        :steps="item.steps"
-      />
-      <div
-        v-else-if="item.type === 'header' && item.headerKey === 'full-map'"
-        class="map-wrapper"
-      >
-        <MapPage :segment-outlines="item.segments" :steps="item.steps" />
-      </div>
-      <div v-else-if="item.type === 'map'" class="map-wrapper">
-        <MapPage
-          :segment-outlines="item.section.segments"
-          :steps="item.section.steps"
-        />
-      </div>
-      <div v-else-if="item.type === 'hike'" class="map-wrapper">
-        <HikeMapPage
-          :segments="item.section.segments"
-          :steps="item.section.steps"
-          :hike-segment="item.section.hikeSegment"
-          :all-segments="segmentOutlines"
-        />
-      </div>
-      <StepEntry
-        v-else-if="item.type === 'step-page' || item.type === 'grid'"
-        :step="item.step"
-        :page-index="item.pageIndex"
-      />
-      <AlignmentPage v-else-if="item.type === 'alignment'" />
-      <PanoramaSpreadPage
-        v-else-if="item.type === 'panorama-spread-left'"
-        :media="item.media"
-        side="left"
-      />
-      <PanoramaSpreadPage
-        v-else-if="item.type === 'panorama-spread-right'"
-        :media="item.media"
-        side="right"
+        :segment-outlines="segmentOutlines"
       />
     </template>
   </div>
@@ -478,6 +433,15 @@ const {
       showing
     />
   </div>
+
+  <PrintPreviewDialog
+    v-if="previewOpen && !printMode"
+    :album="album"
+    :groups="chapterRenderGroups"
+    :segment-outlines="segmentOutlines"
+    :style="albumStyle"
+    @close="emit('closePreview')"
+  />
 
   <PreviewDialog
     v-if="!printMode && coverGroups.length && previewCoverChapterId"
