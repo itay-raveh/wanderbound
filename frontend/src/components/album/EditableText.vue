@@ -1,7 +1,7 @@
 <script lang="ts" setup>
 import type { TextPage } from "@/composables/useTextLayout";
 import { usePrintMode } from "@/composables/usePrintReady";
-import { ref, nextTick } from "vue";
+import { ref, nextTick, onBeforeUnmount } from "vue";
 
 const props = withDefaults(
   defineProps<{
@@ -19,10 +19,12 @@ const emit = defineEmits<{
 
 const printMode = usePrintMode();
 const editing = ref(false);
+const draft = ref("");
 const editEl = ref<HTMLTextAreaElement | HTMLElement | null>(null);
 
 function startEdit() {
   if (editing.value) return;
+  draft.value = props.modelValue;
   editing.value = true;
   void nextTick(() => {
     const el = editEl.value;
@@ -47,6 +49,9 @@ function commit() {
   const text = props.multiline ? raw.replace(/\r\n?/g, "\n") : raw.trim();
   if (text !== props.modelValue) emit("update:modelValue", text);
 }
+
+// Virtualized pages can unmount before blur saves the edit.
+onBeforeUnmount(commit);
 
 function onKeydown(e: KeyboardEvent) {
   if (e.key === "Escape") {
@@ -86,9 +91,9 @@ function onKeydown(e: KeyboardEvent) {
     <textarea
       v-if="editing"
       ref="editEl"
+      v-model="draft"
       dir="auto"
       class="edit-textarea"
-      :value="modelValue"
       :placeholder="placeholder"
       :aria-label="placeholder || undefined"
       @blur="commit"
