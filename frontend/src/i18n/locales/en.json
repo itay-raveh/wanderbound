@@ -127,6 +127,7 @@
     "font": "Heading font",
     "bodyFont": "Body font",
     "properties": "Properties",
+    "accentColors": "Accent colors",
     "safeMargin": "Safe margin",
     "photoQuality": "Photo quality",
     "resolutionWarningsOff": "Off",

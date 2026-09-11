@@ -2994,6 +2994,16 @@
       },
       "AlbumMeta": {
         "properties": {
+          "colors": {
+            "patternProperties": {
+              "^([a-zA-Z]{2}|00)$": {
+                "type": "string",
+                "pattern": "^#[0-9a-fA-F]{6}$"
+              }
+            },
+            "type": "object",
+            "title": "Colors"
+          },
           "hidden_steps": {
             "items": {
               "type": "integer"
@@ -3074,29 +3084,36 @@
           "id": {
             "type": "string",
             "title": "Id"
-          },
-          "colors": {
-            "patternProperties": {
-              "[a-zA-Z]{2}|00": {
-                "type": "string",
-                "pattern": "#[0-9a-fA-F]{6}"
-              }
-            },
-            "type": "object",
-            "title": "Colors"
           }
         },
         "type": "object",
         "required": [
+          "colors",
           "uid",
-          "id",
-          "colors"
+          "id"
         ],
         "title": "AlbumMeta",
         "description": "GET/PATCH response - everything except media."
       },
       "AlbumUpdate": {
         "properties": {
+          "colors": {
+            "anyOf": [
+              {
+                "patternProperties": {
+                  "^([a-zA-Z]{2}|00)$": {
+                    "type": "string",
+                    "pattern": "^#[0-9a-fA-F]{6}$"
+                  }
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Colors"
+          },
           "hidden_steps": {
             "anyOf": [
               {
@@ -3246,6 +3263,16 @@
       },
       "AlbumWithMedia": {
         "properties": {
+          "colors": {
+            "patternProperties": {
+              "^([a-zA-Z]{2}|00)$": {
+                "type": "string",
+                "pattern": "^#[0-9a-fA-F]{6}$"
+              }
+            },
+            "type": "object",
+            "title": "Colors"
+          },
           "hidden_steps": {
             "items": {
               "type": "integer"
@@ -3327,16 +3354,6 @@
             "type": "string",
             "title": "Id"
           },
-          "colors": {
-            "patternProperties": {
-              "[a-zA-Z]{2}|00": {
-                "type": "string",
-                "pattern": "#[0-9a-fA-F]{6}"
-              }
-            },
-            "type": "object",
-            "title": "Colors"
-          },
           "media": {
             "items": {
               "$ref": "#/components/schemas/AlbumMedia"
@@ -3347,9 +3364,9 @@
         },
         "type": "object",
         "required": [
+          "colors",
           "uid",
-          "id",
-          "colors"
+          "id"
         ],
         "title": "AlbumWithMedia"
       },
@@ -3916,7 +3933,7 @@
           },
           "country_code": {
             "type": "string",
-            "pattern": "[a-zA-Z]{2}|00",
+            "pattern": "^([a-zA-Z]{2}|00)$",
             "title": "Country Code"
           },
           "lat": {
@@ -4925,7 +4942,7 @@
           "country_codes": {
             "items": {
               "type": "string",
-              "pattern": "[a-zA-Z]{2}|00"
+              "pattern": "^([a-zA-Z]{2}|00)$"
             },
             "type": "array",
             "title": "Country Codes"

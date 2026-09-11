@@ -337,6 +337,10 @@ watch(fullHikeSegment, () => {
   scheduleElevationQuery(map.value);
 });
 
+watch(countryColor, () => {
+  if (map.value?.isStyleLoaded()) drawMap(map.value, { fitBounds: false });
+});
+
 // Refit bounds when safe margin changes so the route stays within the safe zone
 watch(
   [safeMarginMm, interiorBleedMm],

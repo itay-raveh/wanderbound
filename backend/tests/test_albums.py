@@ -166,6 +166,27 @@ class TestChapterPrintBundle:
 
 
 class TestUpdateAlbum:
+    @pytest.mark.usefixtures("signed_album")
+    @pytest.mark.parametrize(
+        "colors",
+        [
+            None,
+            {"nl": "red"},
+            {"nl": "#12345678"},
+            {"nl": "prefix#123456"},
+            {"netherlands": "#123456"},
+        ],
+    )
+    async def test_invalid_colors_leave_album_unchanged(
+        self,
+        album_routes: AlbumRoutes,
+        colors: object,
+    ) -> None:
+        before = (await album_routes.get_album()).json()
+        response = await album_routes.update_album(colors=colors, font="Georgia")
+        assert response.status_code == 422
+        assert (await album_routes.get_album()).json() == before
+
     async def test_update_chapters_rejects_overlapping_steps(
         self,
         session: AsyncSession,
