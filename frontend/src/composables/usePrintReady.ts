@@ -8,6 +8,9 @@ import {
 } from "vue";
 
 const KEY: InjectionKey<true> = Symbol("print-mode");
+const MAP_PIXEL_RATIO_KEY: InjectionKey<number> = Symbol(
+  "print-map-pixel-ratio",
+);
 const MEDIA_READY_KEY: InjectionKey<Readonly<Ref<boolean>>> =
   Symbol("print-media-ready");
 const MEDIA_READY_DEFAULT = readonly(ref(true));
@@ -33,8 +36,13 @@ export function getPrintCpuCount(): number | undefined {
 }
 
 /** Call in AlbumViewer when printMode is true. */
-export function providePrintMode(): void {
+export function providePrintMode(mapPixelRatio = 2): void {
   provide(KEY, true);
+  provide(MAP_PIXEL_RATIO_KEY, mapPixelRatio);
+}
+
+export function usePrintMapPixelRatio(): number {
+  return inject(MAP_PIXEL_RATIO_KEY, 2);
 }
 
 export function usePrintMode(): boolean {
