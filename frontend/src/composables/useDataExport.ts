@@ -1,9 +1,5 @@
-import {
-  exportData,
-  type ExportDone,
-  type ExportError,
-  type ExportProgress,
-} from "@/client";
+import { exportData } from "@/client";
+import { zExportDataResponse } from "@/client/zod.gen";
 import { client } from "@/client/client.gen";
 import { t } from "@/i18n";
 import {
@@ -11,21 +7,20 @@ import {
   type PolledExportHandle,
 } from "./usePolledExportDownload";
 
-type ExportEvent = ExportProgress | ExportDone | ExportError;
-
 function progressMessage(done: number, total: number): string {
   if (done === 0) return t("export.preparing");
   return t("export.progress", { done, total });
 }
 
 export function useDataExport(): PolledExportHandle {
-  return usePolledExportDownload<ExportEvent>({
+  return usePolledExportDownload({
+    schema: zExportDataResponse.element,
     async connect(signal) {
       const { stream } = await exportData({
         signal,
         sseMaxRetryAttempts: 0,
       });
-      return stream as AsyncIterable<ExportEvent>;
+      return stream;
     },
     onEvent(event) {
       switch (event.type) {

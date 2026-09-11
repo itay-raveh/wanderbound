@@ -1,19 +1,16 @@
 import { onScopeDispose, ref, watchEffect } from "vue";
 import { useLocalStorage } from "@vueuse/core";
 import { t } from "@/i18n";
+import { matchMedia, upgradeMedia } from "@/client";
 import {
-  matchMedia,
-  upgradeMedia,
-  type DownloadInProgress,
-  type MatchCompleted,
-  type MatchInProgress,
-  type UpgradeCompleted,
-  type UpgradeFailed,
-} from "@/client";
+  zMatchMediaResponse,
+  zUpgradeMediaResponse,
+  zUpgradeRequest,
+} from "@/client/zod.gen";
 import { useGooglePhotos } from "./useGooglePhotos";
 import { useGooglePhotosPicker } from "./useGooglePhotosPicker";
 import { useMediaOperationState } from "./useMediaOperationState";
-import { UPGRADE_ERRORS, type UpgradeErrorKey } from "@/utils/upgradeErrors";
+import { UPGRADE_ERRORS } from "@/utils/upgradeErrors";
 import {
   createMatchAccumulator,
   type MatchRound,
@@ -22,10 +19,7 @@ import {
 import { useQueryCache } from "@pinia/colada";
 import { invalidateAlbumKey, queryKeys } from "@/queries/keys";
 import { MEDIA_UPGRADE_ONBOARDED_KEY } from "@/utils/storage-keys";
-import {
-  GOOGLE_UPGRADE_MAX_MATCHES,
-  GOOGLE_UPGRADE_MAX_SESSION_IDS,
-} from "@/utils/externalMediaLimits";
+import { GOOGLE_UPGRADE_MAX_SESSION_IDS } from "@/utils/externalMediaLimits";
 
 type UpgradePhase =
   | "idle"
@@ -47,32 +41,12 @@ interface UpgradeProgress {
 
 const DONE_RESET_MS = 3000;
 
-type MatchEvent =
-  | MatchInProgress
-  | DownloadInProgress
-  | MatchCompleted
-  | UpgradeCompleted
-  | UpgradeFailed;
-
 type ConfirmAction = "confirm" | "selectMore";
 
 function hasReachedGoogleUpgradeSessionLimit(
   sessionIds: readonly unknown[],
 ): boolean {
   return sessionIds.length >= GOOGLE_UPGRADE_MAX_SESSION_IDS;
-}
-
-function googleUpgradeRequestLimitError(
-  sessionIds: readonly unknown[],
-  matches: readonly unknown[],
-): UpgradeErrorKey | null {
-  if (sessionIds.length > GOOGLE_UPGRADE_MAX_SESSION_IDS) {
-    return UPGRADE_ERRORS.tooManySelectionRounds;
-  }
-  if (matches.length > GOOGLE_UPGRADE_MAX_MATCHES) {
-    return UPGRADE_ERRORS.tooManyMatches;
-  }
-  return null;
 }
 
 export function useMediaUpgrade() {
@@ -271,7 +245,7 @@ export function useMediaUpgrade() {
     let receivedTerminal = false;
 
     for await (const raw of stream) {
-      const event = raw as unknown as MatchEvent;
+      const event = zMatchMediaResponse.element.parse(raw);
       switch (event.type) {
         case "match_in_progress":
           if (event.phase === "preparing") operation.phase.value = "preparing";
@@ -298,18 +272,24 @@ export function useMediaUpgrade() {
     albumId: string,
     signal: AbortSignal,
   ): Promise<void> {
-    const limitError = googleUpgradeRequestLimitError(
-      sessionIds,
-      accumulator.matches,
-    );
-    if (limitError) throw new Error(limitError);
+    const result = zUpgradeRequest.safeParse({
+      session_ids: [...sessionIds],
+      matches: [...accumulator.matches],
+    });
+    if (!result.success) {
+      const issue = result.error.issues[0];
+      const code =
+        issue?.code === "too_big"
+          ? issue.path[0] === "session_ids"
+            ? UPGRADE_ERRORS.tooManySelectionRounds
+            : UPGRADE_ERRORS.tooManyMatches
+          : UPGRADE_ERRORS.connectionLost;
+      throw new Error(code);
+    }
 
     const { stream } = await upgradeMedia({
       path: { aid: albumId },
-      body: {
-        session_ids: [...sessionIds],
-        matches: [...accumulator.matches],
-      },
+      body: result.data,
       signal,
       sseMaxRetryAttempts: 0,
     });
@@ -317,7 +297,7 @@ export function useMediaUpgrade() {
     let receivedTerminal = false;
 
     for await (const raw of stream) {
-      const event = raw as unknown as MatchEvent;
+      const event = zUpgradeMediaResponse.element.parse(raw);
       switch (event.type) {
         case "download_in_progress":
           progress.value = { done: event.done, total: event.total };

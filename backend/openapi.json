@@ -3040,6 +3040,8 @@
           },
           "safe_margin_mm": {
             "type": "integer",
+            "maximum": 15.0,
+            "minimum": 0.0,
             "title": "Safe Margin Mm",
             "default": 5
           },
@@ -3191,7 +3193,9 @@
           "safe_margin_mm": {
             "anyOf": [
               {
-                "type": "integer"
+                "type": "integer",
+                "maximum": 15.0,
+                "minimum": 0.0
               },
               {
                 "type": "null"
@@ -3309,6 +3313,8 @@
           },
           "safe_margin_mm": {
             "type": "integer",
+            "maximum": 15.0,
+            "minimum": 0.0,
             "title": "Safe Margin Mm",
             "default": 5
           },
@@ -3441,6 +3447,8 @@
               "contentMediaType": "application/octet-stream"
             },
             "type": "array",
+            "maxItems": 50,
+            "minItems": 1,
             "title": "Files"
           },
           "step_id": {

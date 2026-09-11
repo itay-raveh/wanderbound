@@ -1,4 +1,5 @@
-import type { StepRead as Step } from "@/client";
+import type { ImportCompleted, StepRead as Step } from "@/client";
+import { zImportCompleted } from "@/client/zod.gen";
 import { client } from "@/client/client.gen";
 import { t } from "@/i18n";
 import { invalidateAlbumKey, queryKeys } from "@/queries/keys";
@@ -13,10 +14,7 @@ export interface ExternalImportTarget {
   stepId?: number;
 }
 
-export interface ImportCompleted {
-  type: "import_completed";
-  names: string[];
-}
+export type { ImportCompleted } from "@/client";
 
 export function applyImportResult(
   cache: QueryCache,
@@ -47,10 +45,7 @@ export async function invalidateExternalMediaQueries(
   albumId: string,
   target: ExternalImportTarget,
 ) {
-  const keys: EntryKey[] = [
-    queryKeys.album(albumId),
-    queryKeys.media(albumId),
-  ];
+  const keys: EntryKey[] = [queryKeys.album(albumId), queryKeys.media(albumId)];
   if (target.context === "step") keys.push(queryKeys.steps(albumId));
   await Promise.all(
     [...keys, queryKeys.printBundles(albumId)].map((key) =>
@@ -80,7 +75,7 @@ export async function uploadDeviceFiles(
     },
   );
   if (!response.ok) throw new Error(importStatusMessage(response.status));
-  return (await response.json()) as ImportCompleted;
+  return zImportCompleted.parse(await response.json());
 }
 
 export async function runGoogleImportStream(

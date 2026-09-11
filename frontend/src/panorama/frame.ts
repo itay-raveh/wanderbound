@@ -22,8 +22,9 @@ export interface PanoramaCameraBounds {
 
 export const MIN_PERSPECTIVE_FOV = 1;
 const MAX_PERSPECTIVE_FOV = 179;
-export const MIN_PANORAMA_ZOOM = 1;
-export const MAX_PANORAMA_ZOOM = 3;
+const zoomBounds = z.toJSONSchema(zPanoramaConfig.shape.zoom);
+export const MIN_PANORAMA_ZOOM = zoomBounds.minimum!;
+export const MAX_PANORAMA_ZOOM = zoomBounds.maximum!;
 
 const toRadians = (degrees: number) => (degrees * Math.PI) / 180;
 const toDegrees = (radians: number) => (radians * 180) / Math.PI;
@@ -131,3 +132,5 @@ export function clampPanoramaFrame(
     zoom: clamp(frame.zoom, MIN_PANORAMA_ZOOM, MAX_PANORAMA_ZOOM),
   };
 }
+import { zPanoramaConfig } from "@/client/zod.gen";
+import { z } from "zod";

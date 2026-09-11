@@ -62,7 +62,7 @@ class AlbumBase(SQLModel):
         default=DEFAULT_BODY_FONT,
         sa_column=Column(String(100), nullable=False, default=DEFAULT_BODY_FONT),
     )
-    safe_margin_mm: int = Field(default=5)
+    safe_margin_mm: int = Field(default=5, ge=0, le=15)
     show_page_numbers: bool = Field(default=False)
     interior_bleed_mm: float = Field(default=0, ge=0, le=20)
     cover_bleed_mm: float = Field(default=0, ge=0, le=20)

@@ -7,7 +7,7 @@ from typing import Literal
 
 import httpx
 import structlog
-from pydantic import BaseModel
+from pydantic import BaseModel, ValidationError
 
 from app.core.config import get_settings
 from app.core.http import collect_http_transport_metrics
@@ -118,6 +118,10 @@ class _DirectionsResponse(BaseModel):
     routes: list[_Route] = []
 
 
+class _ErrorResponse(BaseModel):
+    code: str
+
+
 _NO_ROUTE_CODES = frozenset({"NoMatch", "NoRoute", "NoSegment"})
 
 
@@ -141,12 +145,9 @@ def _matched(route: Coords) -> RouteMatchResult:
 
 def _response_error_code(response: httpx.Response) -> str:
     try:
-        payload = response.json()
-    except ValueError:
-        payload = None
-    if isinstance(payload, dict) and isinstance(payload.get("code"), str):
-        return payload["code"]
-    return f"http_{response.status_code}"
+        return _ErrorResponse.model_validate_json(response.content).code
+    except ValidationError:
+        return f"http_{response.status_code}"
 
 
 def _http_failure(response: httpx.Response, *, operation: str) -> RouteMatchResult:

@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING
 import structlog
 from cachetools import TTLCache
 from httpx_oauth.clients.google import GoogleOAuth2
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 from pydantic.alias_generators import to_camel
 
 if TYPE_CHECKING:
@@ -136,6 +136,10 @@ class _SessionResponse(_GoogleResponse):
     media_items_set: bool = False
 
 
+class _CreatedSessionResponse(_SessionResponse):
+    picker_uri: str = Field(min_length=1)
+
+
 class _MediaItemsPage(_GoogleResponse):
     media_items: list[_RawMediaItem] = []
     next_page_token: str | None = None
@@ -171,9 +175,7 @@ async def create_picker_session(
         json=body,
     )
     resp.raise_for_status()
-    data = _SessionResponse.model_validate_json(resp.content)
-    if not data.picker_uri:
-        raise ValueError("Create session response missing pickerUri")
+    data = _CreatedSessionResponse.model_validate_json(resp.content)
     polling = data.polling_config
     return PickerSession(
         id=data.id,

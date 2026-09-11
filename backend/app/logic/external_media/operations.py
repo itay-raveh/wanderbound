@@ -1,6 +1,8 @@
 from collections.abc import AsyncIterator
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Annotated
+
+from pydantic import Field, TypeAdapter, ValidationError
 
 from app.logic.layout.media import MediaName
 from app.logic.media_import import (
@@ -14,6 +16,10 @@ from app.logic.media_import import (
 from app.models.album import Album
 from app.models.google_photos import PickedMediaItem, PickerSessionId
 from app.services.google_photos import download_media_to_file, get_media_items
+
+_IMPORT_ITEMS = TypeAdapter(
+    Annotated[list[PickedMediaItem], Field(max_length=MAX_IMPORT_ITEMS)]
+)
 
 if TYPE_CHECKING:
     from fastapi import UploadFile
@@ -51,8 +57,10 @@ async def download_google_items_to_saved(
         access_token=access_token,
         session_id=session_id,
     )
-    if len(items) > MAX_IMPORT_ITEMS:
-        raise OverflowError("Too many files")
+    try:
+        items = _IMPORT_ITEMS.validate_python(items)
+    except ValidationError as exc:
+        raise OverflowError("Too many files") from exc
 
     total = 0
     for index, item in enumerate(items):

@@ -1,3 +1,4 @@
+import type { z } from "zod";
 import { useTimeoutFn } from "@vueuse/core";
 import { onScopeDispose, ref, type Ref } from "vue";
 import { Loading, Notify } from "quasar";
@@ -22,7 +23,8 @@ function resolve(v: StringOrGetter): string {
 }
 
 interface PolledExportConfig<T = unknown> {
-  connect(signal: AbortSignal): Promise<AsyncIterable<T>>;
+  schema: z.ZodType<T>;
+  connect(signal: AbortSignal): Promise<AsyncIterable<unknown>>;
   onEvent(event: T): EventAction;
   downloadUrl(token: string): string;
   filename: StringOrGetter;
@@ -71,7 +73,7 @@ export function usePolledExportDownload<T>(
       let downloadToken: string | null = null;
 
       for await (const raw of stream) {
-        const action = config.onEvent(raw);
+        const action = config.onEvent(config.schema.parse(raw));
         if ("loading" in action) {
           showLoading(action.loading);
         } else if ("done" in action) {

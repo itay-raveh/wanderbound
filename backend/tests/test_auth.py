@@ -137,8 +137,11 @@ class TestAuthProvider:
 
 
 class TestAuthMicrosoftSpecific:
-    async def test_bad_issuer_returns_401(self, user_routes: UserRoutes) -> None:
-        bad_iss = {**MICROSOFT_PAYLOAD, "iss": "https://evil.example.com/v2.0"}
+    @pytest.mark.parametrize("issuer", ["https://evil.example.com/v2.0", None, 42])
+    async def test_bad_issuer_returns_401(
+        self, user_routes: UserRoutes, issuer: object
+    ) -> None:
+        bad_iss = {**MICROSOFT_PAYLOAD, "iss": issuer}
         with mock_jwt("microsoft", payload=bad_iss):
             resp = await user_routes.auth("microsoft")
         assert resp.status_code == 401

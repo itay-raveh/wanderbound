@@ -36,6 +36,7 @@ from app.logic.external_media.undo import (
 )
 from app.logic.layout.media import MediaName
 from app.logic.media_import import (
+    MAX_IMPORT_ITEMS,
     ImportCompleted,
     ImportContext,
     ImportEvent,
@@ -130,7 +131,7 @@ async def add_device(  # noqa: PLR0913
     user: UserDep,
     session: SessionDep,
     context: Annotated[ImportContext, Form()],
-    files: Annotated[list[UploadFile], File()],
+    files: Annotated[list[UploadFile], File(min_length=1, max_length=MAX_IMPORT_ITEMS)],
     step_id: Annotated[int | None, Form()] = None,
 ) -> ImportCompleted:
     album = await _get_album_or_404(aid, user, session)
@@ -168,11 +169,6 @@ async def replace_device(  # noqa: PLR0913
     ) as tmp:
         try:
             saved = await save_uploads([file], Path(tmp))
-            if len(saved) != 1:
-                raise HTTPException(
-                    status.HTTP_400_BAD_REQUEST,
-                    "Select exactly one replacement",
-                )
             row = await replace_album_media_from_saved(
                 session,
                 album=album,

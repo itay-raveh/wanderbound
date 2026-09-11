@@ -1,3 +1,4 @@
+import { zAlbumMedia } from "@/client/zod.gen";
 import { client } from "@/client/client.gen";
 import type { AlbumMedia } from "@/client";
 import { useAlbum } from "@/composables/useAlbum";
@@ -172,7 +173,7 @@ export function useReplaceExternalMedia() {
         },
       );
       if (!res.ok) throw new Error(statusMessage(res.status));
-      const replacement = (await res.json()) as AlbumMedia;
+      const replacement = zAlbumMedia.parse(await res.json());
       await invalidateQueries();
       operation.phase.value = "done";
       const result = replacementResult(
@@ -228,7 +229,7 @@ export function useReplaceExternalMedia() {
         },
       );
       if (!res.ok) throw new Error(statusMessage(res.status));
-      const replacement = (await res.json()) as AlbumMedia;
+      const replacement = zAlbumMedia.parse(await res.json());
       await invalidateQueries();
       operation.phase.value = "done";
       operation.phase.value = "idle";

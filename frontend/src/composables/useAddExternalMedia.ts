@@ -1,5 +1,6 @@
 import { t } from "@/i18n";
 import { EXTERNAL_MEDIA_IMPORT_MAX_ITEMS } from "@/utils/externalMediaLimits";
+import { zBodyAddDevice } from "@/client/zod.gen";
 import { useQueryCache } from "@pinia/colada";
 import { computed, nextTick, ref } from "vue";
 import {
@@ -90,7 +91,10 @@ export function useAddExternalMedia(albumId: () => string) {
   ): Promise<ImportCompleted | undefined> {
     const selected = Array.from(files);
     if (selected.length === 0) return;
-    if (selected.length > EXTERNAL_MEDIA_IMPORT_MAX_ITEMS) {
+    if (
+      !zBodyAddDevice.shape.files.safeParse(selected.map((file) => file.name))
+        .success
+    ) {
       operation.setError(t("mediaImport.errors.tooMany"));
       return;
     }

@@ -1,12 +1,11 @@
 import asyncio
-import re
-from typing import Literal
+from typing import Annotated, Literal
 
 import jwt
 import structlog
 from fastapi import APIRouter, HTTPException, Request, status
 from jwt import PyJWKClient
-from pydantic import BaseModel
+from pydantic import BaseModel, StringConstraints, TypeAdapter, ValidationError
 from sqlmodel import col, select
 
 from app.core.config import get_settings
@@ -30,7 +29,14 @@ _microsoft_jwks = PyJWKClient(
 )
 
 GOOGLE_ISSUERS = ["accounts.google.com", "https://accounts.google.com"]
-_MS_ISSUER_RE = re.compile(r"^https://login\.microsoftonline\.com/[0-9a-f-]{36}/v2\.0$")
+_MICROSOFT_ISSUER = TypeAdapter(
+    Annotated[
+        str,
+        StringConstraints(
+            pattern=r"^https://login\.microsoftonline\.com/[0-9a-f-]{36}/v2\.0$"
+        ),
+    ]
+)
 
 
 class Credential(BaseModel):
@@ -87,11 +93,12 @@ async def _verify_microsoft(credential: str) -> OAuthIdentity:
     payload = await _verify_oidc_token(
         credential, _microsoft_jwks, settings.MICROSOFT_CLIENT_ID, issuer=None
     )
-    # /common issues tenant-specific issuers - pattern-match manually.
-    iss = payload.get("iss", "")
-    if not _MS_ISSUER_RE.match(iss):
+    # /common issues tenant-specific issuers, so check after signature verification.
+    try:
+        _MICROSOFT_ISSUER.validate_python(payload.get("iss"))
+    except ValidationError:
         logger.warning("auth.microsoft_unexpected_issuer")
-        raise HTTPException(status.HTTP_401_UNAUTHORIZED)
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED) from None
     return OAuthIdentity(
         sub=payload["sub"],
         first_name=payload.get("given_name") or payload.get("name", ""),

@@ -10,12 +10,12 @@ from contextlib import (
     suppress,
 )
 from pathlib import Path
-from typing import TYPE_CHECKING, Annotated, ClassVar, Literal
+from typing import TYPE_CHECKING, Annotated, ClassVar, Literal, Self
 from urllib.parse import quote, urlencode, urlparse
 
 import structlog
 from playwright.async_api import Browser, Page, Playwright, Response, async_playwright
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ValidationError
 
 from app.core.config import get_settings
 from app.core.locks import try_advisory_lock
@@ -78,6 +78,18 @@ class PdfDone(BaseModel):
 class PdfError(BaseModel):
     type: Literal["error"] = "error"
     detail: str
+
+
+class _PrintPageError(BaseModel):
+    code: str = "unknown"
+    map_error: str = Field(default="unknown", alias="mapError")
+
+    @classmethod
+    def from_browser(cls, error: object) -> Self:
+        try:
+            return cls.model_validate(error)
+        except ValidationError:
+            return cls()
 
 
 class PdfBusy(BaseModel):
@@ -414,21 +426,13 @@ async def _load_print_page(
                         total: document.querySelectorAll('[data-map]').length,
                     })"""
                 )
-                code = (
-                    error.get("code", "unknown")
-                    if isinstance(error, dict)
-                    else "unknown"
-                )
-                map_error = (
-                    error.get("mapError", "unknown")
-                    if isinstance(error, dict)
-                    else "unknown"
-                )
+                page_error = _PrintPageError.from_browser(error)
+                code = page_error.code
                 logger.error(
                     "pdf.print_page_failed",
                     album_id=aid,
                     error_code=code,
-                    map_error=map_error,
+                    map_error=page_error.map_error,
                     maps_ready=map_counts["ready"],
                     maps_total=map_counts["total"],
                 )

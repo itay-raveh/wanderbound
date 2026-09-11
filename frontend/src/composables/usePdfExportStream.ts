@@ -1,12 +1,9 @@
+import { zGeneratePdfResponse } from "@/client/zod.gen";
 import { Dark, format } from "quasar";
 import {
   generateChaptersPdf,
   generatePdf,
-  type PdfBusy,
-  type PdfDone,
-  type PdfError,
   type PdfProgress as PdfProgressEvent,
-  type PdfQueued,
 } from "@/client";
 import { client } from "@/client/client.gen";
 import { t } from "@/i18n";
@@ -15,8 +12,6 @@ import {
   type PolledExportHandle,
 } from "./usePolledExportDownload";
 import { ref, watch, type Ref } from "vue";
-
-type PdfEvent = PdfQueued | PdfProgressEvent | PdfDone | PdfError | PdfBusy;
 
 export type PdfExportTarget = (
   | { type: "album" }
@@ -41,7 +36,7 @@ async function openPdfStream(
   aid: string,
   current: PdfExportTarget,
   signal: AbortSignal,
-): Promise<AsyncIterable<PdfEvent>> {
+): Promise<AsyncIterable<unknown>> {
   const common = {
     path: { aid },
     signal,
@@ -64,7 +59,7 @@ async function openPdfStream(
             chapter: current.type === "chapter" ? current.id : undefined,
           },
         });
-  return stream as AsyncIterable<PdfEvent>;
+  return stream;
 }
 
 function progressMessage(
@@ -103,7 +98,8 @@ export function usePdfExportStream(
 ): PdfExportHandle {
   const progress = ref<PdfProgress>(idleProgress());
 
-  const handle = usePolledExportDownload<PdfEvent>({
+  const handle = usePolledExportDownload({
+    schema: zGeneratePdfResponse.element,
     headless: true,
     async connect(signal) {
       return openPdfStream(aid(), target(), signal);

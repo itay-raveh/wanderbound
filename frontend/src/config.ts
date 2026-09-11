@@ -10,7 +10,6 @@ let loading: Promise<Settings> | undefined;
 export function loadSettings(): Promise<Settings> {
   if (settings) return Promise.resolve(settings);
   loading ??= publicConfig().then(({ data }) => {
-    if (!data) throw new Error("Public settings response was empty");
     settings = zPublicSettings.parse(data);
     return settings;
   });
