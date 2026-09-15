@@ -15,7 +15,6 @@ from starlette.middleware.sessions import SessionMiddleware
 from app.api.v1.router import router as v1_router
 from app.api.v1.routes.uploads import UploadHTTPException
 from app.core.config import get_settings
-from app.core.early_data import EarlyDataMiddleware
 from app.core.http_clients import lifespan_clients
 from app.core.logging import setup_logging
 from app.core.sentry import setup_sentry
@@ -169,7 +168,6 @@ app.add_middleware(
     same_site="lax",
     https_only=settings.ENVIRONMENT != "local",
 )
-app.add_middleware(EarlyDataMiddleware, api_prefix=settings.API_V1_STR)
 
 app.include_router(v1_router, prefix=settings.API_V1_STR)
 
