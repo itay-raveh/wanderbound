@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from fastapi import Request  # noqa: TC002
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 from starlette.datastructures import URL
 from starlette.middleware.gzip import GZipMiddleware
@@ -68,16 +68,29 @@ def install_frontend(app: FastAPI, settings: Settings) -> None:
     content_security_policy = _content_security_policy(settings)
     templates = Jinja2Templates(directory=settings.FRONTEND_DIRECTORY)
     public_url = str(settings.PUBLIC_URL).rstrip("/")
+    api_prefix = settings.API_V1_STR.rstrip("/")
 
     @app.middleware("http")
     async def response_headers(
         request: Request, call_next: RequestResponseEndpoint
     ) -> Response:
-        response = await call_next(request)
+        path = request.url.path
+        # Invalid or repeated values also signal early data.
+        # https://www.rfc-editor.org/rfc/rfc8470.html#section-5.1
+        if "early-data" in request.headers and (
+            path == api_prefix or path.startswith(f"{api_prefix}/")
+        ):
+            response = JSONResponse(
+                {"detail": "Too Early"},
+                status_code=425,
+                headers={"Cache-Control": "no-store"},
+            )
+        else:
+            response = await call_next(request)
         response.headers["Content-Security-Policy"] = content_security_policy
         if settings.APP_VERSION:
             response.headers["X-Wanderbound-Version"] = settings.APP_VERSION
-        if request.url.path.startswith("/assets/") and response.status_code < 400:
+        if path.startswith("/assets/") and response.status_code < 400:
             response.headers["Cache-Control"] = "public, max-age=31536000, immutable"
         elif response.headers.get("Content-Type", "").startswith("text/html"):
             response.headers["Cache-Control"] = "no-cache"
