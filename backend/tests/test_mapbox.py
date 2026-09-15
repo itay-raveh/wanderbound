@@ -34,7 +34,7 @@ def _timed(coords: list[tuple[float, float]]) -> list[tuple[float, float, float]
 
 async def test_map_matching_no_match_is_terminal() -> None:
     def handler(request: httpx.Request) -> httpx.Response:
-        assert request.url.params["timestamps"] == "1700000000.267;1700000060.267"
+        assert request.url.params["timestamps"] == "1700000000;1700000060"
         return httpx.Response(200, json={"code": "NoMatch"}, request=request)
 
     async with _client(handler) as client:
@@ -58,9 +58,7 @@ async def test_map_matching_preserves_subsecond_endpoint() -> None:
 
     def handler(request: httpx.Request) -> httpx.Response:
         assert request.url.path.endswith("/4.0,52.0;4.1,52.1;4.2,52.2")
-        assert request.url.params["timestamps"] == (
-            "1700000000.1;1700000001.1;1700000001.9"
-        )
+        assert request.url.params["timestamps"] == ("1700000000;1700000001;1700000001")
         return httpx.Response(200, json={"code": "NoMatch"}, request=request)
 
     async with _client(handler) as client:
@@ -71,10 +69,17 @@ async def test_map_matching_preserves_subsecond_endpoint() -> None:
 
 async def test_mapbox_server_failure_is_retryable() -> None:
     def handler(request: httpx.Request) -> httpx.Response:
-        return httpx.Response(503, json={"code": "ServerError"}, request=request)
+        return httpx.Response(
+            503,
+            json={"code": "ServerError", "message": "Service unavailable"},
+            request=request,
+        )
 
     async with _client(handler) as client:
-        with pytest.raises(MapboxTransientError, match="ServerError"):
+        with pytest.raises(
+            MapboxTransientError,
+            match="directions:ServerError: Service unavailable",
+        ):
             await _fetch_directions(
                 client,
                 _timed([(4.0, 52.0), (4.1, 52.1)]),

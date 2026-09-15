@@ -120,6 +120,7 @@ class _DirectionsResponse(BaseModel):
 
 class _ErrorResponse(BaseModel):
     code: str
+    message: str | None = None
 
 
 _NO_ROUTE_CODES = frozenset({"NoMatch", "NoRoute", "NoSegment"})
@@ -143,23 +144,26 @@ def _matched(route: Coords) -> RouteMatchResult:
     return RouteMatchResult(status=RouteEnrichmentStatus.matched, route=route)
 
 
-def _response_error_code(response: httpx.Response) -> str:
+def _response_error(response: httpx.Response) -> _ErrorResponse:
     try:
-        return _ErrorResponse.model_validate_json(response.content).code
+        return _ErrorResponse.model_validate_json(response.content)
     except ValidationError:
-        return f"http_{response.status_code}"
+        return _ErrorResponse(code=f"http_{response.status_code}")
 
 
 def _http_failure(response: httpx.Response, *, operation: str) -> RouteMatchResult:
-    error_code = _response_error_code(response)
+    error = _response_error(response)
+    error_code = error.code
     logger.warning(
         "mapbox.api_error",
         operation=operation,
         status_code=response.status_code,
         error_code=error_code,
+        error_message=error.message,
     )
     if response.status_code == 429 or response.status_code >= 500:
-        raise MapboxTransientError(f"{operation}:{error_code}")
+        detail = f": {error.message}" if error.message else ""
+        raise MapboxTransientError(f"{operation}:{error_code}{detail}")
     if error_code in _NO_ROUTE_CODES:
         return _no_route(error_code)
     return _failed(error_code)
@@ -246,7 +250,7 @@ async def _fetch_matching(
                     "geometries": "geojson",
                     "overview": "full",
                     "tidy": "true",
-                    "timestamps": ";".join(map(str, timestamps)),
+                    "timestamps": ";".join(str(int(t)) for t in timestamps),
                     "access_token": token,
                 },
             )
