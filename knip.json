@@ -2,10 +2,6 @@
   "$schema": "https://unpkg.com/knip@6/schema.json",
   "workspaces": {
     ".": {
-      "entry": [
-        "scripts/generate-og-image.ts",
-        "scripts/generate-landing.ts"
-      ],
       "project": ["scripts/**/*.ts", "*.config.js"],
       "ignoreDependencies": ["@commitlint/cli"]
     },
@@ -28,8 +24,7 @@
       "vite": {
         "config": []
       },
-      "ignoreUnresolved": ["/src/client/index.ts"],
-      "ignoreBinaries": ["uv", "scripts/generate-og-image.ts"]
+      "ignoreBinaries": ["uv"]
     }
   }
 }

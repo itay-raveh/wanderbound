@@ -41,6 +41,8 @@ dependencies = [
     "asgi-correlation-id~=5.0",
     "dbos>=2.31.0",
     "boto3==1.43.89",
+    "cryptography~=46.0",
+    "botocore>=1.43.84,<1.44",
 ]
 
 [dependency-groups]

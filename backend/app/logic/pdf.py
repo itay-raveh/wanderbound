@@ -125,9 +125,6 @@ class _PdfTokens:
             on_evict=lambda data: Path(data["path"]).unlink(missing_ok=True),
         )
 
-    def cleanup(self) -> None:
-        self._store.cleanup()
-
     def make_dest(self, suffix: str) -> Path:
         return self._store.make_dest(suffix)
 

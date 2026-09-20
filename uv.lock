@@ -96,8 +96,10 @@ dependencies = [
     { name = "asgi-correlation-id" },
     { name = "av" },
     { name = "boto3" },
+    { name = "botocore" },
     { name = "cachetools" },
     { name = "coloraide" },
+    { name = "cryptography" },
     { name = "dbos" },
     { name = "fastapi", extra = ["standard"] },
     { name = "hishel", extra = ["httpx"] },
@@ -150,9 +152,11 @@ requires-dist = [
     { name = "anyio", specifier = "~=4.13" },
     { name = "asgi-correlation-id", specifier = "~=5.0" },
     { name = "av", specifier = "~=18.0" },
-    { name = "boto3", specifier = "==1.43.84" },
+    { name = "boto3", specifier = "==1.43.89" },
+    { name = "botocore", specifier = ">=1.43.84,<1.44" },
     { name = "cachetools", specifier = "~=7.0" },
     { name = "coloraide", specifier = "~=8.7" },
+    { name = "cryptography", specifier = "~=46.0" },
     { name = "dbos", specifier = ">=2.31.0" },
     { name = "fastapi", extras = ["standard"], specifier = ">=0.139.2,<1" },
     { name = "hishel", extras = ["httpx"], specifier = "~=1.0" },
@@ -238,16 +242,16 @@ wheels = [
 
 [[package]]
 name = "boto3"
-version = "1.43.84"
+version = "1.43.89"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "botocore" },
     { name = "jmespath" },
     { name = "s3transfer" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/2f/e1/a714560efabf44b22ed94a537593be76aec87b7a655830d951431e04fe26/boto3-1.43.84.tar.gz", hash = "sha256:973e9982a3a819644c71d7fe4f9e67b4f833d33760ba418c2a0680aa5afed1f0", size = 112756, upload-time = "2026-08-31T19:26:59.516Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/50/26/48b3da85526a72a02df55e564481fc348e93699c15f0f502681b12ac2c8a/boto3-1.43.89.tar.gz", hash = "sha256:c28abbe472e9b7cad08807356311aeec51bde5218c18489da827045d2267bfd9", size = 112702, upload-time = "2026-09-04T19:24:57.143Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/e0/ee/0aa69f63752dcd99a2f2832883dbc1c50c2e157172c00b2243413d3d5f0f/boto3-1.43.84-py3-none-any.whl", hash = "sha256:4d46d5689b82d05c3a1ed6de285c1f8f05cceffd5eec930a5423105ee6a9e0d1", size = 140026, upload-time = "2026-08-31T19:26:56.889Z" },
+    { url = "https://files.pythonhosted.org/packages/cd/12/e1b5cb4a00a9bfd72cf2d3f982c5826757aacdfc90aa4bd61902dcc94856/boto3-1.43.89-py3-none-any.whl", hash = "sha256:fe4190afe63eb562b6ba6a3911cf4427473b35fa047adde093bf696d3ae09fc0", size = 140028, upload-time = "2026-09-04T19:24:55.929Z" },
 ]
 
 [[package]]

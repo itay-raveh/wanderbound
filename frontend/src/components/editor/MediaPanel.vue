@@ -5,7 +5,6 @@ import ExternalMediaReviewDialog from "./ExternalMediaReviewDialog.vue";
 import SegmentedControl from "@/components/ui/SegmentedControl.vue";
 import UpgradeMediaButton from "./UpgradeMediaButton.vue";
 import { useAddExternalMedia } from "@/composables/useAddExternalMedia";
-import { useExternalMediaSources } from "@/composables/useExternalMediaSources";
 import { useMediaUndo } from "@/composables/useMediaUndo";
 import {
   useReplaceExternalMedia,
@@ -56,7 +55,9 @@ const resolutionWarningOptions = computed<
 const addMedia = useAddExternalMedia(() => props.albumId);
 const replaceMedia = useReplaceExternalMedia();
 const undo = useMediaUndo(() => props.albumId);
-const sources = useExternalMediaSources();
+const googleAvailable = computed(
+  () => addMedia.googlePhotosState.value !== "unavailable",
+);
 
 const importInputRef = ref<HTMLInputElement | null>(null);
 const replaceInputRef = ref<HTMLInputElement | null>(null);
@@ -303,7 +304,7 @@ const replaceError = computed(() =>
           <button
             type="button"
             class="media-cta primary import-cta-main"
-            :class="{ 'has-trailing': sources.googleAvailable.value }"
+            :class="{ 'has-trailing': googleAvailable }"
             :disabled="addMedia.isBusy.value"
             :aria-label="t('externalMedia.import.action')"
             @click="pickDeviceImport"
@@ -312,7 +313,7 @@ const replaceError = computed(() =>
             <span class="cta-label">{{ importLabel }}</span>
           </button>
           <button
-            v-if="sources.googleAvailable.value"
+            v-if="googleAvailable"
             type="button"
             class="import-cta-trigger"
             :disabled="addMedia.isBusy.value"
