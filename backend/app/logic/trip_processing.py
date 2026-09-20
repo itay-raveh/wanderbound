@@ -10,7 +10,6 @@ from zoneinfo import ZoneInfo
 import structlog
 from pydantic import BaseModel, Field
 
-from app.core.async_helpers import yield_completed
 from app.core.http_clients import HttpClients
 from app.core.observability import start_span
 from app.logic.chapters import default_album_chapter
@@ -108,8 +107,8 @@ async def fetch_layouts(
     ) -> tuple[int, Layout | None]:
         return idx, await build_step_layout(user, aid, step)
 
-    async for result in yield_completed(_one(i, s) for i, s in enumerate(steps)):
-        yield result
+    for completed in asyncio.as_completed(_one(i, s) for i, s in enumerate(steps)):
+        yield await completed
 
 
 def flatten_media(album_dir: Path) -> None:

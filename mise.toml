@@ -105,7 +105,7 @@ run = "uv run vulture"
 
 [tasks."deadcode:frontend"]
 description = "Find dead JS/TS code (knip)"
-run = "bun x knip"
+run = ["bun run --cwd frontend ensure:client", "bun x knip"]
 
 # -- Formatting ---------------------------------------------------
 

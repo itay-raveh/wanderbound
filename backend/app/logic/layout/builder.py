@@ -1,3 +1,4 @@
+import asyncio
 from collections.abc import AsyncIterable, Iterable, Sequence
 from itertools import batched
 from math import ceil
@@ -6,7 +7,6 @@ from typing import NamedTuple
 
 import structlog
 
-from app.core.async_helpers import yield_completed
 from app.core.worker_threads import run_sync
 from app.models.polarsteps import PSStep
 from app.models.user import User
@@ -130,10 +130,10 @@ async def _step_media(step_dir: Path) -> AsyncIterable[Media]:
         async def _probe(p: Path) -> Media:
             return await Media.probe(p)
 
-        async for result in yield_completed(
+        for completed in asyncio.as_completed(
             _probe(p) for p in video_folder.iterdir() if p.suffix.lower() == ".mp4"
         ):
-            yield result
+            yield await completed
 
 
 async def build_step_layout(user: User, aid: str, step: PSStep) -> Layout | None:
