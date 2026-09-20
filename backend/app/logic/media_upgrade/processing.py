@@ -18,7 +18,6 @@ from app.logic.layout.media import (
     HDR_COLOR_TRC,
     Media,
     delete_thumbnails,
-    extract_frame,
     media_limiter,
     open_oriented,
 )
@@ -163,44 +162,6 @@ def _skip_smaller(name: str, new_w: int, new_h: int, existing: Media) -> bool:
         )
         return True
     return False
-
-
-async def replace_video(
-    name: str, raw_path: Path, tmp_path: Path, target: Path
-) -> bool:
-    async with tmp_file(tmp_path) as tmp:
-        await process_video(raw_path, tmp)
-        new_media = await Media.probe(tmp)
-
-        try:
-            existing = await Media.probe(target)
-        except RuntimeError, OSError:
-            logger.debug(
-                "media_upgrade.existing_video_probe_failed",
-                media_name=name,
-                exc_info=True,
-            )
-            existing = None
-        if existing and _skip_smaller(
-            name, new_media.width, new_media.height, existing
-        ):
-            return False
-
-        await run_sync(shutil.move, tmp, target)
-
-    # Video already replaced on disk - thumbnail/poster cleanup is best-effort.
-    try:
-        await run_sync(delete_thumbnails, target)
-        poster = target.with_suffix(".jpg")
-        if await run_sync(poster.exists):
-            await run_sync(delete_thumbnails, poster)
-        await extract_frame(target)
-    except OSError:
-        logger.warning(
-            "media_upgrade.thumbnail_cleanup_failed",
-            exc_info=True,
-        )
-    return True
 
 
 async def replace_photo(

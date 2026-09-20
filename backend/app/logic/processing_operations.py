@@ -58,19 +58,6 @@ async def latest_processing_operation(
     return result.first()
 
 
-async def latest_active_processing_operation(
-    session: AsyncSession, *, uid: int, upload_generation: int
-) -> ProcessingOperation | None:
-    result = await session.exec(
-        select(ProcessingOperation)
-        .where(col(ProcessingOperation.uid) == uid)
-        .where(col(ProcessingOperation.upload_generation) == upload_generation)
-        .where(col(ProcessingOperation.status).notin_(_TERMINAL_STATUSES))
-        .order_by(col(ProcessingOperation.created_at).desc())
-    )
-    return result.first()
-
-
 async def mark_processing_operation_running(
     session: AsyncSession,
     operation: ProcessingOperation,
@@ -156,18 +143,6 @@ async def processing_operation_is_active(
         )
     )
     return status in _ACTIVE_STATUSES
-
-
-async def processing_operation_is_active_for_update(
-    session: AsyncSession, operation_id: str
-) -> bool:
-    result = await session.exec(
-        select(ProcessingOperation)
-        .where(col(ProcessingOperation.operation_id) == operation_id)
-        .with_for_update()
-    )
-    operation = result.one_or_none()
-    return operation is not None and operation.status in _ACTIVE_STATUSES
 
 
 async def append_processing_event(

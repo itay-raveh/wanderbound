@@ -9,7 +9,6 @@ import PrintPreviewDialog from "./editor/PrintPreviewDialog.vue";
 import PreviewDialog from "@/components/ui/PreviewDialog.vue";
 import PrintSettings from "@/components/editor/PrintSettings.vue";
 import { useActiveSection } from "@/composables/useActiveSection";
-import AlbumPage from "@/components/album/AlbumPage.vue";
 import type {
   AlbumMedia,
   AlbumMeta,
@@ -18,8 +17,6 @@ import type {
 } from "@/client";
 import StepEntry from "./album/StepEntry.vue";
 import WraparoundCover from "./album/WraparoundCover.vue";
-import CoverPage from "./album/CoverPage.vue";
-import AlignmentPage from "./album/AlignmentPage.vue";
 import PanoramaSpreadPage from "./album/PanoramaSpreadPage.vue";
 import { provideAlbum } from "@/composables/useAlbum";
 import { editorZoom, setEditorZoom } from "@/composables/useEditorZoom";
@@ -49,8 +46,6 @@ import {
 import {
   computed,
   defineAsyncComponent,
-  defineComponent,
-  h,
   provide,
   ref,
   watchEffect,
@@ -62,25 +57,6 @@ import { useI18n } from "vue-i18n";
 
 const { t } = useI18n();
 
-const EmptyPage = defineComponent({
-  render: () => h(AlbumPage),
-});
-
-const MapPage = defineAsyncComponent({
-  loader: () => import("./album/map/MapPage.vue"),
-  errorComponent: EmptyPage,
-  timeout: 10_000,
-});
-const HikeMapPage = defineAsyncComponent({
-  loader: () => import("./album/map/HikeMapPage.vue"),
-  errorComponent: EmptyPage,
-  timeout: 10_000,
-});
-const OverviewPage = defineAsyncComponent({
-  loader: () => import("./album/overview/OverviewPage.vue"),
-  errorComponent: EmptyPage,
-  timeout: 10_000,
-});
 const PanoramaFrameDialog = defineAsyncComponent(() =>
   import("./editor/PanoramaFrameDialog.vue").then((module) => module.default),
 );
@@ -382,64 +358,8 @@ watchEffect(() => {
               v-for="item in [editorItems[vItem.index]!]"
               :key="item.key"
             >
-              <CoverPage
-                v-if="
-                  item.type === 'header' && item.headerKey === 'cover-front'
-                "
-                :album="album"
-                :chapter="item.chapter"
-                :steps="item.steps"
-              />
-              <CoverPage
-                v-else-if="
-                  item.type === 'header' && item.headerKey === 'cover-back'
-                "
-                :album="album"
-                :chapter="item.chapter"
-                :steps="item.steps"
-                is-back
-              />
-              <OverviewPage
-                v-else-if="
-                  item.type === 'header' && item.headerKey === 'overview'
-                "
-                :album="album"
-                :segments="item.segments"
-                :steps="item.steps"
-              />
               <div
-                v-else-if="
-                  item.type === 'header' && item.headerKey === 'full-map'
-                "
-                class="map-wrapper"
-              >
-                <MapPage
-                  :segment-outlines="item.segments"
-                  :steps="item.steps"
-                />
-              </div>
-              <div v-else-if="item.type === 'map'" class="map-wrapper">
-                <MapPage
-                  :segment-outlines="item.section.segments"
-                  :steps="item.section.steps"
-                />
-              </div>
-              <div v-else-if="item.type === 'hike'" class="map-wrapper">
-                <HikeMapPage
-                  :segments="item.section.segments"
-                  :steps="item.section.steps"
-                  :hike-segment="item.section.hikeSegment"
-                  :all-segments="segmentOutlines"
-                />
-              </div>
-              <StepEntry
-                v-else-if="item.type === 'step-page' || item.type === 'grid'"
-                :step="item.step"
-                :page-index="item.pageIndex"
-              />
-              <AlignmentPage v-else-if="item.type === 'alignment'" />
-              <div
-                v-else-if="item.type === 'panorama-spread'"
+                v-if="item.type === 'panorama-spread'"
                 class="panorama-spread row no-wrap"
               >
                 <PanoramaSpreadPage
@@ -461,6 +381,12 @@ watchEffect(() => {
                 v-else-if="item.type === 'step-add-zone'"
                 :step="item.step"
                 add-zone-only
+              />
+              <PhysicalAlbumPage
+                v-else
+                :item="item"
+                :album="album"
+                :segment-outlines="segmentOutlines"
               />
             </template>
           </template>
