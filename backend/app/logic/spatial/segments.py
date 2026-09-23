@@ -120,17 +120,45 @@ CAMP_PREV_ANCHOR_MIN_H = 1.0
 RDP_EPSILON_DEG = 0.001  # RDP simplification tolerance (degrees)
 
 
-def _points_to_df(pts: Iterable[Point]) -> pl.DataFrame:
-    points = list(pts)
-    if not points:
+def _merge_points(
+    steps: Sequence[_StepLike], locations: Iterable[Point]
+) -> pl.DataFrame:
+    """Merge step pins and GPS fixes, keeping step pins at timestamp collisions."""
+    points = [
+        (
+            Point(lat=s.location.lat, lon=s.location.lon, time=s.datetime.timestamp()),
+            True,
+        )
+        for s in steps
+    ]
+    points.extend((point, False) for point in locations)
+    points.sort(key=lambda row: row[0].time)
+
+    merged: list[tuple[Point, bool]] = []
+    previous_time: float | None = None
+    for point, is_step in points:
+        if previous_time is not None and point.time - previous_time <= 0.001:
+            if is_step and not merged[-1][1]:
+                merged[-1] = (point, True)
+        else:
+            merged.append((point, is_step))
+        previous_time = point.time
+
+    if not merged:
         return pl.DataFrame(
-            schema={"lat": pl.Float64, "lon": pl.Float64, "time": pl.Float64}
+            schema={
+                "lat": pl.Float64,
+                "lon": pl.Float64,
+                "time": pl.Float64,
+                "is_step": pl.Boolean,
+            }
         )
     return pl.DataFrame(
         {
-            "lat": [p.lat for p in points],
-            "lon": [p.lon for p in points],
-            "time": [p.time for p in points],
+            "lat": [point.lat for point, _ in merged],
+            "lon": [point.lon for point, _ in merged],
+            "time": [point.time for point, _ in merged],
+            "is_step": [is_step for _, is_step in merged],
         }
     )
 
@@ -178,13 +206,6 @@ def _add_edge_metrics(df: pl.DataFrame) -> pl.DataFrame:
         .then(pl.col("dist_km") / pl.col("gap_h"))
         .otherwise(0.0)
         .alias("speed_kmh"),
-    )
-
-
-def _dedup_by_time(df: pl.DataFrame) -> pl.DataFrame:
-    """Drop points within 1 ms of the previous (step/GPS collisions)."""
-    return df.filter(
-        (pl.col("time") - pl.col("time").shift(1)).abs().fill_null(1) > 0.001
     )
 
 
@@ -288,12 +309,12 @@ def _densify_hike_edges(df: pl.DataFrame) -> pl.DataFrame:
     Only densifies edges at hike speed, within gap limit, and sparser than
     the target resolution.  Vectorized via NumPy repeat/cumsum.
 
-    Outputs only lat/lon/time - caller must re-run _add_edge_metrics and
-    re-mark step rows afterwards.
+    Caller must re-run _add_edge_metrics afterwards.
     """
     lats = df["lat"].to_numpy()
     lons = df["lon"].to_numpy()
     times = df["time"].to_numpy()
+    is_steps = df["is_step"].to_numpy()
 
     if len(lats) < 2:
         return df
@@ -325,31 +346,23 @@ def _densify_hike_edges(df: pl.DataFrame) -> pl.DataFrame:
             "time": np.concatenate(
                 [[times[0]], times[i0] + (times[i1] - times[i0]) * frac]
             ),
+            "is_step": np.concatenate(
+                [[is_steps[0]], is_steps[i1] & (local_step + 1 == n_pts[edge_idx])]
+            ),
         }
     )
 
 
 def _ingest(steps: Sequence[_StepLike], locations: Iterable[Point]) -> pl.DataFrame:
     """Merge steps + GPS into a clean, densified DataFrame with edge metrics."""
-    step_pts = sorted(
-        Point(lat=s.location.lat, lon=s.location.lon, time=s.datetime.timestamp())
-        for s in steps
-    )
-    step_times = [p.time for p in step_pts]
-
-    df = _points_to_df(sorted([*step_pts, *locations]))
+    df = _merge_points(steps, locations)
     if df.height == 0:
         return df
 
-    df = _dedup_by_time(df)
-    # Mark steps before noise removal so they survive
-    df = df.with_columns(pl.col("time").is_in(step_times).alias("is_step"))
     df = _remove_gps_noise(df)
     df = _add_edge_metrics(df)
     df = _densify_hike_edges(df)
-    df = _add_edge_metrics(df)
-    # Re-mark: densified rows aren't steps
-    return df.with_columns(pl.col("time").is_in(step_times).alias("is_step"))
+    return _add_edge_metrics(df)
 
 
 def _label_edges(df: pl.DataFrame) -> pl.DataFrame:

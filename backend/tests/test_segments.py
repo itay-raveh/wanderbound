@@ -9,6 +9,7 @@ import pytest
 from app.logic.spatial.geo import total_length_km
 from app.logic.spatial.segments import (
     _absorb_noise_gaps,
+    _ingest,
     _remove_gps_noise,
     build_segments,
 )
@@ -335,6 +336,16 @@ def _point_near(
 
 
 class TestStepPreservation:
+    def test_step_wins_near_timestamp_collision(self) -> None:
+        step = _step(0.0, 0.1, 10.0)
+        gps = [
+            _pt(0.0, 0.09, 9.0),
+            Point(lat=0.0, lon=0.099, time=_ts(10.0) - 0.0005),
+            _pt(0.0, 0.11, 11.0),
+        ]
+        marked = _ingest([step], gps).filter(pl.col("is_step"))
+        assert marked.select("lon", "time").rows() == [(0.1, _ts(10.0))]
+
     def test_step_in_out_and_back_hike(self) -> None:
         gps = _track(0.0, 0.0, 0.0, 0.09, h0=8.0, h1=11.0, n=20) + _track(
             0.0, 0.09, 0.0, 0.0, h0=13.0, h1=16.0, n=20
