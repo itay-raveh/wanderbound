@@ -8,7 +8,7 @@ Pipeline: ingest -> label -> absorb -> validate -> partition -> emit.
   4. Validate  Drop undersized hikes (< 2 h, < 2 km, < 1 km displacement),
                short flights (< 100 km), and stepless hikes.
                Rejects become "other".
-  5. Partition Split flight connections and long "other" gaps into traces.
+  5. Partition Split connections and long gaps, then validate flight legs.
   6. Emit      Simplify, resolve "other" -> walking/driving, stitch gaps.
 
 DataFrame columns through the pipeline::
@@ -648,8 +648,14 @@ def _resolve_kind(kind: str, gdf: pl.DataFrame) -> SegmentKind:
     return SegmentKind.driving if fast_km > slow_km else SegmentKind.walking
 
 
+def _split_other_gaps(gdf: pl.DataFrame) -> list[pl.DataFrame]:
+    return gdf.with_columns(
+        (pl.col("gap_h") >= MAX_HIKE_GAP_H).cum_sum().alias("trace_id")
+    ).partition_by("trace_id", maintain_order=True)
+
+
 def _output_traces(df: pl.DataFrame) -> Iterable[tuple[str, pl.DataFrame]]:
-    """Partition validated runs at flight connections and long unknown gaps."""
+    """Partition runs and reject flight legs shorter than the flight minimum."""
     for _, gdf in df.group_by("output_id", maintain_order=True):
         raw_kind = cast("str", gdf["final_mode"][0])
         groups = [gdf]
@@ -668,12 +674,17 @@ def _output_traces(df: pl.DataFrame) -> Iterable[tuple[str, pl.DataFrame]]:
                 for start, end in pairwise([*starts, gdf.height - 1])
             ]
         elif raw_kind == "other":
-            groups = gdf.with_columns(
-                (pl.col("gap_h") >= MAX_HIKE_GAP_H).cum_sum().alias("trace_id")
-            ).partition_by("trace_id", maintain_order=True)
+            groups = _split_other_gaps(gdf)
 
         for trace in groups:
-            yield raw_kind, trace
+            # The shared first row carries the previous leg's incoming distance.
+            if raw_kind == "flight" and (
+                trace["dist_km"].slice(1).sum() < FLIGHT_MIN_DISTANCE_KM
+            ):
+                for other_trace in _split_other_gaps(trace):
+                    yield "other", other_trace
+            else:
+                yield raw_kind, trace
 
 
 def _emit_segments(traces: Iterable[tuple[str, pl.DataFrame]]) -> Iterable[SegmentData]:

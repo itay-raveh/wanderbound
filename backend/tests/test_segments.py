@@ -272,6 +272,21 @@ class TestClassification:
             (2.1, 7.5),
         ]
 
+    def test_short_connected_leg_is_not_flight(self) -> None:
+        gps = [
+            _pt(0.0, 0.0, 0.0),
+            _pt(2.1, 0.0, 0.9),
+            _pt(2.1, 0.0, 3.0),
+            _pt(2.6, 0.0, 3.1),
+        ]
+        segments = list(
+            build_segments([_step(0.0, 0.0, 0.0), _step(2.6, 0.0, 3.1)], gps)
+        )
+        assert [segment.kind for segment in segments] == [
+            SegmentKind.flight,
+            SegmentKind.driving,
+        ]
+
     def test_isolated_sparse_fast_trip_is_not_assumed_to_be_flight(self) -> None:
         gps = [_pt(0.0, 0.0, 0.0), _pt(5.0, 0.0, 3.6)]
         steps = [_step(0.0, 0.0, 0.0), _step(5.0, 0.0, 3.6)]
