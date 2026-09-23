@@ -1,4 +1,4 @@
-"""Prepare ordered GPS and step points for movement segmentation."""
+"""Clean GPS and step points, then attach incoming movement metrics."""
 
 import math
 from collections.abc import Iterable, Sequence

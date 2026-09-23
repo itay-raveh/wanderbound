@@ -1,27 +1,12 @@
-"""Segment a Polarsteps GPS track into typed movement segments.
+"""Build movement segments from cleaned Polarsteps fixes and step pins.
 
-Pipeline: ingest -> label -> absorb -> validate -> partition -> emit.
+Track preparation merges, filters, and densifies points. Each point carries
+``incoming_*`` metrics for the edge ending there; the first point has no edge.
+An indexed edge table owns those movements during output partitioning.
 
-  1. Ingest    Merge steps + GPS, remove teleports/spikes, densify slow edges.
-  2. Label     Classify edges as hike / flight / other by speed + gap.
-  3. Absorb    Fold GPS noise, overnight camps, and blackouts back into hikes.
-  4. Validate  Drop undersized hikes (< 2 h, < 2 km, < 1 km displacement),
-               short flights (< 100 km), and stepless hikes.
-               Rejects become "other".
-  5. Partition Split connections and long gaps, then validate flight legs.
-  6. Emit      Simplify, resolve "other" -> walking/driving, stitch gaps.
-
-DataFrame columns through the pipeline::
-
-    lat, lon, time   coordinates + Unix timestamp
-    incoming_gap_h       hours since previous point
-    incoming_dist_km     haversine km from previous point
-    incoming_speed_kmh   incoming_dist_km / incoming_gap_h
-    is_step          True for step waypoints (immune to noise removal)
-    mode             hike | flight | other (after label + absorb)
-    segment_id       RLE group ID on mode
-    final_mode       after validation (undersized -> other)
-    output_id        RLE group ID on final_mode
+The stages below label points, absorb short interruptions, validate runs,
+partition traces, and emit segments. Invalid hike and flight runs become
+``other`` before emission resolves them to walking or driving.
 """
 
 from collections import Counter
@@ -64,6 +49,8 @@ from app.models.segment import SegmentData, SegmentKind
 
 
 class _Trace(NamedTuple):
+    """Output points and the movement edges assigned to their trace."""
+
     kind: str
     points: pl.DataFrame
     edges: pl.DataFrame
