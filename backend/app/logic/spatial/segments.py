@@ -440,9 +440,9 @@ def _emit_segments(traces: Iterable[_Trace]) -> Iterable[SegmentData]:
 
 def build_segments(
     steps: Sequence[_StepLike], locations: Iterable[Point]
-) -> Iterable[SegmentData]:
+) -> list[SegmentData]:
     if not steps:
-        return iter([])
+        return []
 
     logger.info(
         "segments.build_started",
@@ -455,7 +455,7 @@ def build_segments(
     logger.debug("segments.points_ingested", point_count=df.height)
 
     if df.is_empty():
-        return iter([])
+        return []
 
     df = df.with_row_index("point_id")
     edges = _edge_frame(df)

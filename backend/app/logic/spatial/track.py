@@ -319,11 +319,6 @@ def _densify_hike_edges(df: pl.DataFrame) -> pl.DataFrame:
 
 def _ingest(steps: Sequence[_StepLike], locations: Iterable[Point]) -> pl.DataFrame:
     """Merge steps + GPS into a clean, densified DataFrame with edge metrics."""
-    df = _merge_points(steps, locations)
-    if df.height == 0:
-        return df
-
-    df = _remove_gps_noise(df)
+    df = _remove_gps_noise(_merge_points(steps, locations))
     df = _add_edge_metrics(df)
-    df = _densify_hike_edges(df)
-    return _add_edge_metrics(df)
+    return _add_edge_metrics(_densify_hike_edges(df))
