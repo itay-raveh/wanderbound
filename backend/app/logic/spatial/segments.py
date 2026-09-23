@@ -1,6 +1,6 @@
 """Segment a Polarsteps GPS track into typed movement segments.
 
-Pipeline: ingest -> label -> absorb -> validate -> emit.
+Pipeline: ingest -> label -> absorb -> validate -> partition -> emit.
 
   1. Ingest    Merge steps + GPS, remove teleports/spikes, densify slow edges.
   2. Label     Classify edges as hike / flight / other by speed + gap.
@@ -8,7 +8,8 @@ Pipeline: ingest -> label -> absorb -> validate -> emit.
   4. Validate  Drop undersized hikes (< 2 h, < 2 km, < 1 km displacement),
                short flights (< 100 km), and stepless hikes.
                Rejects become "other".
-  5. Emit      Split flight connections, simplify, resolve "other", stitch gaps.
+  5. Partition Split flight connections and long "other" gaps into traces.
+  6. Emit      Simplify, resolve "other" -> walking/driving, stitch gaps.
 
 DataFrame columns through the pipeline::
 
@@ -615,12 +616,8 @@ def _resolve_kind(kind: str, gdf: pl.DataFrame) -> SegmentKind:
     return SegmentKind.driving if fast_km > slow_km else SegmentKind.walking
 
 
-def _emit_segments(
-    df: pl.DataFrame,
-    steps: Sequence[_StepLike],
-) -> Iterable[SegmentData]:
-    prev_last_pt: Point | None = None
-
+def _output_traces(df: pl.DataFrame) -> Iterable[tuple[str, pl.DataFrame]]:
+    """Partition validated runs at flight connections and long unknown gaps."""
     for _, gdf in df.group_by("output_id", maintain_order=True):
         raw_kind = cast("str", gdf["final_mode"][0])
         groups = [gdf]
@@ -644,29 +641,34 @@ def _emit_segments(
             ).partition_by("trace_id", maintain_order=True)
 
         for trace in groups:
-            kind = _resolve_kind(raw_kind, trace)
-            if kind == SegmentKind.flight:
-                pts = [_gdf_to_point(trace, 0), _gdf_to_point(trace, -1)]
-            else:
-                pts = _simplify_points(
-                    trace,
-                    max_time_gap_s=(
-                        MAX_HIKE_GAP_H * 3600 if raw_kind == "other" else None
-                    ),
-                )
+            yield raw_kind, trace
 
-            if (
-                prev_last_pt is not None
-                and pts
-                and 0 < pts[0].time - prev_last_pt.time < MAX_HIKE_GAP_H * 3600
-            ):
-                pts = [prev_last_pt, *pts]
 
-            if len(pts) < 2:
-                continue
+def _emit_segments(traces: Iterable[tuple[str, pl.DataFrame]]) -> Iterable[SegmentData]:
+    prev_last_pt: Point | None = None
 
-            prev_last_pt = pts[-1]
-            yield SegmentData(kind=kind, points=pts)
+    for raw_kind, trace in traces:
+        kind = _resolve_kind(raw_kind, trace)
+        if kind == SegmentKind.flight:
+            pts = [_gdf_to_point(trace, 0), _gdf_to_point(trace, -1)]
+        else:
+            pts = _simplify_points(
+                trace,
+                max_time_gap_s=(MAX_HIKE_GAP_H * 3600 if raw_kind == "other" else None),
+            )
+
+        if (
+            prev_last_pt is not None
+            and pts
+            and 0 < pts[0].time - prev_last_pt.time < MAX_HIKE_GAP_H * 3600
+        ):
+            pts = [prev_last_pt, *pts]
+
+        if len(pts) < 2:
+            continue
+
+        prev_last_pt = pts[-1]
+        yield SegmentData(kind=kind, points=pts)
 
 
 def build_segments(
@@ -691,7 +693,7 @@ def build_segments(
     df = _label_edges(df)
     df = _absorb(df)
     df = _validate_segments(df)
-    segments = list(_emit_segments(df, steps))
+    segments = list(_emit_segments(_output_traces(df)))
 
     counts = Counter(seg.kind for seg in segments)
     logger.debug("segments.built", counts=dict(sorted(counts.items())))
