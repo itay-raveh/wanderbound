@@ -381,7 +381,7 @@ def _label_edges(df: pl.DataFrame) -> pl.DataFrame:
 
 
 def _run_stats(df: pl.DataFrame) -> tuple[pl.DataFrame, pl.DataFrame]:
-    """RLE-group by mode and compute per-run duration, distance, speed."""
+    """Group consecutive modes and describe each run and its neighbors."""
     df = df.with_columns(pl.col("mode").rle_id().alias("run_id"))
     stats = (
         df.group_by("run_id")
@@ -397,6 +397,12 @@ def _run_stats(df: pl.DataFrame) -> tuple[pl.DataFrame, pl.DataFrame]:
             .otherwise(0.0)
             .alias("run_speed_kmh"),
         )
+        .with_columns(
+            pl.col("run_mode").shift(-1).alias("next_run_mode"),
+            pl.col("run_mode").shift(1).alias("prev_run_mode"),
+            pl.col("run_h").shift(-1).fill_null(0.0).alias("next_run_h"),
+            pl.col("run_h").shift(1).fill_null(0.0).alias("prev_run_h"),
+        )
     )
     return df, stats
 
@@ -410,12 +416,6 @@ def _absorb_noise_gaps(df: pl.DataFrame) -> pl.DataFrame:
     Nulls the gap's mode and forward-fills from the preceding hike.
     """
     df, stats = _run_stats(df)
-    stats = stats.with_columns(
-        pl.col("run_h").shift(-1).fill_null(0.0).alias("next_run_h"),
-        pl.col("run_mode").shift(-1).alias("next_run_mode"),
-        pl.col("run_mode").shift(1).alias("prev_run_mode"),
-        pl.col("run_h").shift(1).fill_null(0.0).alias("prev_run_h"),
-    )
     df = df.join(stats, on="run_id")
 
     at_hike_speed = pl.col("run_speed_kmh") <= HIKE_MAX_SPEED_KMH
@@ -442,19 +442,7 @@ def _absorb_noise_gaps(df: pl.DataFrame) -> pl.DataFrame:
         .forward_fill()
         .alias("mode"),
     )
-    return df.drop(
-        [
-            "run_id",
-            "run_mode",
-            "run_h",
-            "run_dist_km",
-            "run_speed_kmh",
-            "next_run_h",
-            "next_run_mode",
-            "prev_run_mode",
-            "prev_run_h",
-        ]
-    )
+    return df.drop(stats.columns)
 
 
 def _absorb_long_gaps(df: pl.DataFrame) -> pl.DataFrame:
@@ -465,12 +453,6 @@ def _absorb_long_gaps(df: pl.DataFrame) -> pl.DataFrame:
     following anchor; long (6-24 h) needs both anchors + distance cap.
     """
     df, stats = _run_stats(df)
-    stats = stats.with_columns(
-        pl.col("run_mode").shift(-1).alias("next_run_mode"),
-        pl.col("run_mode").shift(1).alias("prev_run_mode"),
-        pl.col("run_h").shift(-1).fill_null(0.0).alias("next_run_h"),
-        pl.col("run_h").shift(1).fill_null(0.0).alias("prev_run_h"),
-    )
 
     between_hikes = (
         (pl.col("run_mode") == "other")
