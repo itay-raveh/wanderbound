@@ -3,17 +3,19 @@ import en from "./locales/en.json";
 import he from "./locales/he.json";
 import de from "./locales/de.json";
 
-/** Map BCP 47 locale to vue-i18n message language. Only "he" and "de" have translations; everything else -> "en". */
-export function uiLang(bcp47: string): "en" | "he" | "de" {
-  const lang = bcp47.split("-")[0];
-  return lang === "he" || lang === "de" ? lang : "en";
+const messages = { en, he, de };
+type MessageLanguage = keyof typeof messages;
+
+export function uiLang(bcp47: string): MessageLanguage {
+  const lang = bcp47.split("-")[0] ?? "";
+  return Object.hasOwn(messages, lang) ? (lang as MessageLanguage) : "en";
 }
 
 const i18n = createI18n({
   legacy: false,
   locale: "en",
   fallbackLocale: "en",
-  messages: { en, he, de },
+  messages,
 });
 
 /** Global translate function for use outside component setup (composables, mutations). */
