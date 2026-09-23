@@ -308,8 +308,7 @@ def _simplify_points(
     la, lo, ti = gdf["lat"].to_numpy(), gdf["lon"].to_numpy(), gdf["time"].to_numpy()
     keep = np.zeros(len(la), dtype=bool)
     keep[simplify_coords_idx(np.column_stack((lo, la)), RDP_EPSILON_DEG)] = True
-    if "is_step" in gdf.columns:
-        keep |= gdf["is_step"].to_numpy()
+    keep |= gdf["is_step"].to_numpy()
     if max_time_gap_s is not None:
         selected = np.flatnonzero(keep)
         for left, right in pairwise(selected):

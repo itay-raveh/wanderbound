@@ -195,9 +195,8 @@ def _remove_gps_noise(df: pl.DataFrame) -> pl.DataFrame:
 
     Step waypoints are always kept.
     """
-    has_is_step = "is_step" in df.columns
-    is_step = pl.col("is_step") if has_is_step else pl.lit(value=False)
-    keep_cols = ["lat", "lon", "time"] + (["is_step"] if has_is_step else [])
+    is_step = pl.col("is_step")
+    keep_cols = ["lat", "lon", "time", "is_step"]
 
     if df.height < 2:
         return df
