@@ -195,6 +195,56 @@ def _deg_dist(shift: int = 1) -> pl.Expr:
     ).sqrt()
 
 
+def _remove_stale_points(df: pl.DataFrame, is_step: pl.Expr) -> pl.DataFrame:
+    """Drop stale GPS points only when surrounding points confirm the route."""
+    if df.height < 4:
+        return df
+
+    lat, lon, time = pl.col("lat"), pl.col("lon"), pl.col("time")
+
+    def distance(first: int, second: int) -> pl.Expr:
+        return _haversine_km(
+            lat.shift(first), lon.shift(first), lat.shift(second), lon.shift(second)
+        )
+
+    next_speed = distance(0, -1) / ((time.shift(-1) - time) / 3600)
+    confirmed_return = (
+        ~is_step
+        & (distance(1, 0) > SPIKE_MIN_DIST_KM)
+        & (distance(1, -1) < NOISE_GAP_MAX_DIST_KM)
+        & (distance(1, -2) < NOISE_GAP_MAX_DIST_KM)
+        & (next_speed > TELEPORT_MAX_SPEED_KMH)
+    ).fill_null(value=False)
+    df = df.filter(~confirmed_return)
+
+    if df.height < 4:
+        return df
+
+    bridge_dist = distance(1, -1)
+    bridge_speed = bridge_dist / ((time.shift(-1) - time.shift(1)) / 3600)
+    road_bridge = (
+        (bridge_speed < FLIGHT_SPARSE_MIN_SPEED_KMH)
+        & (bridge_dist > ISOLATED_POINT_MIN_DIST_KM)
+        & (bridge_dist < FLIGHT_MIN_DISTANCE_KM)
+        & (distance(1, 0) < NOISE_GAP_MAX_DIST_KM)
+    )
+    flight_bridge = (
+        (bridge_speed >= FLIGHT_SPARSE_MIN_SPEED_KMH)
+        & (bridge_dist >= FLIGHT_SPARSE_MIN_DISTANCE_KM)
+        & (distance(1, 0) > ISOLATED_POINT_MIN_DIST_KM)
+        & (distance(2, 1) < NOISE_GAP_MAX_DIST_KM)
+    )
+    # A stale origin point can make a valid arrival look like a teleport.
+    late_origin = (
+        ~is_step
+        & (distance(-1, -2) < NOISE_GAP_MAX_DIST_KM)
+        & (road_bridge | flight_bridge)
+        & (bridge_speed <= TELEPORT_MAX_SPEED_KMH)
+        & (next_speed > TELEPORT_MAX_SPEED_KMH)
+    ).fill_null(value=False)
+    return df.filter(~late_origin)
+
+
 def _remove_gps_noise(df: pl.DataFrame) -> pl.DataFrame:
     """Drop confirmed stale points, teleports, and spikes.
 
@@ -207,48 +257,7 @@ def _remove_gps_noise(df: pl.DataFrame) -> pl.DataFrame:
     if df.height < 2:
         return df
 
-    if df.height >= 4:
-        lat, lon, time = pl.col("lat"), pl.col("lon"), pl.col("time")
-
-        def distance(first: int, second: int) -> pl.Expr:
-            return _haversine_km(
-                lat.shift(first), lon.shift(first), lat.shift(second), lon.shift(second)
-            )
-
-        next_speed = distance(0, -1) / ((time.shift(-1) - time) / 3600)
-        confirmed_return = (
-            ~is_step
-            & (distance(1, 0) > SPIKE_MIN_DIST_KM)
-            & (distance(1, -1) < NOISE_GAP_MAX_DIST_KM)
-            & (distance(1, -2) < NOISE_GAP_MAX_DIST_KM)
-            & (next_speed > TELEPORT_MAX_SPEED_KMH)
-        ).fill_null(value=False)
-        df = df.filter(~confirmed_return)
-
-        if df.height >= 4:
-            bridge_dist = distance(1, -1)
-            bridge_speed = bridge_dist / ((time.shift(-1) - time.shift(1)) / 3600)
-            road_bridge = (
-                (bridge_speed < FLIGHT_SPARSE_MIN_SPEED_KMH)
-                & (bridge_dist > ISOLATED_POINT_MIN_DIST_KM)
-                & (bridge_dist < FLIGHT_MIN_DISTANCE_KM)
-                & (distance(1, 0) < NOISE_GAP_MAX_DIST_KM)
-            )
-            flight_bridge = (
-                (bridge_speed >= FLIGHT_SPARSE_MIN_SPEED_KMH)
-                & (bridge_dist >= FLIGHT_SPARSE_MIN_DISTANCE_KM)
-                & (distance(1, 0) > ISOLATED_POINT_MIN_DIST_KM)
-                & (distance(2, 1) < NOISE_GAP_MAX_DIST_KM)
-            )
-            # A stale origin point can make a valid arrival look like a teleport.
-            late_origin = (
-                ~is_step
-                & (distance(-1, -2) < NOISE_GAP_MAX_DIST_KM)
-                & (road_bridge | flight_bridge)
-                & (bridge_speed <= TELEPORT_MAX_SPEED_KMH)
-                & (next_speed > TELEPORT_MAX_SPEED_KMH)
-            ).fill_null(value=False)
-            df = df.filter(~late_origin)
+    df = _remove_stale_points(df, is_step)
 
     # Teleports: apparent speed > 1000 km/h
     dt = ((pl.col("time") - pl.col("time").shift(1)) / 3600.0).fill_null(1.0)
