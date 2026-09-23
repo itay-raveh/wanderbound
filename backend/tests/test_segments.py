@@ -130,6 +130,16 @@ def _assert_segment_kind(
 
 
 class TestNoiseRemoval:
+    def test_antimeridian_crossing_stays_near_meridian(self) -> None:
+        gps = [
+            _pt(0.0, 179.999, 0.0),
+            _pt(0.0, -179.999, 1.0),
+            _pt(0.0, -179.998, 2.0),
+        ]
+        longitudes = _ingest([], gps)["lon"].to_list()
+        assert -179.999 in longitudes
+        assert all(abs(lon) > 179 for lon in longitudes)
+
     def test_offset_step_does_not_delete_nearby_gps(self) -> None:
         rows = [
             (0.0, 0.0, _ts(10.0), False),

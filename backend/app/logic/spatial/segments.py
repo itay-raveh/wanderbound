@@ -211,10 +211,8 @@ def _add_edge_metrics(df: pl.DataFrame) -> pl.DataFrame:
 
 def _deg_dist(shift: int = 1) -> pl.Expr:
     """Degree-distance to the point ``shift`` rows back."""
-    return (
-        (pl.col("lat") - pl.col("lat").shift(shift)) ** 2
-        + (pl.col("lon") - pl.col("lon").shift(shift)) ** 2
-    ).sqrt()
+    lon_delta = (pl.col("lon") - pl.col("lon").shift(shift) + 180) % 360 - 180
+    return ((pl.col("lat") - pl.col("lat").shift(shift)) ** 2 + lon_delta**2).sqrt()
 
 
 def _remove_stale_points(df: pl.DataFrame, is_step: pl.Expr) -> pl.DataFrame:
@@ -310,10 +308,8 @@ def _remove_gps_noise(df: pl.DataFrame) -> pl.DataFrame:
 
     # Spikes: far from prev neighbor but prev->next is short (triangle inequality)
     dd = _deg_dist().fill_null(0.0)
-    across = (
-        (pl.col("lat").shift(1) - pl.col("lat").shift(-1)) ** 2
-        + (pl.col("lon").shift(1) - pl.col("lon").shift(-1)) ** 2
-    ).sqrt()
+    across_lon = (lon.shift(1) - lon.shift(-1) + 180) % 360 - 180
+    across = ((lat.shift(1) - lat.shift(-1)) ** 2 + across_lon**2).sqrt()
     spike = (
         ~is_step & (dd > SPIKE_MIN_DIST_KM / _KM_PER_DEG) & (across < dd * 0.5)
     ).fill_null(value=False)
@@ -358,10 +354,25 @@ def _densify_hike_edges(df: pl.DataFrame) -> pl.DataFrame:
     frac = (local_step + 1) / n_pts[edge_idx]
 
     i0, i1 = edge_idx, edge_idx + 1
+    lon_delta = lons[i1] - lons[i0]
+    lon_delta = np.where(
+        lon_delta > 180,
+        lon_delta - 360,
+        np.where(lon_delta < -180, lon_delta + 360, lon_delta),
+    )
+    interpolated_lons = lons[i0] + lon_delta * frac
+    interpolated_lons = np.where(
+        interpolated_lons > 180,
+        interpolated_lons - 360,
+        np.where(interpolated_lons < -180, interpolated_lons + 360, interpolated_lons),
+    )
+    interpolated_lons = np.where(
+        local_step + 1 == n_pts[edge_idx], lons[i1], interpolated_lons
+    )
     return pl.DataFrame(
         {
             "lat": np.concatenate([[lats[0]], lats[i0] + (lats[i1] - lats[i0]) * frac]),
-            "lon": np.concatenate([[lons[0]], lons[i0] + (lons[i1] - lons[i0]) * frac]),
+            "lon": np.concatenate([[lons[0]], interpolated_lons]),
             "time": np.concatenate(
                 [[times[0]], times[i0] + (times[i1] - times[i0]) * frac]
             ),
