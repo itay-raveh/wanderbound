@@ -29,7 +29,7 @@ from collections import Counter
 from collections.abc import Iterable, Sequence
 from datetime import datetime
 from itertools import pairwise
-from typing import Protocol, cast
+from typing import NamedTuple, Protocol, cast
 
 import numpy as np
 import polars as pl
@@ -48,6 +48,12 @@ class _StepLike(Protocol):
     def location(self) -> HasLatLon: ...
     @property
     def datetime(self) -> datetime: ...
+
+
+class _Trace(NamedTuple):
+    kind: str
+    points: pl.DataFrame
+    edges: pl.DataFrame
 
 
 logger = structlog.get_logger(__name__)
@@ -120,8 +126,9 @@ CAMP_PREV_ANCHOR_MIN_H = 1.0
 RDP_EPSILON_DEG = 0.001  # RDP simplification tolerance (degrees)
 
 _POINT_COLUMNS = ("lat", "lon", "time", "is_step")
+_INDEXED_POINT_COLUMNS = ("point_id", *_POINT_COLUMNS)
 _EDGE_COLUMNS = ("gap_h", "dist_km", "speed_kmh")
-_LABELED_COLUMNS = (*_POINT_COLUMNS, *_EDGE_COLUMNS, "mode")
+_LABELED_COLUMNS = (*_INDEXED_POINT_COLUMNS, *_EDGE_COLUMNS, "mode")
 
 
 def _merge_points(
@@ -210,6 +217,15 @@ def _add_edge_metrics(df: pl.DataFrame) -> pl.DataFrame:
         .then(pl.col("dist_km") / pl.col("gap_h"))
         .otherwise(0.0)
         .alias("speed_kmh"),
+    )
+
+
+def _edge_frame(points: pl.DataFrame) -> pl.DataFrame:
+    """One row per movement, keyed by its start and end point IDs."""
+    return points.slice(1).select(
+        (pl.col("point_id") - 1).alias("start_point_id"),
+        pl.col("point_id").alias("end_point_id"),
+        *_EDGE_COLUMNS,
     )
 
 
@@ -632,7 +648,7 @@ def _validate_segments(df: pl.DataFrame) -> pl.DataFrame:
         )
         df = df.with_columns(pl.col("final_mode").rle_id().alias("output_id"))
 
-    return df.select(*_POINT_COLUMNS, *_EDGE_COLUMNS, "final_mode", "output_id")
+    return df.select(*_INDEXED_POINT_COLUMNS, *_EDGE_COLUMNS, "final_mode", "output_id")
 
 
 def _gdf_to_point(gdf: pl.DataFrame, idx: int) -> Point:
@@ -661,10 +677,10 @@ def _simplify_points(
     return [Point(lat=la[i], lon=lo[i], time=ti[i]) for i in range(len(la)) if keep[i]]
 
 
-def _resolve_kind(kind: str, gdf: pl.DataFrame) -> SegmentKind:
+def _resolve_kind(kind: str, edges: pl.DataFrame) -> SegmentKind:
     if kind != "other":
         return SegmentKind(kind)
-    moving = gdf.filter(pl.col("gap_h") < MAX_HIKE_GAP_H)
+    moving = edges.filter(pl.col("gap_h") < MAX_HIKE_GAP_H)
     fast_km = float(
         moving.filter(pl.col("speed_kmh") > HIKE_MAX_SPEED_KMH)["dist_km"].sum()
     )
@@ -680,7 +696,21 @@ def _split_other_gaps(gdf: pl.DataFrame) -> list[pl.DataFrame]:
     ).partition_by("trace_id", maintain_order=True)
 
 
-def _output_traces(df: pl.DataFrame) -> Iterable[tuple[str, pl.DataFrame]]:
+def _trace(
+    kind: str, points: pl.DataFrame, edges: pl.DataFrame, *, include_first_edge: bool
+) -> _Trace:
+    first_point = int(points["point_id"][0])
+    last_point = int(points["point_id"][-1])
+    first_edge = max(1, first_point if include_first_edge else first_point + 1)
+    # The edge ending at point i occupies row i - 1 in the edge table.
+    return _Trace(
+        kind,
+        points.select(*_POINT_COLUMNS),
+        edges.slice(first_edge - 1, max(0, last_point - first_edge + 1)),
+    )
+
+
+def _output_traces(df: pl.DataFrame, edges: pl.DataFrame) -> Iterable[_Trace]:
     """Partition runs and reject flight legs shorter than the flight minimum."""
     for _, gdf in df.group_by("output_id", maintain_order=True):
         raw_kind = cast("str", gdf["final_mode"][0])
@@ -702,28 +732,33 @@ def _output_traces(df: pl.DataFrame) -> Iterable[tuple[str, pl.DataFrame]]:
         elif raw_kind == "other":
             groups = _split_other_gaps(gdf)
 
-        for trace in groups:
-            # The shared first row carries the previous leg's incoming distance.
-            if raw_kind == "flight" and (
-                trace["dist_km"].slice(1).sum() < FLIGHT_MIN_DISTANCE_KM
+        for points in groups:
+            trace = _trace(
+                raw_kind, points, edges, include_first_edge=raw_kind != "flight"
+            )
+            if (
+                raw_kind == "flight"
+                and trace.edges["dist_km"].sum() < FLIGHT_MIN_DISTANCE_KM
             ):
-                for other_trace in _split_other_gaps(trace):
-                    yield "other", other_trace
+                for other_points in _split_other_gaps(points):
+                    yield _trace("other", other_points, edges, include_first_edge=False)
             else:
-                yield raw_kind, trace
+                yield trace
 
 
-def _emit_segments(traces: Iterable[tuple[str, pl.DataFrame]]) -> Iterable[SegmentData]:
+def _emit_segments(traces: Iterable[_Trace]) -> Iterable[SegmentData]:
     prev_last_pt: Point | None = None
 
-    for raw_kind, trace in traces:
-        kind = _resolve_kind(raw_kind, trace)
+    for trace in traces:
+        kind = _resolve_kind(trace.kind, trace.edges)
         if kind == SegmentKind.flight:
-            pts = [_gdf_to_point(trace, 0), _gdf_to_point(trace, -1)]
+            pts = [_gdf_to_point(trace.points, 0), _gdf_to_point(trace.points, -1)]
         else:
             pts = _simplify_points(
-                trace,
-                max_time_gap_s=(MAX_HIKE_GAP_H * 3600 if raw_kind == "other" else None),
+                trace.points,
+                max_time_gap_s=(
+                    MAX_HIKE_GAP_H * 3600 if trace.kind == "other" else None
+                ),
             )
 
         if (
@@ -759,10 +794,12 @@ def build_segments(
     if df.is_empty():
         return iter([])
 
+    df = df.with_row_index("point_id")
+    edges = _edge_frame(df)
     df = _label_edges(df)
     df = _absorb(df)
     df = _validate_segments(df)
-    segments = list(_emit_segments(_output_traces(df)))
+    segments = list(_emit_segments(_output_traces(df, edges)))
 
     counts = Counter(seg.kind for seg in segments)
     logger.debug("segments.built", counts=dict(sorted(counts.items())))
