@@ -299,8 +299,17 @@ def _remove_gps_noise(df: pl.DataFrame) -> pl.DataFrame:
             > ISOLATED_POINT_MIN_DIST_KM
         )
     ).fill_null(value=False)
+    # Keep the good return fix when the previous raw point was a teleport.
+    return_after_teleport = (
+        ~is_step.shift(1, fill_value=False)
+        & (speed.shift(1) > TELEPORT_MAX_SPEED_KMH / _KM_PER_DEG)
+        & (_haversine_km(lat.shift(2), lon.shift(2), lat, lon) < NOISE_GAP_MAX_DIST_KM)
+    ).fill_null(value=False)
     df = df.filter(
-        is_step | supported_after_step | (speed <= TELEPORT_MAX_SPEED_KMH / _KM_PER_DEG)
+        is_step
+        | supported_after_step
+        | return_after_teleport
+        | (speed <= TELEPORT_MAX_SPEED_KMH / _KM_PER_DEG)
     )
 
     if df.height < 3:

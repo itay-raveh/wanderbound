@@ -150,7 +150,9 @@ class TestNoiseRemoval:
         assert 0.01 in _remove_gps_noise(_noise_df(rows))["lon"].to_list()
 
     def test_teleport_removed(self) -> None:
-        _assert_noise_value(_teleport_rows(is_step=False), "lat", 50.0, kept=False)
+        assert _remove_gps_noise(_noise_df(_teleport_rows(is_step=False)))[
+            "lat"
+        ].to_list() == [0.0, 0.01]
         _assert_noise_value(_teleport_rows(is_step=False)[:2], "lat", 50.0, kept=False)
 
     def test_teleport_kept_when_step(self) -> None:
