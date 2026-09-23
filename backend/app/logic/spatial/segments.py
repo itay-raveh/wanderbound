@@ -14,9 +14,9 @@ Pipeline: ingest -> label -> absorb -> validate -> partition -> emit.
 DataFrame columns through the pipeline::
 
     lat, lon, time   coordinates + Unix timestamp
-    gap_h            hours since previous point
-    dist_km          haversine km from previous point
-    speed_kmh        dist_km / gap_h
+    incoming_gap_h       hours since previous point
+    incoming_dist_km     haversine km from previous point
+    incoming_speed_kmh   incoming_dist_km / incoming_gap_h
     is_step          True for step waypoints (immune to noise removal)
     mode             hike | flight | other (after label + absorb)
     segment_id       RLE group ID on mode
@@ -127,8 +127,12 @@ RDP_EPSILON_DEG = 0.001  # RDP simplification tolerance (degrees)
 
 _POINT_COLUMNS = ("lat", "lon", "time", "is_step")
 _INDEXED_POINT_COLUMNS = ("point_id", *_POINT_COLUMNS)
-_EDGE_COLUMNS = ("gap_h", "dist_km", "speed_kmh")
-_LABELED_COLUMNS = (*_INDEXED_POINT_COLUMNS, *_EDGE_COLUMNS, "mode")
+_INCOMING_EDGE_COLUMNS = (
+    "incoming_gap_h",
+    "incoming_dist_km",
+    "incoming_speed_kmh",
+)
+_LABELED_COLUMNS = (*_INDEXED_POINT_COLUMNS, *_INCOMING_EDGE_COLUMNS, "mode")
 
 
 def _merge_points(
@@ -195,15 +199,15 @@ def _haversine_km(
 
 
 def _add_edge_metrics(df: pl.DataFrame) -> pl.DataFrame:
-    """Compute per-edge gap_h, dist_km, and speed_kmh.
+    """Compute incoming edge metrics for each point.
 
     Each row describes the edge *arriving at* that row from the previous one.
-    Row 0 always gets gap_h=0, dist_km=0, speed_kmh=0.
+    Row 0 has no incoming edge and gets zero metrics.
     """
     return df.with_columns(
         ((pl.col("time") - pl.col("time").shift(1)) / 3600.0)
         .fill_null(0.0)
-        .alias("gap_h"),
+        .alias("incoming_gap_h"),
         (
             _haversine_km(
                 pl.col("lat").shift(1),
@@ -211,12 +215,12 @@ def _add_edge_metrics(df: pl.DataFrame) -> pl.DataFrame:
                 pl.col("lat"),
                 pl.col("lon"),
             ).fill_null(0.0)
-        ).alias("dist_km"),
+        ).alias("incoming_dist_km"),
     ).with_columns(
-        pl.when(pl.col("gap_h") > 0)
-        .then(pl.col("dist_km") / pl.col("gap_h"))
+        pl.when(pl.col("incoming_gap_h") > 0)
+        .then(pl.col("incoming_dist_km") / pl.col("incoming_gap_h"))
         .otherwise(0.0)
-        .alias("speed_kmh"),
+        .alias("incoming_speed_kmh"),
     )
 
 
@@ -225,7 +229,9 @@ def _edge_frame(points: pl.DataFrame) -> pl.DataFrame:
     return points.slice(1).select(
         (pl.col("point_id") - 1).alias("start_point_id"),
         pl.col("point_id").alias("end_point_id"),
-        *_EDGE_COLUMNS,
+        pl.col("incoming_gap_h").alias("gap_h"),
+        pl.col("incoming_dist_km").alias("dist_km"),
+        pl.col("incoming_speed_kmh").alias("speed_kmh"),
     )
 
 
@@ -363,9 +369,9 @@ def _densify_hike_edges(df: pl.DataFrame) -> pl.DataFrame:
     if len(lats) < 2:
         return df
 
-    dists = df["dist_km"].to_numpy()[1:]
-    dts = df["gap_h"].to_numpy()[1:]
-    speeds = df["speed_kmh"].to_numpy()[1:]
+    dists = df["incoming_dist_km"].to_numpy()[1:]
+    dts = df["incoming_gap_h"].to_numpy()[1:]
+    speeds = df["incoming_speed_kmh"].to_numpy()[1:]
 
     should_densify = (
         (speeds <= DENSIFY_MAX_SPEED_KMH)
@@ -430,10 +436,10 @@ def _label_edges(df: pl.DataFrame) -> pl.DataFrame:
     Flight wins over hike (both takeoff + landing edges are marked).
     Step-adjacent edges may exceed hike speed within a bounded distance.
     """
-    fast_flight_edge = pl.col("speed_kmh") >= FLIGHT_MIN_SPEED_KMH
+    fast_flight_edge = pl.col("incoming_speed_kmh") >= FLIGHT_MIN_SPEED_KMH
     sparse_flight_edge = (
-        (pl.col("dist_km") >= FLIGHT_SPARSE_MIN_DISTANCE_KM)
-        & (pl.col("speed_kmh") >= FLIGHT_SPARSE_MIN_SPEED_KMH)
+        (pl.col("incoming_dist_km") >= FLIGHT_SPARSE_MIN_DISTANCE_KM)
+        & (pl.col("incoming_speed_kmh") >= FLIGHT_SPARSE_MIN_SPEED_KMH)
         & (
             fast_flight_edge.shift(1, fill_value=False)
             | fast_flight_edge.shift(-1, fill_value=False)
@@ -443,10 +449,10 @@ def _label_edges(df: pl.DataFrame) -> pl.DataFrame:
     flight_mask = is_flight_edge | is_flight_edge.shift(-1, fill_value=False)
 
     step_adjacent = pl.col("is_step") | pl.col("is_step").shift(1, fill_value=False)
-    within_gap_limit = pl.col("gap_h") < pl.lit(MAX_HIKE_GAP_H)
-    at_hike_speed = pl.col("speed_kmh") <= HIKE_MAX_SPEED_KMH
-    plausible_step_edge = pl.col("dist_km") <= (
-        HIKE_MAX_SPEED_KMH * pl.col("gap_h") + STEP_ADJACENT_MAX_EXTRA_KM
+    within_gap_limit = pl.col("incoming_gap_h") < pl.lit(MAX_HIKE_GAP_H)
+    at_hike_speed = pl.col("incoming_speed_kmh") <= HIKE_MAX_SPEED_KMH
+    plausible_step_edge = pl.col("incoming_dist_km") <= (
+        HIKE_MAX_SPEED_KMH * pl.col("incoming_gap_h") + STEP_ADJACENT_MAX_EXTRA_KM
     )
     is_hike_edge = (
         at_hike_speed | (step_adjacent & plausible_step_edge & ~flight_mask)
@@ -469,8 +475,8 @@ def _run_stats(df: pl.DataFrame) -> tuple[pl.DataFrame, pl.DataFrame]:
         df.group_by("run_id")
         .agg(
             pl.col("mode").first().alias("run_mode"),
-            pl.col("gap_h").sum().alias("run_h"),
-            pl.col("dist_km").sum().alias("run_dist_km"),
+            pl.col("incoming_gap_h").sum().alias("run_h"),
+            pl.col("incoming_dist_km").sum().alias("run_dist_km"),
         )
         .sort("run_id")
         .with_columns(
@@ -592,8 +598,8 @@ def _validate_segments(df: pl.DataFrame) -> pl.DataFrame:
     """Downgrade undersized hikes, short flights, and stepless hikes to "other"."""
     stats = df.group_by("segment_id").agg(
         pl.col("mode").first().alias("seg_mode"),
-        pl.col("gap_h").sum().alias("tot_h"),
-        pl.col("dist_km").sum().alias("tot_km"),
+        pl.col("incoming_gap_h").sum().alias("tot_h"),
+        pl.col("incoming_dist_km").sum().alias("tot_km"),
         (
             _haversine_km(
                 pl.col("lat").first(),
@@ -648,7 +654,9 @@ def _validate_segments(df: pl.DataFrame) -> pl.DataFrame:
         )
         df = df.with_columns(pl.col("final_mode").rle_id().alias("output_id"))
 
-    return df.select(*_INDEXED_POINT_COLUMNS, *_EDGE_COLUMNS, "final_mode", "output_id")
+    return df.select(
+        *_INDEXED_POINT_COLUMNS, *_INCOMING_EDGE_COLUMNS, "final_mode", "output_id"
+    )
 
 
 def _gdf_to_point(gdf: pl.DataFrame, idx: int) -> Point:
@@ -692,7 +700,7 @@ def _resolve_kind(kind: str, edges: pl.DataFrame) -> SegmentKind:
 
 def _split_other_gaps(gdf: pl.DataFrame) -> list[pl.DataFrame]:
     return gdf.with_columns(
-        (pl.col("gap_h") >= MAX_HIKE_GAP_H).cum_sum().alias("trace_id")
+        (pl.col("incoming_gap_h") >= MAX_HIKE_GAP_H).cum_sum().alias("trace_id")
     ).partition_by("trace_id", maintain_order=True)
 
 
@@ -719,7 +727,11 @@ def _output_traces(df: pl.DataFrame, edges: pl.DataFrame) -> Iterable[_Trace]:
             starts = [0] + [
                 i - 1
                 for i, (gap, speed) in enumerate(
-                    zip(gdf["gap_h"].to_list(), gdf["speed_kmh"].to_list(), strict=True)
+                    zip(
+                        gdf["incoming_gap_h"].to_list(),
+                        gdf["incoming_speed_kmh"].to_list(),
+                        strict=True,
+                    )
                 )
                 if i > 1
                 and gap >= FLIGHT_CONNECTION_GAP_H

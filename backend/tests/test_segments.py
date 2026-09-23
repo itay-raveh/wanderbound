@@ -235,8 +235,8 @@ class TestClassification:
         df = pl.DataFrame(
             {
                 "mode": modes,
-                "gap_h": [0.0, 2.0, 0.1, 2.0],
-                "dist_km": [0.0, 5.0, 1.0, 500.0],
+                "incoming_gap_h": [0.0, 2.0, 0.1, 2.0],
+                "incoming_dist_km": [0.0, 5.0, 1.0, 500.0],
             }
         )
         assert _absorb_noise_gaps(df)["mode"].to_list() == modes
