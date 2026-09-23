@@ -9,10 +9,9 @@ import pytest
 from app.logic.spatial.geo import total_length_km
 from app.logic.spatial.segments import (
     _absorb_noise_gaps,
-    _ingest,
-    _remove_gps_noise,
     build_segments,
 )
+from app.logic.spatial.track import _ingest, _remove_gps_noise
 from app.models.polarsteps import Point, PSLocations, PSTrip
 from app.models.segment import SegmentData, SegmentKind
 from app.services.mapbox import _plan_route
