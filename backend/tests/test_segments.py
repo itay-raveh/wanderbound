@@ -130,6 +130,15 @@ def _assert_segment_kind(
 
 
 class TestNoiseRemoval:
+    def test_offset_step_does_not_delete_nearby_gps(self) -> None:
+        rows = [
+            (0.0, 0.0, _ts(10.0), False),
+            (0.0, 5.0, _ts(10.0) + 60, True),
+            (0.0, 0.01, _ts(10.0) + 120, False),
+            (0.0, 0.02, _ts(10.0) + 180, False),
+        ]
+        assert 0.01 in _remove_gps_noise(_noise_df(rows))["lon"].to_list()
+
     def test_teleport_removed(self) -> None:
         _assert_noise_value(_teleport_rows(is_step=False), "lat", 50.0, kept=False)
         _assert_noise_value(_teleport_rows(is_step=False)[:2], "lat", 50.0, kept=False)

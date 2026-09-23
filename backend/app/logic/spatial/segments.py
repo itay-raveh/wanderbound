@@ -284,7 +284,26 @@ def _remove_gps_noise(df: pl.DataFrame) -> pl.DataFrame:
     # Teleports: apparent speed > 1000 km/h
     dt = ((pl.col("time") - pl.col("time").shift(1)) / 3600.0).fill_null(1.0)
     speed = _deg_dist().fill_null(0.0) / dt
-    df = df.filter(is_step | (speed <= TELEPORT_MAX_SPEED_KMH / _KM_PER_DEG))
+    lat, lon = pl.col("lat"), pl.col("lon")
+    # A distant step pin must not erase GPS fixes supported on both sides.
+    supported_after_step = (
+        ~is_step
+        & is_step.shift(1, fill_value=False)
+        & ~is_step.shift(2, fill_value=False)
+        & ~is_step.shift(-1, fill_value=False)
+        & (_haversine_km(lat.shift(2), lon.shift(2), lat, lon) < NOISE_GAP_MAX_DIST_KM)
+        & (
+            _haversine_km(lat, lon, lat.shift(-1), lon.shift(-1))
+            < NOISE_GAP_MAX_DIST_KM
+        )
+        & (
+            _haversine_km(lat.shift(1), lon.shift(1), lat, lon)
+            > ISOLATED_POINT_MIN_DIST_KM
+        )
+    ).fill_null(value=False)
+    df = df.filter(
+        is_step | supported_after_step | (speed <= TELEPORT_MAX_SPEED_KMH / _KM_PER_DEG)
+    )
 
     if df.height < 3:
         return df.select(keep_cols)
