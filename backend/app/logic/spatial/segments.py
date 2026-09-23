@@ -119,6 +119,10 @@ CAMP_PREV_ANCHOR_MIN_H = 1.0
 
 RDP_EPSILON_DEG = 0.001  # RDP simplification tolerance (degrees)
 
+_POINT_COLUMNS = ("lat", "lon", "time", "is_step")
+_EDGE_COLUMNS = ("gap_h", "dist_km", "speed_kmh")
+_LABELED_COLUMNS = (*_POINT_COLUMNS, *_EDGE_COLUMNS, "mode")
+
 
 def _merge_points(
     steps: Sequence[_StepLike], locations: Iterable[Point]
@@ -439,7 +443,7 @@ def _label_edges(df: pl.DataFrame) -> pl.DataFrame:
         .then(pl.lit("hike"))
         .otherwise(pl.lit("other"))
         .alias("mode"),
-    )
+    ).select(*_LABELED_COLUMNS)
 
 
 def _run_stats(df: pl.DataFrame) -> tuple[pl.DataFrame, pl.DataFrame]:
@@ -563,7 +567,9 @@ def _absorb_long_gaps(df: pl.DataFrame) -> pl.DataFrame:
 def _absorb(df: pl.DataFrame) -> pl.DataFrame:
     df = _absorb_noise_gaps(df)
     df = _absorb_long_gaps(df)
-    return df.with_columns(pl.col("mode").rle_id().alias("segment_id"))
+    return df.with_columns(pl.col("mode").rle_id().alias("segment_id")).select(
+        *_LABELED_COLUMNS, "segment_id"
+    )
 
 
 def _validate_segments(df: pl.DataFrame) -> pl.DataFrame:
@@ -626,7 +632,7 @@ def _validate_segments(df: pl.DataFrame) -> pl.DataFrame:
         )
         df = df.with_columns(pl.col("final_mode").rle_id().alias("output_id"))
 
-    return df
+    return df.select(*_POINT_COLUMNS, *_EDGE_COLUMNS, "final_mode", "output_id")
 
 
 def _gdf_to_point(gdf: pl.DataFrame, idx: int) -> Point:
