@@ -8,7 +8,7 @@ Pipeline: ingest -> label -> absorb -> validate -> emit.
   4. Validate  Drop undersized hikes (< 2 h, < 2 km, < 1 km displacement),
                short flights (< 100 km), and stepless hikes.
                Rejects become "other".
-  5. Emit      RDP-simplify, resolve "other" -> walking/driving, stitch gaps.
+  5. Emit      Split flight connections, simplify, resolve "other", stitch gaps.
 
 DataFrame columns through the pipeline::
 
@@ -56,6 +56,12 @@ logger = structlog.get_logger(__name__)
 # Motorized transport (tuk-tuks, minibuses) typically exceeds this even in traffic.
 HIKE_MAX_SPEED_KMH = 6.5
 FLIGHT_MIN_SPEED_KMH = 200.0
+# Long GPS gaps can include waiting time, lowering a flight's apparent speed.
+FLIGHT_SPARSE_MIN_SPEED_KMH = 140.0
+FLIGHT_SPARSE_MIN_DISTANCE_KM = 500.0
+FLIGHT_CONNECTION_GAP_H = 2.0
+# Step pins may be offset from nearby GPS points, but cannot anchor long transfers.
+STEP_ADJACENT_MAX_EXTRA_KM = 10.0
 
 # Hike validity (all three must pass, otherwise downgraded to "walking")
 # Displacement = max distance from start, filters hostel GPS drift.
@@ -73,6 +79,7 @@ _KM_PER_DEG = 80.0
 TELEPORT_MAX_SPEED_KMH = 1000.0
 # Spike detection: point > 0.5 km from neighbor where skipping it is much shorter.
 SPIKE_MIN_DIST_KM = 0.5
+ISOLATED_POINT_MIN_DIST_KM = 5.0
 
 # Densification
 # Interpolate slow edges to ~15 m spacing so sparse GPS doesn't hide short hikes.
@@ -189,7 +196,7 @@ def _deg_dist(shift: int = 1) -> pl.Expr:
 
 
 def _remove_gps_noise(df: pl.DataFrame) -> pl.DataFrame:
-    """Drop teleports (impossible speed) and spikes (triangle inequality).
+    """Drop confirmed stale points, teleports, and spikes.
 
     Step waypoints are always kept.
     """
@@ -199,6 +206,49 @@ def _remove_gps_noise(df: pl.DataFrame) -> pl.DataFrame:
 
     if df.height < 2:
         return df
+
+    if df.height >= 4:
+        lat, lon, time = pl.col("lat"), pl.col("lon"), pl.col("time")
+
+        def distance(first: int, second: int) -> pl.Expr:
+            return _haversine_km(
+                lat.shift(first), lon.shift(first), lat.shift(second), lon.shift(second)
+            )
+
+        next_speed = distance(0, -1) / ((time.shift(-1) - time) / 3600)
+        confirmed_return = (
+            ~is_step
+            & (distance(1, 0) > SPIKE_MIN_DIST_KM)
+            & (distance(1, -1) < NOISE_GAP_MAX_DIST_KM)
+            & (distance(1, -2) < NOISE_GAP_MAX_DIST_KM)
+            & (next_speed > TELEPORT_MAX_SPEED_KMH)
+        ).fill_null(value=False)
+        df = df.filter(~confirmed_return)
+
+        if df.height >= 4:
+            bridge_dist = distance(1, -1)
+            bridge_speed = bridge_dist / ((time.shift(-1) - time.shift(1)) / 3600)
+            road_bridge = (
+                (bridge_speed < FLIGHT_SPARSE_MIN_SPEED_KMH)
+                & (bridge_dist > ISOLATED_POINT_MIN_DIST_KM)
+                & (bridge_dist < FLIGHT_MIN_DISTANCE_KM)
+                & (distance(1, 0) < NOISE_GAP_MAX_DIST_KM)
+            )
+            flight_bridge = (
+                (bridge_speed >= FLIGHT_SPARSE_MIN_SPEED_KMH)
+                & (bridge_dist >= FLIGHT_SPARSE_MIN_DISTANCE_KM)
+                & (distance(1, 0) > ISOLATED_POINT_MIN_DIST_KM)
+                & (distance(2, 1) < NOISE_GAP_MAX_DIST_KM)
+            )
+            # A stale origin point can make a valid arrival look like a teleport.
+            late_origin = (
+                ~is_step
+                & (distance(-1, -2) < NOISE_GAP_MAX_DIST_KM)
+                & (road_bridge | flight_bridge)
+                & (bridge_speed <= TELEPORT_MAX_SPEED_KMH)
+                & (next_speed > TELEPORT_MAX_SPEED_KMH)
+            ).fill_null(value=False)
+            df = df.filter(~late_origin)
 
     # Teleports: apparent speed > 1000 km/h
     dt = ((pl.col("time") - pl.col("time").shift(1)) / 3600.0).fill_null(1.0)
@@ -296,16 +346,29 @@ def _label_edges(df: pl.DataFrame) -> pl.DataFrame:
     """Classify each edge as flight / hike / other by speed and gap.
 
     Flight wins over hike (both takeoff + landing edges are marked).
-    Step-adjacent edges bypass the speed check - the step anchors the path
-    even when GPS was silent.
+    Step-adjacent edges may exceed hike speed within a bounded distance.
     """
-    is_flight_edge = pl.col("speed_kmh") >= FLIGHT_MIN_SPEED_KMH
+    fast_flight_edge = pl.col("speed_kmh") >= FLIGHT_MIN_SPEED_KMH
+    sparse_flight_edge = (
+        (pl.col("dist_km") >= FLIGHT_SPARSE_MIN_DISTANCE_KM)
+        & (pl.col("speed_kmh") >= FLIGHT_SPARSE_MIN_SPEED_KMH)
+        & (
+            fast_flight_edge.shift(1, fill_value=False)
+            | fast_flight_edge.shift(-1, fill_value=False)
+        )
+    )
+    is_flight_edge = fast_flight_edge | sparse_flight_edge
     flight_mask = is_flight_edge | is_flight_edge.shift(-1, fill_value=False)
 
     step_adjacent = pl.col("is_step") | pl.col("is_step").shift(1, fill_value=False)
     within_gap_limit = pl.col("gap_h") < pl.lit(MAX_HIKE_GAP_H)
     at_hike_speed = pl.col("speed_kmh") <= HIKE_MAX_SPEED_KMH
-    is_hike_edge = (at_hike_speed | (step_adjacent & ~flight_mask)) & within_gap_limit
+    plausible_step_edge = pl.col("dist_km") <= (
+        HIKE_MAX_SPEED_KMH * pl.col("gap_h") + STEP_ADJACENT_MAX_EXTRA_KM
+    )
+    is_hike_edge = (
+        at_hike_speed | (step_adjacent & plausible_step_edge & ~flight_mask)
+    ) & within_gap_limit
 
     return df.with_columns(
         pl.when(flight_mask)
@@ -349,6 +412,7 @@ def _absorb_noise_gaps(df: pl.DataFrame) -> pl.DataFrame:
     df, stats = _run_stats(df)
     stats = stats.with_columns(
         pl.col("run_h").shift(-1).fill_null(0.0).alias("next_run_h"),
+        pl.col("run_mode").shift(-1).alias("next_run_mode"),
         pl.col("run_mode").shift(1).alias("prev_run_mode"),
         pl.col("run_h").shift(1).fill_null(0.0).alias("prev_run_h"),
     )
@@ -366,6 +430,8 @@ def _absorb_noise_gaps(df: pl.DataFrame) -> pl.DataFrame:
         & (pl.col("run_dist_km") < NOISE_GAP_MAX_DIST_KM)
         & (pl.col("run_h") < NOISE_GAP_MAX_H)
         & (at_hike_speed | is_brief_transfer)
+        & (pl.col("prev_run_mode") == "hike")
+        & (pl.col("next_run_mode") == "hike")
         & (pl.col("next_run_h") >= HIKE_ANCHOR_MIN_H)
     )
 
@@ -384,6 +450,7 @@ def _absorb_noise_gaps(df: pl.DataFrame) -> pl.DataFrame:
             "run_dist_km",
             "run_speed_kmh",
             "next_run_h",
+            "next_run_mode",
             "prev_run_mode",
             "prev_run_h",
         ]
@@ -566,7 +633,21 @@ def _emit_segments(
     for _, gdf in df.group_by("output_id", maintain_order=True):
         raw_kind = cast("str", gdf["final_mode"][0])
         groups = [gdf]
-        if raw_kind == "other":
+        if raw_kind == "flight":
+            starts = [0] + [
+                i - 1
+                for i, (gap, speed) in enumerate(
+                    zip(gdf["gap_h"].to_list(), gdf["speed_kmh"].to_list(), strict=True)
+                )
+                if i > 1
+                and gap >= FLIGHT_CONNECTION_GAP_H
+                and speed < FLIGHT_MIN_SPEED_KMH
+            ]
+            groups = [
+                gdf.slice(start, end - start + 1)
+                for start, end in pairwise([*starts, gdf.height - 1])
+            ]
+        elif raw_kind == "other":
             groups = gdf.with_columns(
                 (pl.col("gap_h") >= MAX_HIKE_GAP_H).cum_sum().alias("trace_id")
             ).partition_by("trace_id", maintain_order=True)

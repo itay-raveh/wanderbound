@@ -8,6 +8,7 @@ import pytest
 
 from app.logic.spatial.geo import total_length_km
 from app.logic.spatial.segments import (
+    _absorb_noise_gaps,
     _remove_gps_noise,
     build_segments,
 )
@@ -130,6 +131,7 @@ def _assert_segment_kind(
 class TestNoiseRemoval:
     def test_teleport_removed(self) -> None:
         _assert_noise_value(_teleport_rows(is_step=False), "lat", 50.0, kept=False)
+        _assert_noise_value(_teleport_rows(is_step=False)[:2], "lat", 50.0, kept=False)
 
     def test_teleport_kept_when_step(self) -> None:
         _assert_noise_value(_teleport_rows(is_step=True), "lat", 50.0, kept=True)
@@ -140,8 +142,83 @@ class TestNoiseRemoval:
     def test_spike_kept_when_step(self) -> None:
         _assert_noise_value(_spike_rows(is_step=True), "lon", 0.1, kept=True)
 
+    def test_return_after_spike_is_kept(self) -> None:
+        rows = [
+            (0.0, 0.0, _ts(0.0), False),
+            (0.0, 0.06, _ts(0.4), False),
+            (0.0, 0.001, _ts(0.4) + 8, False),
+            (0.0, 0.002, _ts(0.5), False),
+        ]
+        assert _remove_gps_noise(_noise_df(rows))["lon"].to_list() == [
+            0.0,
+            0.001,
+            0.002,
+        ]
+
+    def test_real_arrival_before_stale_return_is_kept(self) -> None:
+        rows = [
+            (0.0, 0.0, _ts(0.0), False),
+            (0.0, 0.05, _ts(1.0), False),
+            (0.0, 0.001, _ts(1.0) + 9, False),
+            (0.0, 0.051, _ts(1.1), False),
+        ]
+        assert _remove_gps_noise(_noise_df(rows))["lon"].to_list() == [
+            0.0,
+            0.05,
+            0.051,
+        ]
+
+    def test_late_origin_point_does_not_hide_flight_departure(self) -> None:
+        gps = [
+            _pt(-23.424, -46.474, 0.0),
+            _pt(-23.423, -46.474, 0.1),
+            _pt(-23.557, -46.660, 6.0),
+            _pt(-12.024, -77.108, 6.1),
+            _pt(-12.023, -77.108, 6.3),
+        ]
+        steps = [
+            _step(-23.424, -46.474, 0.0),
+            _step(-12.023, -77.108, 6.3),
+        ]
+        flights = [
+            s for s in build_segments(steps, gps) if s.kind == SegmentKind.flight
+        ]
+        assert len(flights) == 1
+        assert flights[0].points[0].time == pytest.approx(_ts(0.1), abs=60)
+        assert flights[0].points[0].lat == pytest.approx(-23.423, abs=0.001)
+        assert flights[0].points[-1].time == _ts(6.1)
+
+    def test_late_origin_point_does_not_hide_drive_arrival(self) -> None:
+        rows = [
+            (0.0, 0.001, _ts(1.0), False),
+            (0.0, 0.0015, _ts(2.0), False),
+            (0.0, 0.4, _ts(2.0) + 10, False),
+            (0.0, 0.401, _ts(2.1), False),
+        ]
+        assert _remove_gps_noise(_noise_df(rows))["lon"].to_list() == [
+            0.001,
+            0.4,
+            0.401,
+        ]
+
 
 class TestClassification:
+    @pytest.mark.parametrize(
+        ("before", "after"), [("hike", "flight"), ("flight", "hike")]
+    )
+    def test_noise_gap_requires_hikes_on_both_sides(
+        self, before: str, after: str
+    ) -> None:
+        modes = [before, before, "other", after]
+        df = pl.DataFrame(
+            {
+                "mode": modes,
+                "gap_h": [0.0, 2.0, 0.1, 2.0],
+                "dist_km": [0.0, 5.0, 1.0, 500.0],
+            }
+        )
+        assert _absorb_noise_gaps(df)["mode"].to_list() == modes
+
     def test_no_other_kind_in_output(self) -> None:
         gps = (
             _track(0.0, 0.0, 0.0, 0.01, h0=8.0, h1=9.0, n=10)
@@ -173,6 +250,35 @@ class TestClassification:
             [_pt(0.0, 0.0, hours=10.0), _pt(0.0, 5.0, hours=12.0)],
             SegmentKind.flight,
         )
+
+    def test_sparse_connection_keeps_both_flights(self) -> None:
+        gps = [_pt(0.0, 0.0, 0.0), _pt(2.1, 0.0, 0.92), _pt(7.5, 0.0, 4.95)]
+        segments = list(
+            build_segments([_step(0.0, 0.0, 0.0), _step(7.5, 0.0, 4.95)], gps)
+        )
+        flights = [s for s in segments if s.kind == SegmentKind.flight]
+        assert [(s.points[0].lat, s.points[-1].lat) for s in flights] == [
+            (0.0, 2.1),
+            (2.1, 7.5),
+        ]
+
+    def test_isolated_sparse_fast_trip_is_not_assumed_to_be_flight(self) -> None:
+        gps = [_pt(0.0, 0.0, 0.0), _pt(5.0, 0.0, 3.6)]
+        steps = [_step(0.0, 0.0, 0.0), _step(5.0, 0.0, 3.6)]
+        _assert_segment_kind(steps, gps, SegmentKind.driving, SegmentKind.flight)
+
+    def test_continuous_flight_is_not_split_at_sparse_sample(self) -> None:
+        gps = [_pt(0.0, 0.0, 0.0), _pt(3.0, 0.0, 1.0), _pt(9.0, 0.0, 3.5)]
+        segments = list(
+            build_segments([_step(0.0, 0.0, 0.0), _step(9.0, 0.0, 3.5)], gps)
+        )
+        flights = [s for s in segments if s.kind == SegmentKind.flight]
+        assert [(s.points[0].lat, s.points[-1].lat) for s in flights] == [(0.0, 9.0)]
+
+    def test_distant_step_does_not_turn_sparse_drive_into_hike(self) -> None:
+        gps = [_pt(0.0, 0.0, 0.0), _pt(1.5, 0.0, 3.6)]
+        steps = [_step(0.0, 0.0, 0.0), _step(1.5, 0.0, 3.6)]
+        _assert_segment_kind(steps, gps, SegmentKind.driving, SegmentKind.hike)
 
     def test_pre_first_step_flight_not_dropped(self) -> None:
         gps_a = [_pt(32.0, 35.0, hours=0.0)]
