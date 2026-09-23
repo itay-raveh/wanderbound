@@ -1,0 +1,501 @@
+{
+  "brand": "Wanderbound",
+  "tagline": "Lade deine {polarsteps} Reise hoch und erhalte ein druckfertiges Album",
+  "common": {
+    "loadingAlbum": "Album wird geladen...",
+    "retry": "Bitte versuche es erneut.",
+    "cancel": "Abbrechen",
+    "save": "Speichern",
+    "close": "Schließen"
+  },
+  "units": {
+    "km": "km",
+    "mi": "mi",
+    "m": "m",
+    "ft": "ft",
+    "masl": "m ü. NHN",
+    "ftAsl": "ft ü. NHN"
+  },
+  "duration": {
+    "hours": "{n}h",
+    "days": "{n}d"
+  },
+  "phase": {
+    "label": {
+      "elevations": "Gelände wird kartiert",
+      "weather": "Wetter wird geprüft",
+      "segments": "Routen werden gesucht",
+      "layouts": "Fotos werden angeordnet"
+    },
+    "status": {
+      "elevations": "Das überquerte Gelände wird nachgezeichnet...",
+      "weather": "Das Wetter entlang der Strecke wird abgerufen...",
+      "segments": "Wanderungen, Fahrten, Spaziergänge und Flüge werden gesucht...",
+      "layouts": "Deine Fotos werden auf der Seite angeordnet..."
+    }
+  },
+  "landing": {
+    "autoAlbumTitle": "Deine Fotos, angeordnet für den Druck",
+    "autoAlbumBody": "Lade deinen {polarsteps} Export hoch und wir ordnen jedes Foto auf Seiten an, angeordnet und druckfertig. Du wählst deine Favoriten.",
+    "hikeMapTitle": "Erlebe den Weg so, wie du ihn in Erinnerung hast",
+    "hikeMapBody": "Deine Wanderungen erscheinen auf Satellitenbildern mit der genauen Route, die du gelaufen bist und einem Höhenprofil, das jeden Auf- und Abstieg zeigt.",
+    "overviewTitle": "Deine gesamte Reise auf einer Seite",
+    "overviewBody": "Höchster Punkt, kälteste Nacht, heißester Tag, am weitesten von zu Hause entfernt. Deine Reise auf einer einzigen Seite mit den besuchten Ländern.",
+    "localizationTitle": "Deine Sprache, deine Leserichtung",
+    "localizationBody": "Im Gegensatz zum {polarsteps} Album unterstützen wir Hebräisch, Arabisch, Japanisch und Rechts-nach-links-Layouts. Dein Album passt sich deiner Sprache an.",
+    "selfHostPrompt": "Du möchtest dich nicht anmelden? {link}",
+    "selfHostLink": "Wanderbound selbst hosten.",
+    "openEditor": "Editor öffnen"
+  },
+  "login": {
+    "signInGoogle": "Mit Google anmelden",
+    "signInMicrosoft": "Mit Microsoft anmelden",
+    "localZip": "Mit Polarsteps-ZIP anmelden",
+    "localContinue": "Weiter als…",
+    "localRetry": "Erneut versuchen",
+    "localAccountId": "Polarsteps-ID: {id}",
+    "localEmpty": "Noch keine lokalen Konten. Lade eine ZIP-Datei hoch, um zu beginnen.",
+    "localLoadFailed": "Lokale Konten konnten nicht geladen werden.",
+    "signInFailed": "Anmeldung fehlgeschlagen. @:common.retry"
+  },
+  "register": {
+    "getDataTitle": "Hole deine Daten von Polarsteps",
+    "getDataStep1": "Melde dich unter {link} an einem Computer an",
+    "getDataStep2": "Gehe zu {settings}, scrolle zu {download}",
+    "getDataStep3": "Klicke auf {startArchive}",
+    "getDataStep4": "Überprüfe deine E-Mails für den Downloadlink",
+    "getDataWait": "Das Archiv kommt normalerweise innerhalb weniger Minuten an, kann aber auch bis zu ein paar Stunden dauern.",
+    "uploadTitle": "Lade deine {file} hoch",
+    "uploadFailed": "Upload fehlgeschlagen. @:common.retry",
+    "uploadProgress": "Uploadfortschritt",
+    "uploadPhases": {
+      "uploading": "Dein Export wird hochgeladen...",
+      "downloading": "Hochgeladene Datei wird vorbereitet...",
+      "validating": "Dein Polarsteps-Export wird überprüft...",
+      "importing": "Deine Reisen und Fotos werden importiert..."
+    },
+    "uploadErrors": {
+      "upload_invalid_zip": "Diese Datei ist kein gültiger Polarsteps-Export. Wähle eine neue ZIP-Datei aus.",
+      "upload_failed": "Upload fehlgeschlagen. Versuche es erneut."
+    },
+    "tripPicker": {
+      "title": "Alben auswählen",
+      "body": "Wähle die Reisen aus dieser ZIP, die zu Alben werden sollen.",
+      "label": "Reisealben",
+      "selected": "keine Alben ausgewählt | ein Album ausgewählt | {n} Alben ausgewählt",
+      "continue": "Ausgewählte Alben importieren",
+      "error": "Die Auswahl konnte nicht gespeichert werden. Versuche es erneut."
+    },
+    "fileTooLarge": "Die Datei ist zu groß. Die maximale Größe beträgt {max} GB.",
+    "badZip": "Diese Datei scheint kein gültiger Polarsteps-Export zu sein.",
+    "greeting": "Hallo, {name}",
+    "evictedTitle": "Willkommen zurück!",
+    "evictedBody": "Wir haben deine Dateien bereinigt, um Platz zu sparen, aber deine Bearbeitungen sind gespeichert. Lade deine Daten erneut hoch, um dort weiterzumachen, wo du aufgehört hast.",
+    "reuploadTitle": "Aktualisiere deine Daten",
+    "reuploadBody": "Lade neue Daten hoch, um deine Alben mit den neuesten Fotos und Reisen zu aktualisieren.",
+    "statusReady": "Dein Album ist fertig",
+    "statusError": "Etwas ist schiefgelaufen",
+    "statusBuilding": "Dein Album wird erstellt...",
+    "overallProgress": "Gesamtfortschritt",
+    "tripsProgress": "{current} von {total} Reisen",
+    "trips": "keine Reisen | {n} Reise | {n} Reisen",
+    "steps": "keine Schritte | {n} Schritt | {n} Schritte",
+    "countries": "keine Länder | {n} Land | {n} Länder",
+    "segmentsFound": "Gefundene Routen:",
+    "segmentSummary": {
+      "hikes": "keine Wanderungen | {n} Wanderung | {n} Wanderungen",
+      "walks": "keine Spaziergänge | {n} Spaziergang | {n} Spaziergänge",
+      "drives": "keine Fahrten | {n} Fahrt | {n} Fahrten",
+      "flights": "keine Flüge | {n} Flug | {n} Flüge"
+    },
+    "tryAgain": "Erneut versuchen",
+    "uploadAgain": "Eine andere Datei hochladen",
+    "openAlbum": "Dein Album öffnen",
+    "unsupportedTitle": "Browser wird nicht unterstützt",
+    "unsupportedBody": "Wechsle zu einem aktuellen Browser: {chrome}, {firefox}, {safari} oder {edge}.",
+    "welcomeNew": "Dein Album beginnt hier",
+    "welcomeBack": "Willkommen zurück bei Wanderbound",
+    "dropZone": "Lege deine Datei hier ab oder klicke zum Durchsuchen",
+    "getDataGuide": "Siehe dir die Schritt-für-Schritt-Anleitung von Polarsteps an"
+  },
+  "editor": {
+    "showPageNumbers": "Seitenzahlen anzeigen",
+    "pagePosition": "Seite {page} von {total}",
+    "pageRangePosition": "Seiten {start}–{end} von {total}",
+    "toolbar": "Albumwerkzeuge",
+    "exportPdf": "PDF exportieren",
+    "exportChaptersTitle": "Kapitel exportieren",
+    "allChapters": "Alle Kapitel",
+    "exportSelectedChapters": "Ausgewählte exportieren",
+    "font": "Überschrift Schriftart",
+    "bodyFont": "Fließtext Schriftart",
+    "properties": "Eigenschaften",
+    "accentColors": "Akzentfarben",
+    "safeMargin": "Sicherheitsrand",
+    "photoQuality": "Fotoqualität",
+    "resolutionWarningsOff": "Aus",
+    "resolutionWarningsRelaxed": "Zurückhaltend",
+    "resolutionWarningsPrint": "Druck",
+    "zoom": "Zoom"
+  },
+  "panorama": {
+    "treat": "Als Panorama behandeln",
+    "makeFullPage": "Vollflächig (ganze Seite)",
+    "makeSpread": "Doppelseite füllen",
+    "alignment": {
+      "title": "Seite für das Panorama hinzugefügt",
+      "body": "Diese Seite wurde hinzugefügt, damit die nächsten beiden Seiten nebeneinander und nicht auf der Vorder- und Rückseite erscheinen. Dieser Hinweis wird nicht gedruckt."
+    },
+    "frame": {
+      "title": "Panoramarahmen",
+      "preview": "Interaktive Panoramavorschau",
+      "loading": "Interaktive Vorschau wird vorbereitet...",
+      "unsupported": "Interaktive Neuausrichtung erfordert einen Browser mit WebGL-Unterstützung. Dein gespeicherter Rahmen ist weiterhin im Album verfügbar.",
+      "perspective": "Perspektive",
+      "zoom": "Zoom",
+      "disable": "Als normales Foto verwenden",
+      "apply": "Rahmen anwenden"
+    }
+  },
+  "settings": {
+    "menu": "Einstellungen",
+    "appearance": "Erscheinungsbild",
+    "light": "Hell",
+    "system": "System",
+    "dark": "Dunkel",
+    "distance": "Entfernung",
+    "temperature": "Temperatur",
+    "account": "Konto",
+    "userId": "Benutzer-ID {id}",
+    "signOut": "Abmelden",
+    "reuploadData": "Daten erneut hochladen",
+    "exportData": "Meine Daten exportieren",
+    "deleteAll": "Alle Daten löschen",
+    "deleteFailed": "Deine Daten konnten nicht gelöscht werden. @:common.retry"
+  },
+  "delete": {
+    "title": "Alle Daten löschen?",
+    "body": "Dadurch werden deine hochgeladenen Daten und alle Alben dauerhaft gelöscht. Du musst sie erneut hochladen, um fortzufahren.",
+    "confirm": "Alles löschen",
+    "deleting": "Wird gelöscht..."
+  },
+  "album": {
+    "day": "TAG {n}",
+    "stepNamePlaceholder": "Name des Schritts",
+    "chapterTitlePlaceholder": "Kapiteltitel",
+    "chapterSubtitlePlaceholder": "Kapiteluntertitel",
+    "descriptionPlaceholder": "Eine Beschreibung hinzufügen...",
+    "dropPhotoToAdd": "Ein Foto hier ablegen, um eine Seite hinzuzufügen",
+    "frontCover": "Vorderseite",
+    "backCover": "Rückseite",
+    "coverDarkness": "Coverabdunklung",
+    "noLandscapePhotos": "Keine querformat Fotos verfügbar",
+    "unused": "Ungenutzt",
+    "unusedHint": "Fotos von diesem Schritt - ziehe sie auf eine Seite, um sie zu platzieren",
+    "dropPhotosHere": "Fotos hier ablegen",
+    "removeMap": "Karte entfernen",
+    "loading": "'{name}' wird geladen...",
+    "useAsPoster": "Als Poster verwenden",
+    "prevFrame": "Vorheriger Frame (,)",
+    "nextFrame": "Nächster Frame (.)",
+    "selectPhoto": "Foto auswählen",
+    "selectCoverPhoto": "Titelfoto {index} von {total} auswählen",
+    "tripRouteMap": "Karte der Reiseroute",
+    "playVideo": "Video abspielen"
+  },
+  "hike": {
+    "mapLabel": "Wanderroutenkarte",
+    "elevationProfile": "Höhenprofil",
+    "adjustStart": "Start der Wanderung anpassen",
+    "adjustEnd": "Ende der Wanderung anpassen"
+  },
+  "overview": {
+    "title": "Reiseübersicht",
+    "coldest": "Kältester",
+    "hottest": "Heißester",
+    "highest": "Höchster",
+    "furthestFromHome": "Am weitesten von zu Hause entfernt"
+  },
+  "inspector": {
+    "overview": "Übersicht"
+  },
+  "externalMedia": {
+    "section": "Externe Medien",
+    "replaceQuality": "Durch bessere Qualität ersetzen",
+    "google": {
+      "title": "Google Fotos",
+      "connected": "Verbunden und bereit für Upgrades oder Ersetzungen.",
+      "disconnected": "Verfügbar, nachdem du Google Fotos verbunden hast.",
+      "unavailable": "Für dieses Konto nicht verfügbar."
+    },
+    "quality": {
+      "allGood": "Derzeit keine Qualitätswarnungen für Fotos.",
+      "needsAttention": "{warning} Fotos mit niedriger Qualität und {caution} Fotos mit mittlerer Qualität erfordern noch Aufmerksamkeit.",
+      "warningChip": "{count} unter Druckqualität",
+      "cautionChip": "{count} grenzwertig für den Druck",
+      "allClear": "Alles in Ordnung",
+      "jumpToNext": "Zur nächsten Qualitätswarnung springen",
+      "jumpAnnounce": "Qualitätswarnung {index} von {total}"
+    },
+    "targets": {
+      "stepUnused": "In Schritt {stepId} (ungenutzt) importieren",
+      "coverCandidates": "Als Coverkandidaten importieren",
+      "mapUnavailable": "Wähle einen Schritt oder ein Cover aus, um Fotos hinzuzufügen.",
+      "overviewUnavailable": "Wähle einen Schritt oder ein Cover aus, um Fotos hinzuzufügen.",
+      "none": "Wähle einen Schritt oder ein Cover aus, um Fotos hinzuzufügen."
+    },
+    "import": {
+      "label": "Importziel",
+      "action": "Externe Medien importieren",
+      "moreOptions": "Weitere Importoptionen",
+      "shortAction": "Importieren",
+      "toTarget": "Nach {target} importieren",
+      "toCover": "In Cover importieren",
+      "unnamedStep": "dieser Schritt"
+    },
+    "replace": {
+      "label": "Ausgewählte Medien",
+      "action": "Ausgewählte Medien ersetzen",
+      "shortAction": "Ersetzen",
+      "replacing": "Medien werden ersetzt…",
+      "done": "Medien ersetzt",
+      "receipt": "{before} → {after}",
+      "noneSelected": "Keine Medien ausgewählt",
+      "noSelection": "Wähle zuerst ein Foto oder Video aus.",
+      "invalid": "Diese Ersetzung konnte nicht angewendet werden.",
+      "error": "Ersetzung fehlgeschlagen. Versuche es erneut."
+    },
+    "review": {
+      "title": "Ersetzung überprüfen",
+      "body": "Dadurch wird dieses Medium überall dort ersetzt, wo es im Album erscheint.",
+      "current": "Aktuelles Medium",
+      "replacement": "Ersetzung",
+      "confirm": "Überall ersetzen",
+      "errors": {
+        "previewFailed": "Die Vorschau der ausgewählten Datei konnte nicht gelesen werden.",
+        "typeMismatch": "Ein Foto kann nur ein Foto ersetzen und ein Video kann nur ein Video ersetzen."
+      },
+      "warnings": {
+        "lowerResolution": "Die Ersetzung hat eine niedrigere Auflösung als das aktuelle Medium.",
+        "aspectRatio": "Das Seitenverhältnis der Ersetzung unterscheidet sich merklich.",
+        "orientation": "Die Ersetzung wechselt zwischen Hoch- und Querformat."
+      }
+    },
+    "undo": {
+      "action": "Rückgängig",
+      "keep": "Ersetzung beibehalten",
+      "retry": "Rückgängig erneut versuchen",
+      "undoing": "Ersetzung wird rückgängig gemacht…",
+      "done": "Ersetzung rückgängig gemacht.",
+      "failed": "Rückgängig fehlgeschlagen. Versuche es erneut."
+    }
+  },
+  "mediaImport": {
+    "addMedia": "Medien hinzufügen",
+    "device": "Gerät",
+    "googlePhotos": "Google Fotos",
+    "authorizing": "Verbindung zu Google Fotos wird hergestellt...",
+    "picking": "Warten auf Auswahl...",
+    "uploading": "Medien werden hochgeladen...",
+    "processing": "Medien werden verarbeitet...",
+    "done": "1 Element hinzugefügt | {count} Elemente hinzugefügt",
+    "error": "Medienimport fehlgeschlagen. Versuche es erneut.",
+    "errors": {
+      "badFile": "Diese Datei wird nicht unterstützt.",
+      "googleUnavailable": "Google Fotos ist für dieses Konto nicht verfügbar.",
+      "incompleteStream": "Die Importverbindung wurde vor Abschluss geschlossen.",
+      "network": "Netzwerkfehler. @:common.retry",
+      "popupBlocked": "Popup blockiert. Lasse Popups zu und versuche es erneut.",
+      "selectionTimeout": "Zeitüberschreitung bei der Auswahl.",
+      "tooLarge": "Das ausgewählte Medium ist zu groß.",
+      "tooMany": "Wähle 50 Elemente oder weniger aus."
+    }
+  },
+  "export": {
+    "preparing": "Export wird vorbereitet...",
+    "progress": "Daten werden exportiert... {done} / {total} Dateien"
+  },
+  "chapters": {
+    "title": "Kapitel",
+    "untitled": "Kapitel {number}",
+    "split": "Kapitel aufteilen",
+    "actions": "Kapitelaktionen",
+    "mergePrevious": "Mit vorherigem Kapitel zusammenführen",
+    "mergeNext": "Mit nächstem Kapitel zusammenführen",
+    "boundary": "Kapitelanfang",
+    "startsAt": "Beginnt am"
+  },
+  "error": {
+    "loadAlbum": "Fehler beim Laden des Albums:",
+    "updatePreference": "Deine Einstellung konnte nicht gespeichert werden. @:common.retry",
+    "saveAlbum": "Albumänderungen konnten nicht gespeichert werden. @:common.retry",
+    "saveStep": "Schrittänderungen konnten nicht gespeichert werden. @:common.retry",
+    "panoramaFrame": "Der Panoramarahmen konnte nicht angewendet werden. @:common.retry",
+    "videoFrame": "Das Videoposter konnte nicht festgelegt werden. @:common.retry",
+    "pdfExport": "PDF-Export fehlgeschlagen. @:common.retry",
+    "dataExport": "Datenexport fehlgeschlagen. @:common.retry",
+    "processingFailed": "Verarbeitung fehlgeschlagen.",
+    "connectionFailed": "Verbindung unterbrochen. @:common.retry",
+    "adjustBoundary": "Die Begrenzung konnte nicht angepasst werden. @:common.retry",
+    "trimTooShort": "Zuschnitt zu kurz"
+  },
+  "pdf": {
+    "queued": "Warten auf einen PDF-Worker...",
+    "highLoad": "Hohe Auslastung. Nichts ist schiefgelaufen. Bitte versuche es erneut.",
+    "loadingProgress": "@:common.loadingAlbum ({done}/{total})",
+    "renderingSingle": "PDF wird generiert...",
+    "renderingChapters": "Kapitel-PDFs werden generiert... {done}/{total}",
+    "renderingBytes": "PDF wird generiert... {size}",
+    "ready": "Bereit",
+    "cancel": "Export abbrechen"
+  },
+  "footer": {
+    "privacy": "Datenschutz",
+    "terms": "Nutzungsbedingungen",
+    "contact": "Fragen?",
+    "issues": "Ein Problem melden",
+    "disclaimerIndependent": "Wanderbound ist ein unabhängiges Projekt und nicht mit Polarsteps affiliiert.",
+    "disclaimerRecommendation": "Wenn das offizielle Polarsteps-Album für dich funktioniert, benutze es."
+  },
+  "shortcuts": {
+    "title": "Tastenkombinationen",
+    "navigatePhotos": "Fotos navigieren",
+    "sendToUnused": "Zu ungenutzt verschieben",
+    "setAsCover": "Als Cover festlegen",
+    "clearSelection": "Auswahl aufheben",
+    "undo": "Rückgängig",
+    "redo": "Wiederholen"
+  },
+  "nav": {
+    "steps": "Schritte",
+    "countries": "Länder",
+    "chapters": "Kapitel",
+    "stepCount": "keine Schritte | {n} Schritt | {n} Schritte",
+    "cover": "Cover",
+    "map": "Karte",
+    "stepNavigation": "Schrittnavigation",
+    "selectAlbum": "Album auswählen",
+    "hideStep": "Schritt ausblenden",
+    "showStep": "Schritt einblenden",
+    "photoPages": "Fotoseiten",
+    "photoPage": "Fotoseite {number}",
+    "reorderPage": "Fotoseite {number} neu anordnen",
+    "movePageUp": "Nach oben verschieben",
+    "movePageDown": "Nach unten verschieben",
+    "pageMoved": "Fotoseite an Position {number} verschoben",
+    "hideAll": "Alle ausblenden",
+    "showAll": "Alle anzeigen",
+    "addMap": "Karte hinzufügen",
+    "editMap": "Karte bearbeiten",
+    "mapAdded": "Karte hinzugefügt",
+    "mapUpdated": "Karte aktualisiert",
+    "startStep": "Startschritt",
+    "endStep": "Endschritt",
+    "album": "Album",
+    "inspector": "Inspektor",
+    "showNavigation": "Navigation anzeigen",
+    "hideNavigation": "Navigation ausblenden",
+    "showInspector": "Inspektor anzeigen",
+    "hideInspector": "Inspektor ausblenden"
+  },
+  "screen": {
+    "title": "Größerer Bildschirm erforderlich",
+    "body": "Diese App ist für Desktops und Tablets im Querformat konzipiert. Verwende einen Laptop oder Desktopcomputer oder drehe dein Tablet ins Querformat."
+  },
+  "demo": {
+    "tryButton": "Mit Demodaten ausprobieren",
+    "bannerText": "Du erkundest ein Demoalbum",
+    "bannerCta": "Melde dich mit deiner eigenen Reise an"
+  },
+  "quality": {
+    "cautionTooltip": "Könnte im Druck etwas weich wirken (~{dpi} effektive PPI)",
+    "warningTooltip": "Wird im Druck wahrscheinlich unscharf aussehen (~{dpi} effektive PPI)",
+    "exportTitle": "Einige Fotos könnten schlecht gedruckt werden",
+    "exportBody": "Dein Album enthält {warning} Fotos von niedriger Qualität und {caution} Fotos von mittlerer Qualität, die im Druck möglicherweise nicht scharf aussehen.",
+    "exportBodyWarningOnly": "Dein Album enthält {warning} Fotos von niedriger Qualität, die im Druck möglicherweise nicht scharf aussehen.",
+    "exportBodyCautionOnly": "Dein Album enthält {caution} Fotos von mittlerer Qualität, die im Druck möglicherweise nicht perfekt scharf aussehen.",
+    "exportCancel": "Zurück",
+    "exportConfirm": "Trotzdem exportieren"
+  },
+  "upgrade": {
+    "button": "Medien upgraden",
+    "onboarding": {
+      "title": "Upgrade auf Originalqualität",
+      "body": "Ersetze deine schlechten Polarsteps Fotos.",
+      "tip": "Wähle nur Fotos aus. Videos müssen einzeln über das Medienpanel ersetzt werden.",
+      "continue": "Google Fotos verbinden"
+    },
+    "authorizing": "Verbindung zu Google Fotos wird hergestellt...",
+    "picking": "Warten auf Auswahl...",
+    "preparing": "Album wird analysiert",
+    "matching": "Wird abgeglichen",
+    "summary": {
+      "readyTitle": "1 Datei bereit zum Upgrade | {count} Dateien bereit zum Upgrade",
+      "noMatchTitle": "Keine Übereinstimmungen gefunden",
+      "noNewMatchTitle": "Keine neuen Übereinstimmungen gefunden",
+      "allUpgradedTitle": "Bereits in Originalqualität",
+      "noMatchBody": "Stelle sicher, dass du Reisefotos ausgewählt hast. Videos können nur einzeln ersetzt werden.",
+      "selectedCount": "1 ausgewähltes Google-Foto | {count} ausgewählte Google-Fotos",
+      "alreadyUpgradedCount": "1 war bereits in Originalqualität | {count} waren bereits in Originalqualität",
+      "matchCoverage": "1 Albumdatei von {selected} zugeordnet. | {matched} Albumdateien von {selected} zugeordnet.",
+      "matchCoverageWithUpgraded": "1 Albumdatei von {selected} zugeordnet. {upgraded}. | {matched} Albumdateien von {selected} zugeordnet. {upgraded}.",
+      "confirm": "1 Datei upgraden | {count} Dateien upgraden",
+      "selectMore": "Mehr auswählen"
+    },
+    "downloading": "Wird heruntergeladen",
+    "done": "1 Datei auf Originalqualität upgegradet | {replaced} Dateien auf Originalqualität upgegradet",
+    "doneSkipped": "1 Datei upgegradet, {skipped} bereits in voller Qualität | {replaced} Dateien upgegradet, {skipped} bereits in voller Qualität",
+    "donePartial": "{replaced} von 1 Datei upgegradet | {replaced} von {total} Dateien upgegradet",
+    "error": "Upgrade fehlgeschlagen. Versuche es erneut.",
+    "errors": {
+      "popupBlocked": "Popup blockiert. Lasse Popups zu und versuche es erneut.",
+      "selectionTimeout": "Zeitüberschreitung bei der Auswahl.",
+      "selectionExpired": "Diese Auswahl bei Google Fotos ist abgelaufen. Wähle die Fotos erneut aus.",
+      "connectionLost": "Verbindung während des Upgrades verloren.",
+      "authCancelled": "Autorisierung abgebrochen.",
+      "authTimeout": "Zeitüberschreitung bei der Autorisierung.",
+      "tooManySelectionRounds": "Zu viele Auswahlrunden bei Google Fotos.",
+      "tooManyMatches": "Zu viele übereinstimmende Dateien ausgewählt."
+    },
+    "options": "Upgradeoptionen",
+    "disconnect": "Google Fotos trennen",
+    "disconnectConfirm": {
+      "title": "Google Fotos trennen?",
+      "body": "Du kannst die Verbindung jederzeit wiederherstellen, um weitere Dateien upzugraden.",
+      "confirm": "Trennen"
+    }
+  },
+  "print": {
+    "mapLoading": "Karte wird geladen…",
+    "mapFailed": "Diese Karte konnte nicht geladen werden.",
+    "retryMap": "Karte erneut versuchen",
+    "preview": "Druckvorschau",
+    "backToEditor": "Zurück zum Editor",
+    "chapter": "Kapitel",
+    "covers": "Cover",
+    "interior": "Innenteil",
+    "frontCover": "Vorderseite",
+    "backCover": "Rückseite",
+    "pageNumber": "Seite {number}",
+    "spreadCount": "{current} von {total}",
+    "spreadNavigation": "Doppelseiten durchsuchen",
+    "previousSpread": "Vorherige Doppelseite",
+    "nextSpread": "Nächste Doppelseite",
+    "zoomIn": "Vergrößern",
+    "zoomOut": "Verkleinern",
+    "fitSpread": "Doppelseite einpassen",
+    "previewNote": "Die Seitenzahlen richten sich nach dem Kapitel-PDF.",
+    "emptyPreview": "Keine Seiten für die Vorschau.",
+    "title": "Drucken",
+    "interiorBleed": "Beschnittzugabe (Innenteil)",
+    "coverBleed": "Beschnittzugabe (Cover)",
+    "spineWidth": "Buchrückenbreite",
+    "previewCover": "Umschlagcover-Vorschau",
+    "combined": "Kombiniertes Cover und Inhalt",
+    "separate": "Separates Cover und Inhalt",
+    "combinedHint": "Ein PDF pro ausgewähltem Kapitel. Mehrere Kapitel werden als ZIP heruntergeladen.",
+    "separateHint": "Eine ZIP-Datei mit cover.pdf und content.pdf für jedes ausgewählte Kapitel.",
+    "dimensionRange": "Gib eine Zahl von 0 bis {max} ein.",
+    "wholeDimensionRange": "Gib eine ganze Zahl von 0 bis {max} ein."
+  }
+}
