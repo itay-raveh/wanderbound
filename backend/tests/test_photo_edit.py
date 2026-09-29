@@ -23,7 +23,7 @@ async def test_rotation_crop_has_no_empty_corners_and_keeps_source(
     original = source.read_bytes()
     edit = PhotoEdit(angle=45, x=0.35, y=0.35, width=0.3, height=0.3)
 
-    rendered = await render_photo_edit(tmp_path, source, edit)
+    rendered = await render_photo_edit(tmp_path, source, edit, source.name)
 
     with Image.open(rendered) as result:
         assert result.width == result.height
@@ -33,6 +33,10 @@ async def test_rotation_crop_has_no_empty_corners_and_keeps_source(
             assert pixel[0] > 240
             assert pixel[1] < 15
             assert pixel[2] < 15
+    replacement = PhotoEdit(angle=45, x=0.4, y=0.4, width=0.2, height=0.2)
+    newer = await render_photo_edit(tmp_path, source, replacement, source.name)
+    assert newer.is_file()
+    assert not rendered.exists()
     assert source.read_bytes() == original
     invalid = PhotoEdit(angle=45, x=0, y=0, width=1, height=1)
     with pytest.raises(ValueError, match="empty space"):
@@ -46,7 +50,7 @@ async def test_full_quarter_turn_changes_photo_orientation(tmp_path: Path) -> No
     Image.new("RGB", (160, 100), "blue").save(source)
     edit = PhotoEdit(angle=90, x=0, y=0, width=1, height=1)
 
-    rendered = await render_photo_edit(tmp_path, source, edit)
+    rendered = await render_photo_edit(tmp_path, source, edit, source.name)
 
     with Image.open(rendered) as result:
         assert result.size == (100, 160)
@@ -82,3 +86,12 @@ async def test_album_media_uses_edit_while_source_stays_unchanged(
     with Image.open(BytesIO(thumb.content)) as image:
         assert image.size == (200, 320)
     assert source.read_bytes() == original
+
+    await client.put(
+        f"{base}/photo-edit",
+        json={"angle": 180, "x": 0, "y": 0, "width": 1, "height": 1},
+    )
+    await client.get(f"{base}?w=200")
+    edits = album.album_dir / ".edits" / source.stem
+    assert len(list(edits.glob("*.jpg"))) == 1
+    assert len(list((edits / ".thumbs" / "200").glob("*.webp"))) == 1

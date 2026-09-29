@@ -40,7 +40,9 @@ async def _edited_source(
         return source
     if media.panorama is not None:
         source = await current_panorama_render(media, _album_dir(user, aid))
-    return await render_photo_edit(_album_dir(user, aid), source, media.photo_edit)
+    return await render_photo_edit(
+        _album_dir(user, aid), source, media.photo_edit, name
+    )
 
 
 async def _ensure_poster(source: Path, video: Path, name: str) -> None:

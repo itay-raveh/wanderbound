@@ -6,7 +6,12 @@ from pathlib import Path
 from PIL import Image
 
 from app.core.worker_threads import run_sync
-from app.logic.layout.media import generation_lock, media_limiter, open_oriented
+from app.logic.layout.media import (
+    THUMB_WIDTHS,
+    generation_lock,
+    media_limiter,
+    open_oriented,
+)
 from app.models.album_media import PhotoEdit
 
 
@@ -77,14 +82,26 @@ def fit_photo_edit(edit: PhotoEdit, width: int, height: int) -> PhotoEdit:
     )
 
 
-def edited_photo_path(album_dir: Path, source: Path, edit: PhotoEdit) -> Path:
+def edited_photo_path(
+    album_dir: Path, source: Path, edit: PhotoEdit, media_name: str
+) -> Path:
     stat = source.stat()
     signature = json.dumps(
         (stat.st_mtime_ns, stat.st_size, edit.model_dump()),
         sort_keys=True,
     ).encode()
     digest = hashlib.sha256(signature).hexdigest()[:20]
-    return album_dir / ".edits" / f"{source.stem}_{digest}.jpg"
+    return album_dir / ".edits" / Path(media_name).stem / f"{digest}.jpg"
+
+
+def _remove_other_edits(keep: Path) -> None:
+    for path in keep.parent.glob("*.jpg"):
+        if path != keep:
+            path.unlink(missing_ok=True)
+            for width in THUMB_WIDTHS:
+                (keep.parent / ".thumbs" / str(width) / f"{path.stem}.webp").unlink(
+                    missing_ok=True
+                )
 
 
 def _render_photo_edit_sync(source: Path, output: Path, edit: PhotoEdit) -> None:
@@ -105,9 +122,11 @@ def _render_photo_edit_sync(source: Path, output: Path, edit: PhotoEdit) -> None
             temporary.unlink(missing_ok=True)
 
 
-async def render_photo_edit(album_dir: Path, source: Path, edit: PhotoEdit) -> Path:
-    output = edited_photo_path(album_dir, source, edit)
-    async with generation_lock(output):
+async def render_photo_edit(
+    album_dir: Path, source: Path, edit: PhotoEdit, media_name: str
+) -> Path:
+    output = edited_photo_path(album_dir, source, edit, media_name)
+    async with generation_lock(output.parent):
         if not await run_sync(output.is_file):
             await run_sync(
                 _render_photo_edit_sync,
@@ -116,4 +135,5 @@ async def render_photo_edit(album_dir: Path, source: Path, edit: PhotoEdit) -> P
                 edit,
                 limiter=media_limiter,
             )
+        await run_sync(_remove_other_edits, output)
     return output

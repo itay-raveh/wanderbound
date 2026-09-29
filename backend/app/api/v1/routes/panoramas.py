@@ -187,7 +187,7 @@ async def get_panorama_render(
     album_dir = _album_dir(user, aid)
     output = await current_panorama_render(media, album_dir)
     if media.photo_edit is not None:
-        output = await render_photo_edit(album_dir, output, media.photo_edit)
+        output = await render_photo_edit(album_dir, output, media.photo_edit, name)
     return FileResponse(
         output,
         media_type="image/jpeg",
