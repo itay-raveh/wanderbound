@@ -38,6 +38,7 @@ def _step_to_read(
                 media_name=row.media_name,
                 text=row.text_content,
                 frame_orientation=row.frame_orientation,
+                continuation_priority=row.continuation_priority,
             )
         )
 
@@ -250,8 +251,12 @@ def step_media_rows(
             media_name=slot.media_name,
             text_content=slot.text,
             frame_orientation=slot.frame_orientation,
+            continuation_priority=slot.continuation_priority
+            if slot.continuation_priority is not None
+            else sum(len(previous.slots) for previous in pages[:page_index])
+            + position_index,
         )
-        for page in pages
+        for page_index, page in enumerate(pages)
         for position_index, slot in enumerate(page.slots)
     ]
     unused_rows = [
@@ -300,6 +305,10 @@ async def replace_step_media_layout(  # noqa: C901
             )
         ).all()
     }
+    next_priority = (
+        max((row.continuation_priority for row in existing_slots.values()), default=-1)
+        + 1
+    )
     incoming_page_ids = {str(page.id) for page in layout.pages}
     incoming_slot_ids = {str(slot.id) for page in layout.pages for slot in page.slots}
     for slot_id, row in existing_slots.items():
@@ -336,7 +345,9 @@ async def replace_step_media_layout(  # noqa: C901
                     page_id=str(page.id),
                     position_index=position_index,
                     kind=slot.kind,
+                    continuation_priority=next_priority,
                 )
+                next_priority += 1
             row.page_id = str(page.id)
             row.position_index = position_index
             row.kind = slot.kind

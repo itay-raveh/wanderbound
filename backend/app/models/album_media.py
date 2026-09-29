@@ -130,6 +130,10 @@ class StepPageSlot(SQLModel, table=True):
             "OR (kind = 'text' AND media_name IS NULL AND text_content IS NOT NULL)",
             name="step_page_slot_content",
         ),
+        sa.CheckConstraint(
+            "frame_orientation IN ('portrait', 'landscape')",
+            name="step_page_slot_orientation",
+        ),
     )
 
     uid: int = Field(primary_key=True)
@@ -138,12 +142,15 @@ class StepPageSlot(SQLModel, table=True):
     id: str = Field(primary_key=True, max_length=36)
     page_id: str = Field(max_length=36)
     position_index: int
-    kind: str = Field(sa_column=sa.Column(sa.String(16), nullable=False))
+    kind: Literal["photo", "text"] = Field(
+        sa_column=sa.Column(sa.String(16), nullable=False)
+    )
     media_name: str | None = Field(default=None, max_length=255)
     text_content: str | None = Field(default=None, sa_column=sa.Column(sa.Text()))
-    frame_orientation: str = Field(
+    frame_orientation: Literal["portrait", "landscape"] = Field(
         default="landscape", sa_column=sa.Column(sa.String(16), nullable=False)
     )
+    continuation_priority: int
 
 
 class StepUnusedMedia(SQLModel, table=True):

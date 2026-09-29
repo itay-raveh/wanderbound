@@ -1,6 +1,6 @@
 from datetime import datetime
-from typing import Any, Self, cast
-from uuid import UUID, uuid4
+from typing import Literal, Self
+from uuid import UUID
 from zoneinfo import ZoneInfo
 
 from pydantic import AwareDatetime, computed_field, model_validator
@@ -24,11 +24,12 @@ class StepUpdate(StepBase):
 
 
 class StepSlotLayout(SQLModel):
-    id: UUID = Field(default_factory=uuid4)
-    kind: str
+    id: UUID
+    kind: Literal["photo", "text"]
     media_name: str | None = Field(default=None, max_length=255)
     text: str | None = Field(default=None, max_length=4000)
-    frame_orientation: str = "landscape"
+    frame_orientation: Literal["portrait", "landscape"] = "landscape"
+    continuation_priority: int | None = None
 
     @model_validator(mode="after")
     def validate_content(self) -> Self:
@@ -40,24 +41,9 @@ class StepSlotLayout(SQLModel):
 
 
 class StepPageLayout(SQLModel):
-    id: UUID = Field(default_factory=uuid4)
+    id: UUID
     kind: StepPageKind
-    slots: list[StepSlotLayout] = Field(default_factory=list)
-
-    @model_validator(mode="before")
-    @classmethod
-    def accept_legacy_media(cls, data: object) -> object:
-        if isinstance(data, dict):
-            values = cast("dict[str, Any]", data)
-        else:
-            return data
-        if "slots" not in values and isinstance(values.get("media"), list):
-            media = values["media"]
-            return {
-                **values,
-                "slots": [{"kind": "photo", "media_name": name} for name in media],
-            }
-        return data
+    slots: list[StepSlotLayout]
 
     @computed_field
     @property

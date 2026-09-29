@@ -46,6 +46,7 @@ def upgrade() -> None:
         sa.Column("media_name", sa.String(255), nullable=True),
         sa.Column("text_content", sa.Text(), nullable=True),
         sa.Column("frame_orientation", sa.String(16), nullable=False),
+        sa.Column("continuation_priority", sa.Integer(), nullable=False),
         sa.PrimaryKeyConstraint("uid", "aid", "step_id", "id"),
         sa.ForeignKeyConstraint(
             ["uid", "aid", "step_id", "page_id"],
@@ -61,6 +62,10 @@ def upgrade() -> None:
             "(kind = 'photo' AND media_name IS NOT NULL AND text_content IS NULL) "
             "OR (kind = 'text' AND media_name IS NULL AND text_content IS NOT NULL)",
             name="step_page_slot_content",
+        ),
+        sa.CheckConstraint(
+            "frame_orientation IN ('portrait', 'landscape')",
+            name="step_page_slot_orientation",
         ),
     )
     op.create_index(
@@ -83,6 +88,7 @@ def upgrade() -> None:
         )
     )
     page_ids: dict[tuple[int, str, int, int], str] = {}
+    priorities: dict[tuple[int, str, int], int] = {}
     for row in rows.mappings():
         key = (row["uid"], row["aid"], row["step_id"], row["page_index"])
         page_id = page_ids.get(key)
@@ -108,9 +114,9 @@ def upgrade() -> None:
             sa.text(
                 "INSERT INTO step_page_slot "
                 "(uid, aid, step_id, id, page_id, position_index, kind, "
-                "media_name, text_content, frame_orientation) "
+                "media_name, text_content, frame_orientation, continuation_priority) "
                 "VALUES (:uid, :aid, :step_id, :id, :page_id, :position_index, "
-                "'photo', :media_name, NULL, :frame_orientation)"
+                "'photo', :media_name, NULL, :frame_orientation, :continuation_priority)"
             ),
             {
                 "uid": row["uid"],
@@ -123,8 +129,10 @@ def upgrade() -> None:
                 "frame_orientation": (
                     "portrait" if row["width"] / row["height"] < 9 / 10 else "landscape"
                 ),
+                "continuation_priority": priorities.get(key[:3], 0),
             },
         )
+        priorities[key[:3]] = priorities.get(key[:3], 0) + 1
     op.drop_table("step_page_media")
 
 

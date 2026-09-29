@@ -437,6 +437,7 @@ async def insert_step(
                 position_index=0,
                 kind="photo",
                 media_name=page_media_name,
+                continuation_priority=0,
             )
         )
     if unused_media_name is not None:

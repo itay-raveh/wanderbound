@@ -3,6 +3,7 @@ from collections.abc import AsyncIterator
 from pathlib import Path
 from typing import TYPE_CHECKING
 from unittest.mock import MagicMock
+from uuid import uuid4
 
 import app.logic.reconcile as reconcile_mod
 from app.core.http_clients import HttpClients
@@ -19,7 +20,7 @@ from app.models.album import Album
 from app.models.album_media import AlbumMedia
 from app.models.polarsteps import Location, PSStep
 from app.models.segment import Segment
-from app.models.step import StepPageLayout, StepRead
+from app.models.step import StepPageLayout, StepRead, StepSlotLayout
 from app.models.user import User
 from tests.factories import (
     collect_async,
@@ -54,7 +55,13 @@ def _ps_step(step_id: int, slug: str = "step", *, location: Location = _LOC) -> 
 
 
 def _page(media: list[str]) -> StepPageLayout:
-    return StepPageLayout.model_validate({"kind": "grid", "media": media})
+    return StepPageLayout(
+        id=uuid4(),
+        kind="grid",
+        slots=[
+            StepSlotLayout(id=uuid4(), kind="photo", media_name=name) for name in media
+        ],
+    )
 
 
 def _step(

@@ -5,6 +5,7 @@ from collections.abc import AsyncIterator, Iterable, Sequence
 from datetime import date, datetime
 from pathlib import Path
 from typing import Annotated, Any, Literal, NamedTuple
+from uuid import uuid4
 from zoneinfo import ZoneInfo
 
 import structlog
@@ -41,7 +42,7 @@ from app.models.album_media import (
 )
 from app.models.polarsteps import Location, Point, PSLocations, PSStep, PSTrip
 from app.models.segment import Segment, SegmentKind
-from app.models.step import Step, StepPageLayout, StepRead
+from app.models.step import Step, StepPageLayout, StepRead, StepSlotLayout
 from app.models.user import User
 from app.models.weather import Weather
 from app.services.open_meteo import build_weathers, elevations
@@ -480,7 +481,14 @@ def build_step_page_media_rows(
     layout: Layout,
 ) -> list[StepPage | StepPageSlot | StepUnusedMedia]:
     pages = [
-        StepPageLayout.model_validate({"kind": "grid", "media": page})
+        StepPageLayout(
+            id=uuid4(),
+            kind="grid",
+            slots=[
+                StepSlotLayout(id=uuid4(), kind="photo", media_name=name)
+                for name in page
+            ],
+        )
         for page in layout.pages
     ]
     return step_media_rows(uid, aid, step_id, pages, [])

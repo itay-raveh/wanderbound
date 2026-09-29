@@ -5,6 +5,7 @@ from contextlib import asynccontextmanager
 from types import SimpleNamespace
 from typing import TYPE_CHECKING, cast
 from unittest.mock import patch
+from uuid import uuid4
 
 import pytest
 
@@ -39,6 +40,16 @@ def _assert_step_layout(
         for page in cast("list[dict[str, object]]", data["pages"])
     ] == pages
     assert data["unused"] == unused
+
+
+def _api_page(kind: str, media: list[str]) -> dict[str, object]:
+    return {
+        "id": str(uuid4()),
+        "kind": kind,
+        "slots": [
+            {"id": str(uuid4()), "kind": "photo", "media_name": name} for name in media
+        ],
+    }
 
 
 async def _save_chapters(
@@ -270,7 +281,14 @@ class TestUpdateStep:
         await insert_step(session, signed_album.uid)
         await session.commit()
 
-        resp = await album_routes.update_media_layout(**expected_layout)
+        resp = await album_routes.update_media_layout(
+            cover=expected_layout["cover"],
+            pages=[
+                _api_page(page["kind"], page["media"])
+                for page in expected_layout["pages"]
+            ],
+            unused=expected_layout["unused"],
+        )
         assert resp.status_code == 200
         data = resp.json()
         _assert_step_layout(data, **expected_layout)
@@ -293,8 +311,8 @@ class TestUpdateStep:
             await album_routes.update_media_layout(
                 cover=None,
                 pages=[
-                    {"kind": "grid", "media": ["a.jpg"]},
-                    {"kind": "grid", "media": ["b.jpg"]},
+                    _api_page("grid", ["a.jpg"]),
+                    _api_page("grid", ["b.jpg"]),
                 ],
                 unused=[],
             )
@@ -319,6 +337,13 @@ class TestUpdateStep:
         assert saved["pages"][1]["slots"][0]["id"] == slot_id
         assert saved["pages"][1]["slots"][0]["text"] == "A day in Lima"
         assert saved["unused"] == ["a.jpg"]
+        legacy = await album_routes.update_media_layout(
+            cover=None,
+            pages=[{"kind": "grid", "media": ["b.jpg"]}],
+            unused=[],
+        )
+        assert legacy.status_code == 422
+        assert (await album_routes.get_steps()).json()[0]["pages"] == saved["pages"]
 
     @pytest.mark.usefixtures("signed_album")
     @pytest.mark.parametrize("media", [[], ["a.jpg", "b.jpg"]])
@@ -329,7 +354,7 @@ class TestUpdateStep:
     ) -> None:
         resp = await album_routes.update_media_layout(
             cover=None,
-            pages=[{"kind": "panorama_spread", "media": media}],
+            pages=[_api_page("panorama_spread", media)],
             unused=[],
         )
 
@@ -346,7 +371,7 @@ class TestUpdateStep:
 
         resp = await album_routes.update_media_layout(
             cover=None,
-            pages=[{"kind": "grid", "media": ["missing.jpg"]}],
+            pages=[_api_page("grid", ["missing.jpg"])],
             unused=[],
         )
 

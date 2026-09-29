@@ -96,7 +96,8 @@ def test_upgrade_preserves_page_order_photos_and_orientation(
             conn.execute(
                 sa.text(
                     "SELECT p.id AS page_id, p.position_index, s.id AS slot_id, "
-                    "s.media_name, s.frame_orientation FROM step_page p "
+                    "s.media_name, s.frame_orientation, s.continuation_priority "
+                    "FROM step_page p "
                     "JOIN step_page_slot s ON s.page_id = p.id "
                     "ORDER BY p.position_index"
                 )
@@ -110,3 +111,4 @@ def test_upgrade_preserves_page_order_photos_and_orientation(
     ] == [(0, "a.jpg", "portrait"), (2, "b.jpg", "landscape")]
     assert len({r["page_id"] for r in rows}) == 2
     assert len({r["slot_id"] for r in rows}) == 2
+    assert [r["continuation_priority"] for r in rows] == [0, 1]

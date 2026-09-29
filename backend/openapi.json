@@ -5030,7 +5030,9 @@
         },
         "type": "object",
         "required": [
-          "kind"
+          "id",
+          "kind",
+          "slots"
         ],
         "title": "StepPageLayout"
       },
@@ -5062,7 +5064,9 @@
         },
         "type": "object",
         "required": [
+          "id",
           "kind",
+          "slots",
           "media"
         ],
         "title": "StepPageLayout"
@@ -5169,6 +5173,10 @@
           },
           "kind": {
             "type": "string",
+            "enum": [
+              "photo",
+              "text"
+            ],
             "title": "Kind"
           },
           "media_name": {
@@ -5197,12 +5205,28 @@
           },
           "frame_orientation": {
             "type": "string",
+            "enum": [
+              "portrait",
+              "landscape"
+            ],
             "title": "Frame Orientation",
             "default": "landscape"
+          },
+          "continuation_priority": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Continuation Priority"
           }
         },
         "type": "object",
         "required": [
+          "id",
           "kind"
         ],
         "title": "StepSlotLayout"

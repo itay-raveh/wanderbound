@@ -220,6 +220,7 @@ def _page_media() -> StepPageSlot:
         position_index=0,
         kind="photo",
         media_name="cover.jpg",
+        continuation_priority=0,
     )
 
 
@@ -379,6 +380,7 @@ class TestSaveReuploadDeletesSegments:
             position_index=0,
             kind="photo",
             media_name=media.name,
+            continuation_priority=0,
         )
 
         await _save_reuploaded_objects(
