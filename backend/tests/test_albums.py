@@ -3,7 +3,7 @@ from __future__ import annotations
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from types import SimpleNamespace
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 from unittest.mock import patch
 
 import pytest
@@ -34,7 +34,10 @@ def _assert_step_layout(
     unused: list[str],
 ) -> None:
     assert data["cover"] == cover
-    assert data["pages"] == pages
+    assert [
+        {"kind": page["kind"], "media": page["media"]}
+        for page in cast("list[dict[str, object]]", data["pages"])
+    ] == pages
     assert data["unused"] == unused
 
 
@@ -275,6 +278,47 @@ class TestUpdateStep:
         get_resp = await album_routes.get_steps()
         assert get_resp.status_code == 200
         _assert_step_layout(get_resp.json()[0], **expected_layout)
+
+    async def test_reorder_and_text_keep_page_and_slot_identity(
+        self,
+        session: AsyncSession,
+        signed_album: AlbumScenario,
+        album_routes: AlbumRoutes,
+    ) -> None:
+        for name in ("a.jpg", "b.jpg"):
+            await insert_album_media(session, signed_album.uid, name=name)
+        await insert_step(session, signed_album.uid)
+        await session.commit()
+        first = (
+            await album_routes.update_media_layout(
+                cover=None,
+                pages=[
+                    {"kind": "grid", "media": ["a.jpg"]},
+                    {"kind": "grid", "media": ["b.jpg"]},
+                ],
+                unused=[],
+            )
+        ).json()
+        pages = first["pages"]
+        slot_id = pages[0]["slots"][0]["id"]
+        pages[0]["slots"][0] = {
+            "id": slot_id,
+            "kind": "text",
+            "text": "A day in Lima",
+            "frame_orientation": "landscape",
+        }
+        response = await album_routes.update_media_layout(
+            cover=None, pages=pages[::-1], unused=["a.jpg"]
+        )
+        assert response.status_code == 200
+        saved = (await album_routes.get_steps()).json()[0]
+        assert [page["id"] for page in saved["pages"]] == [
+            pages[1]["id"],
+            pages[0]["id"],
+        ]
+        assert saved["pages"][1]["slots"][0]["id"] == slot_id
+        assert saved["pages"][1]["slots"][0]["text"] == "A day in Lima"
+        assert saved["unused"] == ["a.jpg"]
 
     @pytest.mark.usefixtures("signed_album")
     @pytest.mark.parametrize("media", [[], ["a.jpg", "b.jpg"]])

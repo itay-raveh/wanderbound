@@ -1,5 +1,6 @@
 from datetime import datetime
-from typing import Self
+from typing import Any, Self, cast
+from uuid import UUID, uuid4
 from zoneinfo import ZoneInfo
 
 from pydantic import AwareDatetime, computed_field, model_validator
@@ -22,14 +23,57 @@ class StepUpdate(StepBase):
     pass
 
 
+class StepSlotLayout(SQLModel):
+    id: UUID = Field(default_factory=uuid4)
+    kind: str
+    media_name: str | None = Field(default=None, max_length=255)
+    text: str | None = Field(default=None, max_length=4000)
+    frame_orientation: str = "landscape"
+
+    @model_validator(mode="after")
+    def validate_content(self) -> Self:
+        if self.kind == "photo" and self.media_name and self.text is None:
+            return self
+        if self.kind == "text" and self.media_name is None and self.text is not None:
+            return self
+        raise ValueError("A slot must contain either one photo or plain text")
+
+
 class StepPageLayout(SQLModel):
+    id: UUID = Field(default_factory=uuid4)
     kind: StepPageKind
-    media: list[str]
+    slots: list[StepSlotLayout] = Field(default_factory=list)
+
+    @model_validator(mode="before")
+    @classmethod
+    def accept_legacy_media(cls, data: object) -> object:
+        if isinstance(data, dict):
+            values = cast("dict[str, Any]", data)
+        else:
+            return data
+        if "slots" not in values and isinstance(values.get("media"), list):
+            media = values["media"]
+            return {
+                **values,
+                "slots": [{"kind": "photo", "media_name": name} for name in media],
+            }
+        return data
+
+    @computed_field
+    @property
+    def media(self) -> list[str]:
+        return [
+            slot.media_name
+            for slot in self.slots
+            if slot.kind == "photo" and slot.media_name is not None
+        ]
 
     @model_validator(mode="after")
     def validate_panorama_spread_media(self) -> Self:
-        if self.kind == "panorama_spread" and len(self.media) != 1:
-            raise ValueError("A panorama spread must contain exactly one media item")
+        if self.kind == "panorama_spread" and (
+            len(self.slots) != 1 or self.slots[0].kind != "photo"
+        ):
+            raise ValueError("A panorama spread must contain exactly one photo slot")
         return self
 
 
@@ -37,6 +81,15 @@ class StepMediaLayout(SQLModel):
     cover: str | None = Field(max_length=255)
     pages: list[StepPageLayout]
     unused: list[str]
+
+    @model_validator(mode="after")
+    def validate_unique_ids(self) -> Self:
+        page_ids = [page.id for page in self.pages]
+        slots = [slot for page in self.pages for slot in page.slots]
+        slot_ids = [slot.id for slot in slots]
+        if len(page_ids) != len(set(page_ids)) or len(slot_ids) != len(set(slot_ids)):
+            raise ValueError("Page and slot IDs must be unique")
+        return self
 
 
 class Step(StepBase, table=True):

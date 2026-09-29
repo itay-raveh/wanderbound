@@ -4982,7 +4982,7 @@
           },
           "pages": {
             "items": {
-              "$ref": "#/components/schemas/StepPageLayout"
+              "$ref": "#/components/schemas/StepPageLayout-Input"
             },
             "type": "array",
             "title": "Pages"
@@ -5010,17 +5010,54 @@
           "panorama_spread"
         ]
       },
-      "StepPageLayout": {
+      "StepPageLayout-Input": {
         "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
           "kind": {
             "$ref": "#/components/schemas/StepPageKind"
+          },
+          "slots": {
+            "items": {
+              "$ref": "#/components/schemas/StepSlotLayout"
+            },
+            "type": "array",
+            "title": "Slots"
+          }
+        },
+        "type": "object",
+        "required": [
+          "kind"
+        ],
+        "title": "StepPageLayout"
+      },
+      "StepPageLayout-Output": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/StepPageKind"
+          },
+          "slots": {
+            "items": {
+              "$ref": "#/components/schemas/StepSlotLayout"
+            },
+            "type": "array",
+            "title": "Slots"
           },
           "media": {
             "items": {
               "type": "string"
             },
             "type": "array",
-            "title": "Media"
+            "title": "Media",
+            "readOnly": true
           }
         },
         "type": "object",
@@ -5046,7 +5083,7 @@
           },
           "pages": {
             "items": {
-              "$ref": "#/components/schemas/StepPageLayout"
+              "$ref": "#/components/schemas/StepPageLayout-Output"
             },
             "type": "array",
             "title": "Pages"
@@ -5122,6 +5159,53 @@
           "datetime"
         ],
         "title": "StepRead"
+      },
+      "StepSlotLayout": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "kind": {
+            "type": "string",
+            "title": "Kind"
+          },
+          "media_name": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 255
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Media Name"
+          },
+          "text": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 4000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Text"
+          },
+          "frame_orientation": {
+            "type": "string",
+            "title": "Frame Orientation",
+            "default": "landscape"
+          }
+        },
+        "type": "object",
+        "required": [
+          "kind"
+        ],
+        "title": "StepSlotLayout"
       },
       "StepUpdate": {
         "properties": {

@@ -1,16 +1,23 @@
 from collections import defaultdict
 from typing import TYPE_CHECKING
+from uuid import UUID
 
 from sqlalchemy import delete
 from sqlmodel import col, select
 
 from app.models.album_media import (
     AlbumMedia,
-    StepPageKind,
-    StepPageMedia,
+    StepPage,
+    StepPageSlot,
     StepUnusedMedia,
 )
-from app.models.step import Step, StepMediaLayout, StepPageLayout, StepRead
+from app.models.step import (
+    Step,
+    StepMediaLayout,
+    StepPageLayout,
+    StepRead,
+    StepSlotLayout,
+)
 
 if TYPE_CHECKING:
     from sqlmodel.ext.asyncio.session import AsyncSession
@@ -18,13 +25,21 @@ if TYPE_CHECKING:
 
 def _step_to_read(
     step: Step,
-    page_rows: list[StepPageMedia],
+    page_rows: list[StepPage],
+    slot_rows: list[StepPageSlot],
     unused_rows: list[StepUnusedMedia],
 ) -> StepRead:
-    pages_by_index: dict[int, tuple[StepPageKind, list[str]]] = {}
-    for row in page_rows:
-        _, media = pages_by_index.setdefault(row.page_index, (row.page_kind, []))
-        media.append(row.media_name)
+    slots_by_page: dict[str, list[StepSlotLayout]] = defaultdict(list)
+    for row in slot_rows:
+        slots_by_page[row.page_id].append(
+            StepSlotLayout(
+                id=UUID(row.id),
+                kind=row.kind,
+                media_name=row.media_name,
+                text=row.text_content,
+                frame_orientation=row.frame_orientation,
+            )
+        )
 
     return StepRead(
         uid=step.uid,
@@ -39,8 +54,12 @@ def _step_to_read(
         weather=step.weather,
         cover=step.cover_media_name,
         pages=[
-            StepPageLayout(kind=kind, media=media)
-            for kind, media in pages_by_index.values()
+            StepPageLayout(
+                id=UUID(row.id),
+                kind=row.page_kind,
+                slots=slots_by_page[row.id],
+            )
+            for row in page_rows
         ],
         unused=[row.media_name for row in unused_rows],
     )
@@ -64,12 +83,24 @@ async def read_steps_with_media(
     page_rows = list(
         (
             await session.exec(
-                select(StepPageMedia)
-                .where(StepPageMedia.uid == uid, StepPageMedia.aid == aid)
+                select(StepPage)
+                .where(StepPage.uid == uid, StepPage.aid == aid)
                 .order_by(
-                    col(StepPageMedia.step_id),
-                    col(StepPageMedia.page_index),
-                    col(StepPageMedia.position_index),
+                    col(StepPage.step_id),
+                    col(StepPage.position_index),
+                )
+            )
+        ).all()
+    )
+    slot_rows = list(
+        (
+            await session.exec(
+                select(StepPageSlot)
+                .where(StepPageSlot.uid == uid, StepPageSlot.aid == aid)
+                .order_by(
+                    col(StepPageSlot.step_id),
+                    col(StepPageSlot.page_id),
+                    col(StepPageSlot.position_index),
                 )
             )
         ).all()
@@ -87,15 +118,23 @@ async def read_steps_with_media(
         ).all()
     )
 
-    pages_by_step: dict[int, list[StepPageMedia]] = defaultdict(list)
+    pages_by_step: dict[int, list[StepPage]] = defaultdict(list)
     for row in page_rows:
         pages_by_step[row.step_id].append(row)
+    slots_by_step: dict[int, list[StepPageSlot]] = defaultdict(list)
+    for row in slot_rows:
+        slots_by_step[row.step_id].append(row)
     unused_by_step: dict[int, list[StepUnusedMedia]] = defaultdict(list)
     for row in unused_rows:
         unused_by_step[row.step_id].append(row)
 
     return [
-        _step_to_read(step, pages_by_step[step.id], unused_by_step[step.id])
+        _step_to_read(
+            step,
+            pages_by_step[step.id],
+            slots_by_step[step.id],
+            unused_by_step[step.id],
+        )
         for step in steps
     ]
 
@@ -110,16 +149,26 @@ async def read_step_with_media(
     page_rows = list(
         (
             await session.exec(
-                select(StepPageMedia)
+                select(StepPage)
                 .where(
-                    StepPageMedia.uid == uid,
-                    StepPageMedia.aid == aid,
-                    StepPageMedia.step_id == step_id,
+                    StepPage.uid == uid,
+                    StepPage.aid == aid,
+                    StepPage.step_id == step_id,
                 )
-                .order_by(
-                    col(StepPageMedia.page_index),
-                    col(StepPageMedia.position_index),
+                .order_by(col(StepPage.position_index))
+            )
+        ).all()
+    )
+    slot_rows = list(
+        (
+            await session.exec(
+                select(StepPageSlot)
+                .where(
+                    StepPageSlot.uid == uid,
+                    StepPageSlot.aid == aid,
+                    StepPageSlot.step_id == step_id,
                 )
+                .order_by(col(StepPageSlot.page_id), col(StepPageSlot.position_index))
             )
         ).all()
     )
@@ -136,7 +185,7 @@ async def read_step_with_media(
             )
         ).all()
     )
-    return _step_to_read(step, page_rows, unused_rows)
+    return _step_to_read(step, page_rows, slot_rows, unused_rows)
 
 
 async def _validate_media_names(
@@ -177,19 +226,33 @@ def step_media_rows(
     step_id: int,
     pages: list[StepPageLayout],
     unused: list[str],
-) -> list[StepPageMedia | StepUnusedMedia]:
+) -> list[StepPage | StepPageSlot | StepUnusedMedia]:
     page_rows = [
-        StepPageMedia(
+        StepPage(
             uid=uid,
             aid=aid,
             step_id=step_id,
-            page_index=page_index,
+            id=str(page.id),
             position_index=position_index,
-            media_name=media_name,
             page_kind=page.kind,
         )
-        for page_index, page in enumerate(pages)
-        for position_index, media_name in enumerate(page.media)
+        for position_index, page in enumerate(pages)
+    ]
+    slot_rows = [
+        StepPageSlot(
+            uid=uid,
+            aid=aid,
+            step_id=step_id,
+            id=str(slot.id),
+            page_id=str(page.id),
+            position_index=position_index,
+            kind=slot.kind,
+            media_name=slot.media_name,
+            text_content=slot.text,
+            frame_orientation=slot.frame_orientation,
+        )
+        for page in pages
+        for position_index, slot in enumerate(page.slots)
     ]
     unused_rows = [
         StepUnusedMedia(
@@ -201,10 +264,10 @@ def step_media_rows(
         )
         for position_index, media_name in enumerate(unused)
     ]
-    return [*page_rows, *unused_rows]
+    return [*page_rows, *slot_rows, *unused_rows]
 
 
-async def replace_step_media_layout(
+async def replace_step_media_layout(  # noqa: C901
     session: AsyncSession,
     uid: int,
     aid: str,
@@ -213,14 +276,78 @@ async def replace_step_media_layout(
 ) -> StepRead:
     step = await session.get_one(Step, (uid, aid, step_id))
     await _validate_media_names(session, uid, aid, _layout_names(layout))
+    existing_pages = {
+        row.id: row
+        for row in (
+            await session.exec(
+                select(StepPage).where(
+                    StepPage.uid == uid,
+                    StepPage.aid == aid,
+                    StepPage.step_id == step_id,
+                )
+            )
+        ).all()
+    }
+    existing_slots = {
+        row.id: row
+        for row in (
+            await session.exec(
+                select(StepPageSlot).where(
+                    StepPageSlot.uid == uid,
+                    StepPageSlot.aid == aid,
+                    StepPageSlot.step_id == step_id,
+                )
+            )
+        ).all()
+    }
+    incoming_page_ids = {str(page.id) for page in layout.pages}
+    incoming_slot_ids = {str(slot.id) for page in layout.pages for slot in page.slots}
+    for slot_id, row in existing_slots.items():
+        if slot_id not in incoming_slot_ids:
+            await session.delete(row)
+    await session.flush()
 
-    await session.exec(
-        delete(StepPageMedia).where(
-            col(StepPageMedia.uid) == uid,
-            col(StepPageMedia.aid) == aid,
-            col(StepPageMedia.step_id) == step_id,
-        )
-    )
+    for position_index, page in enumerate(layout.pages):
+        page_id = str(page.id)
+        row = existing_pages.get(page_id)
+        if row is None:
+            row = StepPage(
+                uid=uid,
+                aid=aid,
+                step_id=step_id,
+                id=page_id,
+                position_index=position_index,
+            )
+        row.position_index = position_index
+        row.page_kind = page.kind
+        session.add(row)
+    await session.flush()
+
+    for page in layout.pages:
+        for position_index, slot in enumerate(page.slots):
+            slot_id = str(slot.id)
+            row = existing_slots.get(slot_id)
+            if row is None:
+                row = StepPageSlot(
+                    uid=uid,
+                    aid=aid,
+                    step_id=step_id,
+                    id=slot_id,
+                    page_id=str(page.id),
+                    position_index=position_index,
+                    kind=slot.kind,
+                )
+            row.page_id = str(page.id)
+            row.position_index = position_index
+            row.kind = slot.kind
+            row.media_name = slot.media_name
+            row.text_content = slot.text
+            row.frame_orientation = slot.frame_orientation
+            session.add(row)
+    await session.flush()
+    for page_id, row in existing_pages.items():
+        if page_id not in incoming_page_ids:
+            await session.delete(row)
     await session.exec(
         delete(StepUnusedMedia).where(
             col(StepUnusedMedia.uid) == uid,
@@ -230,8 +357,16 @@ async def replace_step_media_layout(
     )
     step.cover_media_name = layout.cover
     session.add(step)
-    for row in step_media_rows(uid, aid, step_id, layout.pages, layout.unused):
-        session.add(row)
+    for position_index, media_name in enumerate(layout.unused):
+        session.add(
+            StepUnusedMedia(
+                uid=uid,
+                aid=aid,
+                step_id=step_id,
+                position_index=position_index,
+                media_name=media_name,
+            )
+        )
 
     await session.commit()
     await session.refresh(step)

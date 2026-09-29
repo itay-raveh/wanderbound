@@ -53,6 +53,10 @@ def _ps_step(step_id: int, slug: str = "step", *, location: Location = _LOC) -> 
     )
 
 
+def _page(media: list[str]) -> StepPageLayout:
+    return StepPageLayout.model_validate({"kind": "grid", "media": media})
+
+
 def _step(
     step_id: int = 1,
     *,
@@ -124,7 +128,7 @@ def _media(name: str, *, portrait: bool) -> Media:
 
 class TestPickCover:
     def test_prefers_portrait(self) -> None:
-        pages = [StepPageLayout(kind="grid", media=["a.jpg", "b.jpg"])]
+        pages = [_page(["a.jpg", "b.jpg"])]
         unused = ["c.jpg"]
         media = {
             n: _media(n, portrait=p)
@@ -133,7 +137,7 @@ class TestPickCover:
         assert _pick_cover(pages, unused, media) == "b.jpg"
 
     def test_portrait_in_unused(self) -> None:
-        pages = [StepPageLayout(kind="grid", media=["land.jpg"])]
+        pages = [_page(["land.jpg"])]
         unused = ["port.jpg"]
         media = {
             "land.jpg": _media("land.jpg", portrait=False),
@@ -146,8 +150,8 @@ class TestReconcileStep:
     def test_missing_media_removed_from_pages(self) -> None:
         step = _step(
             pages=[
-                StepPageLayout(kind="grid", media=["a.jpg", "b.jpg"]),
-                StepPageLayout(kind="grid", media=["c.jpg"]),
+                _page(["a.jpg", "b.jpg"]),
+                _page(["c.jpg"]),
             ],
             cover="a.jpg",
         )
@@ -156,16 +160,13 @@ class TestReconcileStep:
         disk_media = {"a.jpg", "c.jpg"}
 
         result = _reconcile_step(step, ps, disk_media, all_on_disk, {})
-        assert result.pages == [
-            StepPageLayout(kind="grid", media=["a.jpg"]),
-            StepPageLayout(kind="grid", media=["c.jpg"]),
-        ]
+        assert [page.media for page in result.pages] == [["a.jpg"], ["c.jpg"]]
 
     def test_empty_page_dropped(self) -> None:
         step = _step(
             pages=[
-                StepPageLayout(kind="grid", media=["a.jpg"]),
-                StepPageLayout(kind="grid", media=["b.jpg"]),
+                _page(["a.jpg"]),
+                _page(["b.jpg"]),
             ]
         )
         ps = _ps_step(1)
@@ -173,10 +174,10 @@ class TestReconcileStep:
         disk_media = {"a.jpg"}
 
         result = _reconcile_step(step, ps, disk_media, all_on_disk, {})
-        assert result.pages == [StepPageLayout(kind="grid", media=["a.jpg"])]
+        assert [page.media for page in result.pages] == [["a.jpg"]]
 
     def test_new_media_added_to_unused(self) -> None:
-        step = _step(pages=[StepPageLayout(kind="grid", media=["a.jpg"])])
+        step = _step(pages=[_page(["a.jpg"])])
         ps = _ps_step(1)
         all_on_disk = {"a.jpg", "new.jpg"}
         disk_media = {"a.jpg", "new.jpg"}
@@ -186,7 +187,7 @@ class TestReconcileStep:
 
     def test_missing_cover_picks_new(self) -> None:
         step = _step(
-            pages=[StepPageLayout(kind="grid", media=["remain.jpg"])],
+            pages=[_page(["remain.jpg"])],
             cover="gone.jpg",
         )
         ps = _ps_step(1)
@@ -199,7 +200,7 @@ class TestReconcileStep:
 
     def test_cover_none_when_all_media_gone(self) -> None:
         step = _step(
-            pages=[StepPageLayout(kind="grid", media=["a.jpg"])],
+            pages=[_page(["a.jpg"])],
             unused=["b.jpg"],
             cover="a.jpg",
         )
@@ -222,14 +223,14 @@ class TestReconcileStep:
         assert result.location == _LOC2
 
     def test_new_media_not_on_disk_ignored(self) -> None:
-        step = _step(pages=[StepPageLayout(kind="grid", media=["a.jpg"])])
+        step = _step(pages=[_page(["a.jpg"])])
         ps = _ps_step(1)
         disk_media = {"a.jpg", "ghost.jpg"}
         all_on_disk = {"a.jpg"}  # ghost.jpg not in flattened dir
 
         result = _reconcile_step(step, ps, disk_media, all_on_disk, {})
         assert "ghost.jpg" not in result.unused
-        assert result.pages == [StepPageLayout(kind="grid", media=["a.jpg"])]
+        assert [page.media for page in result.pages] == [["a.jpg"]]
 
 
 class TestFixAlbumCovers:
@@ -389,7 +390,7 @@ class TestReconcileTripRebuildsSegments:
         existing_steps = [
             _existing_step(
                 1,
-                pages=[StepPageLayout(kind="grid", media=[media_name])],
+                pages=[_page([media_name])],
                 cover=media_name,
             )
         ]
@@ -453,7 +454,7 @@ class TestReconcileTripRebuildsSegments:
             [
                 _existing_step(
                     1,
-                    pages=[StepPageLayout(kind="grid", media=[media_name])],
+                    pages=[_page([media_name])],
                     cover=media_name,
                 )
             ],

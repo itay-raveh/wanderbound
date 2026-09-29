@@ -89,11 +89,17 @@ def _reconcile_step(
 
     step.pages = [
         page.model_copy(
-            update={"media": [name for name in page.media if name not in missing]}
+            update={
+                "slots": [
+                    slot
+                    for slot in page.slots
+                    if slot.kind == "text" or slot.media_name not in missing
+                ]
+            }
         )
         for page in step.pages
-        if any(name not in missing for name in page.media)
     ]
+    step.pages = [page for page in step.pages if page.slots]
     step.unused = [f for f in step.unused if f not in missing] + sorted(added)
 
     if step.cover and step.cover in missing:
@@ -266,7 +272,7 @@ async def _process_new_steps(  # noqa: PLR0913
                 weather=step.weather,
                 cover=step.cover_media_name,
                 pages=[
-                    StepPageLayout(kind="grid", media=page)
+                    StepPageLayout.model_validate({"kind": "grid", "media": page})
                     for page in (layout.pages if layout else [])
                 ],
                 unused=[],

@@ -18,7 +18,7 @@ from app.logic.trip_pipeline import (
 )
 from app.logic.trip_processing import ErrorData, PhaseUpdate
 from app.models.album import Album
-from app.models.album_media import AlbumMedia, StepPageMedia, StepUnusedMedia
+from app.models.album_media import AlbumMedia, StepPage, StepPageSlot, StepUnusedMedia
 from app.models.segment import Segment, SegmentKind
 from app.models.step import Step
 from app.models.user import User
@@ -200,13 +200,25 @@ def _cover_media() -> AlbumMedia:
     )
 
 
-def _page_media() -> StepPageMedia:
-    return StepPageMedia(
+def _page() -> StepPage:
+    return StepPage(
         uid=UID,
         aid=AID,
         step_id=1,
-        page_index=0,
+        id="page-1",
         position_index=0,
+    )
+
+
+def _page_media() -> StepPageSlot:
+    return StepPageSlot(
+        uid=UID,
+        aid=AID,
+        step_id=1,
+        id="slot-1",
+        page_id="page-1",
+        position_index=0,
+        kind="photo",
         media_name="cover.jpg",
     )
 
@@ -262,11 +274,18 @@ class TestSaveNewDependencyOrder:
         with patch("app.logic.trip_pipeline.get_engine", return_value=engine):
             saved = await _save_new(
                 UID,
-                [_album(), _cover_media(), _step(), _page_media(), _unused_media()],
+                [
+                    _album(),
+                    _cover_media(),
+                    _step(),
+                    _page(),
+                    _page_media(),
+                    _unused_media(),
+                ],
             )
 
         async with AsyncSession(engine) as session:
-            page_media = (await session.exec(select(StepPageMedia))).all()
+            page_media = (await session.exec(select(StepPageSlot))).all()
             unused_media = (await session.exec(select(StepUnusedMedia))).all()
 
         assert saved is True
@@ -348,12 +367,17 @@ class TestSaveReuploadDeletesSegments:
             byte_size=10,
         )
         step = _reuploaded_step()
-        page_media = StepPageMedia(
+        page = StepPage(
+            uid=UID, aid=AID, step_id=step.id, id="page-2", position_index=0
+        )
+        page_media = StepPageSlot(
             uid=UID,
             aid=AID,
             step_id=step.id,
-            page_index=0,
+            id="slot-2",
+            page_id="page-2",
             position_index=0,
+            kind="photo",
             media_name=media.name,
         )
 
@@ -364,20 +388,21 @@ class TestSaveReuploadDeletesSegments:
             _reuploaded_album(),
             media,
             step,
+            page,
             page_media,
         )
 
         async with AsyncSession(engine) as session:
-            rows = (await session.exec(select(StepPageMedia))).all()
+            rows = (await session.exec(select(StepPageSlot))).all()
 
         assert [
             (
                 row.uid,
                 row.aid,
                 row.step_id,
-                row.page_index,
+                row.page_id,
                 row.position_index,
                 row.media_name,
             )
             for row in rows
-        ] == [(UID, AID, 2, 0, 0, "page.jpg")]
+        ] == [(UID, AID, 2, "page-2", 0, "page.jpg")]

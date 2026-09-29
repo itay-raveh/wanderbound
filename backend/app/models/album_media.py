@@ -92,17 +92,12 @@ class AlbumMedia(SQLModel, table=True):
         return self.kind == "photo" and is_panorama_size(self.width, self.height)
 
 
-class StepPageMedia(SQLModel, table=True):
-    __tablename__ = "step_page_media"
+class StepPage(SQLModel, table=True):
+    __tablename__ = "step_page"
     __table_args__ = (
         sa.ForeignKeyConstraint(
             ["uid", "aid", "step_id"],
             ["step.uid", "step.aid", "step.id"],
-            ondelete="CASCADE",
-        ),
-        sa.ForeignKeyConstraint(
-            ["uid", "aid", "media_name"],
-            ["album_media.uid", "album_media.aid", "album_media.name"],
             ondelete="CASCADE",
         ),
     )
@@ -110,11 +105,44 @@ class StepPageMedia(SQLModel, table=True):
     uid: int = Field(primary_key=True)
     aid: str = Field(primary_key=True)
     step_id: int = Field(primary_key=True)
-    page_index: int = Field(primary_key=True)
-    position_index: int = Field(primary_key=True)
-    media_name: str = Field(max_length=255)
+    id: str = Field(primary_key=True, max_length=36)
+    position_index: int
     page_kind: StepPageKind = Field(
         default="grid", sa_column=sa.Column(sa.String(16), nullable=False)
+    )
+
+
+class StepPageSlot(SQLModel, table=True):
+    __tablename__ = "step_page_slot"
+    __table_args__ = (
+        sa.ForeignKeyConstraint(
+            ["uid", "aid", "step_id", "page_id"],
+            ["step_page.uid", "step_page.aid", "step_page.step_id", "step_page.id"],
+            ondelete="CASCADE",
+        ),
+        sa.ForeignKeyConstraint(
+            ["uid", "aid", "media_name"],
+            ["album_media.uid", "album_media.aid", "album_media.name"],
+            ondelete="CASCADE",
+        ),
+        sa.CheckConstraint(
+            "(kind = 'photo' AND media_name IS NOT NULL AND text_content IS NULL) "
+            "OR (kind = 'text' AND media_name IS NULL AND text_content IS NOT NULL)",
+            name="step_page_slot_content",
+        ),
+    )
+
+    uid: int = Field(primary_key=True)
+    aid: str = Field(primary_key=True)
+    step_id: int = Field(primary_key=True)
+    id: str = Field(primary_key=True, max_length=36)
+    page_id: str = Field(max_length=36)
+    position_index: int
+    kind: str = Field(sa_column=sa.Column(sa.String(16), nullable=False))
+    media_name: str | None = Field(default=None, max_length=255)
+    text_content: str | None = Field(default=None, sa_column=sa.Column(sa.Text()))
+    frame_orientation: str = Field(
+        default="landscape", sa_column=sa.Column(sa.String(16), nullable=False)
     )
 
 
