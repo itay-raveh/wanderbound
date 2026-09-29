@@ -1,3 +1,4 @@
+import os
 from importlib import import_module
 from typing import TYPE_CHECKING
 
@@ -15,9 +16,9 @@ migration = import_module("app.alembic.versions.8f61c23e0a95_add_stable_page_slo
 def test_upgrade_preserves_page_order_photos_and_orientation(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    engine = sa.create_engine("sqlite://")
+    engine = sa.create_engine(os.environ.get("PAGE_MIGRATION_TEST_URL", "sqlite://"))
     metadata = sa.MetaData()
-    sa.Table(
+    step = sa.Table(
         "step",
         metadata,
         sa.Column("uid", sa.Integer, primary_key=True),
@@ -46,6 +47,7 @@ def test_upgrade_preserves_page_order_photos_and_orientation(
     )
     metadata.create_all(engine)
     with engine.begin() as conn:
+        conn.execute(step.insert().values(uid=1, aid="trip", id=4))
         conn.execute(
             media.insert(),
             [
