@@ -392,6 +392,7 @@ async def reconcile_trip(  # noqa: PLR0913
     for media in album_media:
         if previous := retained_media.get(media.name):
             media.panorama = previous.panorama
+            media.photo_edit = previous.photo_edit
 
     # Rebuild segments from GPS data (segments are not persisted across
     # re-uploads; always rebuild from GPS locations).

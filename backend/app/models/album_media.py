@@ -6,7 +6,7 @@ from typing import Literal
 import sqlalchemy as sa
 
 # Pydantic resolves this annotation while constructing the SQLModel.
-from pydantic import BaseModel, Field as PydanticField, computed_field
+from pydantic import BaseModel, Field as PydanticField, computed_field, model_validator
 from pydantic.json_schema import SkipJsonSchema  # noqa: TC002
 from sqlmodel import Field, SQLModel
 
@@ -30,6 +30,20 @@ class PanoramaConfig(BaseModel):
     perspective_fov: float = PydanticField(default=70, gt=0, lt=180)
     zoom: float = PydanticField(default=1, ge=1, le=3)
     aspect_ratio: float = PydanticField(default=2, gt=0, le=10)
+
+
+class PhotoEdit(BaseModel):
+    angle: float = PydanticField(ge=-180, le=180)
+    x: float = PydanticField(ge=0, le=1)
+    y: float = PydanticField(ge=0, le=1)
+    width: float = PydanticField(gt=0, le=1)
+    height: float = PydanticField(gt=0, le=1)
+
+    @model_validator(mode="after")
+    def within_canvas(self) -> PhotoEdit:
+        if self.x + self.width > 1.000001 or self.y + self.height > 1.000001:
+            raise ValueError("Crop exceeds the rotated image bounds")
+        return self
 
 
 class AlbumMedia(SQLModel, table=True):
@@ -57,6 +71,10 @@ class AlbumMedia(SQLModel, table=True):
     panorama: PanoramaConfig | None = Field(
         default=None,
         sa_column=sa.Column(PydanticJSON(PanoramaConfig), nullable=True),
+    )
+    photo_edit: PhotoEdit | None = Field(
+        default=None,
+        sa_column=sa.Column(PydanticJSON(PhotoEdit), nullable=True),
     )
     upgrade_candidate: bool = Field(default=True)
     created_at: datetime = Field(
@@ -144,6 +162,10 @@ class AlbumMediaUndoSnapshot(SQLModel, table=True):
     panorama: PanoramaConfig | None = Field(
         default=None,
         sa_column=sa.Column(PydanticJSON(PanoramaConfig), nullable=True),
+    )
+    photo_edit: PhotoEdit | None = Field(
+        default=None,
+        sa_column=sa.Column(PydanticJSON(PhotoEdit), nullable=True),
     )
     upgrade_candidate: bool
     created_at: datetime = Field(
