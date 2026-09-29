@@ -157,6 +157,21 @@
       "apply": "החלת המסגור"
     }
   },
+  "photoEdit": {
+    "title": "עריכת תמונה",
+    "preview": "תצוגה מקדימה של חיתוך התמונה",
+    "scope": "השינויים יחולו בכל מקום שבו התמונה מופיעה.",
+    "rotation": "סיבוב",
+    "angleExact": "זווית סיבוב במעלות",
+    "zoom": "זום",
+    "zoomHint": "החיתוך נשאר מלא גם בזמן סיבוב.",
+    "ratioLock": "שמירה על יחס הממדים המקורי",
+    "reset": "איפוס התמונה",
+    "apply": "החלת השינויים",
+    "moveCrop": "הזזת החיתוך. אפשר לכוון בעזרת החצים.",
+    "resizeCrop": "שינוי גודל החיתוך. אפשר לכוון בעזרת החצים.",
+    "loadError": "לא הצלחנו לטעון את התמונה. @:common.retry"
+  },
   "settings": {
     "menu": "תפריט",
     "appearance": "מראה",
@@ -331,6 +346,7 @@
     "saveAlbum": "לא הצלחנו לשמור את האלבום. @:common.retry",
     "saveStep": "לא הצלחנו לשמור את השינויים. @:common.retry",
     "panoramaFrame": "לא הצלחנו להחיל את מסגור הפנורמה. @:common.retry",
+    "photoEdit": "לא הצלחנו לשמור את עריכת התמונה. @:common.retry",
     "videoFrame": "לא הצלחנו לעדכן את הפוסטר. @:common.retry",
     "pdfExport": "ייצוא PDF נכשל. @:common.retry",
     "dataExport": "ייצוא הנתונים נכשל. @:common.retry",

@@ -17,10 +17,25 @@ import { useEditorKeyboard } from "@/composables/useEditorKeyboard";
 import { usePhotoFocus } from "@/composables/usePhotoFocus";
 import { useUndoStack } from "@/composables/useUndoStack";
 import { useActiveSection } from "@/composables/useActiveSection";
+import { PHOTO_EDIT_KEY } from "@/composables/usePhotoEdit";
 import { useLocalStorage } from "@vueuse/core";
 import { useMeta, useQuasar } from "quasar";
 import { useI18n } from "vue-i18n";
-import { computed, watch, nextTick, onBeforeUnmount, ref } from "vue";
+import {
+  computed,
+  watch,
+  nextTick,
+  onBeforeUnmount,
+  ref,
+  provide,
+  defineAsyncComponent,
+} from "vue";
+
+const PhotoEditDialog = defineAsyncComponent(() =>
+  import("@/components/editor/PhotoEditDialog.vue").then(
+    (module) => module.default,
+  ),
+);
 
 const { t } = useI18n();
 const pagePosition = ref("");
@@ -115,6 +130,19 @@ watch(
 
 const { data: album } = useAlbumQuery(selectedAlbumId);
 const { data: media } = useMediaQuery(selectedAlbumId);
+const photoEditName = ref<string | null>(null);
+const photoEditMedia = computed(() =>
+  media.value?.find((item) => item.name === photoEditName.value),
+);
+const photoEditOpen = computed({
+  get: () => photoEditName.value != null,
+  set: (open: boolean) => {
+    if (!open) photoEditName.value = null;
+  },
+});
+provide(PHOTO_EDIT_KEY, (name) => {
+  photoEditName.value = name;
+});
 const { data: steps } = useStepsQuery(selectedAlbumId);
 const { data: segmentOutlines } = useSegmentsQuery(selectedAlbumId);
 
@@ -125,6 +153,7 @@ const undoStack = useUndoStack();
 const photoFocus = usePhotoFocus();
 watch(selectedAlbumId, () => {
   previewOpen.value = false;
+  photoEditName.value = null;
   undoStack.clear();
   photoFocus.blur();
   resetActiveSection();
@@ -295,6 +324,12 @@ const activeStep = computed(() =>
       />
     </q-page-sticky>
   </q-page>
+  <PhotoEditDialog
+    v-if="selectedAlbumId && photoEditName && photoEditMedia"
+    v-model="photoEditOpen"
+    :album-id="selectedAlbumId"
+    :media="photoEditMedia"
+  />
 </template>
 
 <style lang="scss" scoped>

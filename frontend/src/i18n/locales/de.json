@@ -157,6 +157,21 @@
       "apply": "Rahmen anwenden"
     }
   },
+  "photoEdit": {
+    "title": "Foto bearbeiten",
+    "preview": "Vorschau des Fotoausschnitts",
+    "scope": "Änderungen gelten überall, wo dieses Foto erscheint.",
+    "rotation": "Drehung",
+    "angleExact": "Drehwinkel in Grad",
+    "zoom": "Zoom",
+    "zoomHint": "Der Ausschnitt bleibt beim Drehen ausgefüllt.",
+    "ratioLock": "Originales Seitenverhältnis beibehalten",
+    "reset": "Foto zurücksetzen",
+    "apply": "Änderungen anwenden",
+    "moveCrop": "Ausschnitt verschieben. Mit Pfeiltasten anpassen.",
+    "resizeCrop": "Ausschnitt vergrößern oder verkleinern. Mit Pfeiltasten anpassen.",
+    "loadError": "Das Foto konnte nicht geladen werden. @:common.retry"
+  },
   "settings": {
     "menu": "Einstellungen",
     "appearance": "Erscheinungsbild",
@@ -331,6 +346,7 @@
     "saveAlbum": "Albumänderungen konnten nicht gespeichert werden. @:common.retry",
     "saveStep": "Schrittänderungen konnten nicht gespeichert werden. @:common.retry",
     "panoramaFrame": "Der Panoramarahmen konnte nicht angewendet werden. @:common.retry",
+    "photoEdit": "Die Fotobearbeitung konnte nicht gespeichert werden. @:common.retry",
     "videoFrame": "Das Videoposter konnte nicht festgelegt werden. @:common.retry",
     "pdfExport": "PDF-Export fehlgeschlagen. @:common.retry",
     "dataExport": "Datenexport fehlgeschlagen. @:common.retry",

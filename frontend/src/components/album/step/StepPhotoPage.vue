@@ -35,8 +35,8 @@ const localPage = ref(
   enforceOrientationOrder([...props.page.media], isPortrait),
 );
 watch(
-  () => props.page.media,
-  (val) => {
+  () => [props.page.media, mediaByName.value] as const,
+  ([val]) => {
     const enforced = enforceOrientationOrder(val, isPortrait);
     if (
       enforced.length === localPage.value.length &&

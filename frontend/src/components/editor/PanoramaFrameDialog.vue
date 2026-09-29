@@ -209,15 +209,18 @@ onBeforeUnmount(cleanupAdapter);
       {{ t("panorama.frame.unsupported") }}
     </div>
     <template #controls>
-      <div class="frame-controls">
-        <label class="control-group">
-          <span class="control-heading">
+      <div class="preview-control-stack">
+        <label class="preview-control-group">
+          <span class="preview-control-heading">
             <span>{{ t("panorama.frame.perspective") }}</span>
-            <output>{{ perspectiveLabel }}</output>
+            <output class="preview-control-output">{{
+              perspectiveLabel
+            }}</output>
           </span>
           <input
             name="perspective"
             type="range"
+            class="preview-control-range"
             :min="MIN_PERSPECTIVE_FOV"
             max="179"
             step="1"
@@ -226,14 +229,15 @@ onBeforeUnmount(cleanupAdapter);
           />
         </label>
 
-        <label class="control-group">
-          <span class="control-heading">
+        <label class="preview-control-group">
+          <span class="preview-control-heading">
             <span>{{ t("panorama.frame.zoom") }}</span>
-            <output>{{ zoomLabel }}</output>
+            <output class="preview-control-output">{{ zoomLabel }}</output>
           </span>
           <input
             name="zoom"
             type="range"
+            class="preview-control-range"
             :min="MIN_PANORAMA_ZOOM"
             :max="MAX_PANORAMA_ZOOM"
             step="any"
@@ -283,49 +287,5 @@ onBeforeUnmount(cleanupAdapter);
   background: #252540;
   color: #ffffff;
   text-align: center;
-}
-
-.frame-controls,
-.control-group {
-  display: grid;
-  gap: var(--gap-md);
-}
-
-.frame-controls {
-  gap: 1.25rem;
-}
-
-.control-heading {
-  display: flex;
-  justify-content: space-between;
-  color: var(--text-bright);
-  font-weight: 600;
-}
-
-.control-heading output {
-  color: var(--q-primary);
-}
-
-input[type="range"] {
-  width: 100%;
-  accent-color: var(--q-primary);
-  direction: ltr;
-}
-
-input[type="range"]:focus-visible {
-  outline: 0.125rem solid var(--q-primary);
-  outline-offset: 0.125rem;
-}
-
-@media (max-width: 56rem) {
-  .frame-controls {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-}
-
-@media (max-width: 38rem) {
-  .frame-controls {
-    grid-template-columns: 1fr;
-  }
 }
 </style>

@@ -157,6 +157,21 @@
       "apply": "Apply frame"
     }
   },
+  "photoEdit": {
+    "title": "Edit photo",
+    "preview": "Photo crop preview",
+    "scope": "Changes apply wherever this photo appears.",
+    "rotation": "Rotation",
+    "angleExact": "Rotation angle in degrees",
+    "zoom": "Zoom",
+    "zoomHint": "The crop stays filled as you rotate.",
+    "ratioLock": "Keep original ratio",
+    "reset": "Reset photo",
+    "apply": "Apply changes",
+    "moveCrop": "Move crop. Use arrow keys to adjust.",
+    "resizeCrop": "Resize crop. Use arrow keys to adjust.",
+    "loadError": "Couldn't load this photo. @:common.retry"
+  },
   "settings": {
     "menu": "Settings",
     "appearance": "Appearance",
@@ -331,6 +346,7 @@
     "saveAlbum": "Couldn't save album changes. @:common.retry",
     "saveStep": "Couldn't save step changes. @:common.retry",
     "panoramaFrame": "Couldn't apply the panorama frame. @:common.retry",
+    "photoEdit": "Couldn't save the photo edit. @:common.retry",
     "videoFrame": "Couldn't set the video poster. @:common.retry",
     "pdfExport": "PDF export failed. @:common.retry",
     "dataExport": "Data export failed. @:common.retry",

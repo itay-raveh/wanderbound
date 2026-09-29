@@ -1,6 +1,7 @@
 import { client } from "@/client/client.gen";
 import type { AlbumMedia } from "@/client";
 import { PAGE_WIDTH_MM } from "@/utils/pageSize";
+import { rotatedSize } from "@/utils/photoEdit";
 
 export function mediaUrl(name: string, albumId: string): string {
   return `${client.getConfig().baseUrl}/api/v1/albums/${albumId}/media/${name}`;
@@ -58,14 +59,28 @@ export function flagUrl(countryCode: string): string {
 }
 
 /** Portrait: aspect ratio < 9:10 (taller than wide). Must match backend layout/media.py. */
-export function isPortrait(media: { width: number; height: number }): boolean {
-  return media.width / media.height < 9 / 10;
+export function isPortrait(media: {
+  width: number;
+  height: number;
+  photo_edit?: { angle: number; width: number; height: number } | null;
+}): boolean {
+  const edit = media.photo_edit;
+  if (!edit) return media.width / media.height < 9 / 10;
+  const size = rotatedSize(media.width, media.height, edit.angle);
+  return (size.width * edit.width) / (size.height * edit.height) < 9 / 10;
 }
 
 /** Name-based portrait check via a media lookup map. */
 export function isPortraitByName(
   name: string,
-  mediaByName: ReadonlyMap<string, { width: number; height: number }>,
+  mediaByName: ReadonlyMap<
+    string,
+    {
+      width: number;
+      height: number;
+      photo_edit?: { angle: number; width: number; height: number } | null;
+    }
+  >,
 ): boolean {
   const m = mediaByName.get(name);
   return m ? isPortrait(m) : false;
