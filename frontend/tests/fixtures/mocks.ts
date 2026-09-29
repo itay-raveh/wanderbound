@@ -60,6 +60,25 @@ export const mockMedia = [
   { name: "photo2.jpg", width: 1080, height: 1920, byte_size: 2048 },
 ];
 
+let continuationPriority = 0;
+export function mockComposedPage(
+  kind: "grid" | "panorama_spread",
+  media: string[],
+) {
+  return {
+    id: crypto.randomUUID(),
+    kind,
+    media,
+    slots: media.map((name) => ({
+      id: crypto.randomUUID(),
+      kind: "photo",
+      media_name: name,
+      frame_orientation: "landscape",
+      continuation_priority: continuationPriority++,
+    })),
+  };
+}
+
 export const mockStep = {
   id: 1,
   name: "Amsterdam",
@@ -79,7 +98,7 @@ export const mockStep = {
     night: null,
   },
   cover: "photo1.jpg",
-  pages: [{ kind: "grid", media: ["photo1.jpg", "photo2.jpg"] }],
+  pages: [mockComposedPage("grid", ["photo1.jpg", "photo2.jpg"])],
   unused: [],
   datetime: "2024-01-01T12:00:00+01:00",
 };
@@ -122,15 +141,26 @@ export const mockFocusSteps = [
     description: "Tango and steak.",
     timestamp: 1704067200,
     timezone_id: "America/Argentina/Buenos_Aires",
-    location: { name: "Buenos Aires", detail: "CABA", country_code: "ar", lat: -34.6, lon: -58.4 },
+    location: {
+      name: "Buenos Aires",
+      detail: "CABA",
+      country_code: "ar",
+      lat: -34.6,
+      lon: -58.4,
+    },
     elevation: 25,
-    weather: { day: { temp: 28, feels_like: 30, icon: "clear-day" }, night: null },
+    weather: {
+      day: { temp: 28, feels_like: 30, icon: "clear-day" },
+      night: null,
+    },
     cover: focusPhotos[0],
     pages: [
-      {
-        kind: "grid",
-        media: [focusPhotos[0], focusPhotos[1], focusPhotos[2], focusPhotos[3]],
-      },
+      mockComposedPage("grid", [
+        focusPhotos[0],
+        focusPhotos[1],
+        focusPhotos[2],
+        focusPhotos[3],
+      ]),
     ],
     unused: [],
     datetime: "2024-01-01T12:00:00-03:00",
@@ -141,16 +171,23 @@ export const mockFocusSteps = [
     description: "End of the world.",
     timestamp: 1704240000,
     timezone_id: "America/Argentina/Ushuaia",
-    location: { name: "Ushuaia", detail: "Tierra del Fuego", country_code: "ar", lat: -54.8, lon: -68.3 },
+    location: {
+      name: "Ushuaia",
+      detail: "Tierra del Fuego",
+      country_code: "ar",
+      lat: -54.8,
+      lon: -68.3,
+    },
     elevation: 15,
     weather: { day: { temp: 10, feels_like: 7, icon: "cloudy" }, night: null },
     cover: focusPhotos[4],
     pages: [
-      {
-        kind: "grid",
-        media: [focusPhotos[4], focusPhotos[5], focusPhotos[6]],
-      },
-      { kind: "grid", media: [focusPhotos[7]] },
+      mockComposedPage("grid", [
+        focusPhotos[4],
+        focusPhotos[5],
+        focusPhotos[6],
+      ]),
+      mockComposedPage("grid", [focusPhotos[7]]),
     ],
     unused: [],
     datetime: "2024-01-03T10:00:00-03:00",
@@ -161,21 +198,27 @@ export const mockFocusSteps = [
     description: "Wine country.",
     timestamp: 1704500000,
     timezone_id: "America/Santiago",
-    location: { name: "Santiago", detail: "RM", country_code: "cl", lat: -33.4, lon: -70.6 },
+    location: {
+      name: "Santiago",
+      detail: "RM",
+      country_code: "cl",
+      lat: -33.4,
+      lon: -70.6,
+    },
     elevation: 520,
-    weather: { day: { temp: 32, feels_like: 34, icon: "clear-day" }, night: null },
+    weather: {
+      day: { temp: 32, feels_like: 34, icon: "clear-day" },
+      night: null,
+    },
     cover: focusPhotos[8],
     pages: [
-      {
-        kind: "grid",
-        media: [
-          focusPhotos[8],
-          focusPhotos[9],
-          FOCUS_VIDEO,
-          focusPhotos[10],
-          focusPhotos[11],
-        ],
-      },
+      mockComposedPage("grid", [
+        focusPhotos[8],
+        focusPhotos[9],
+        FOCUS_VIDEO,
+        focusPhotos[10],
+        focusPhotos[11],
+      ]),
     ],
     unused: [],
     datetime: "2024-01-06T14:00:00-03:00",

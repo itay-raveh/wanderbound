@@ -2,7 +2,7 @@
 import type { AlbumMedia, StepRead } from "@/client";
 import {
   planStepPages,
-  reorderStepPhotoPages,
+  reorderStepTilePages,
 } from "@/components/album/stepPages";
 import { useActiveSection } from "@/composables/useActiveSection";
 import { useStepMutation } from "@/queries/useStepMutation";
@@ -28,16 +28,12 @@ const mediaByName = computed(
   () => new Map(props.media.map((media) => [media.name, media])),
 );
 const plan = computed(() => planStepPages(props.step, mediaByName.value));
-const localPages = ref(plan.value.photoPages);
+const localPages = ref(plan.value.tilePages);
 watch(plan, (value) => {
-  localPages.value = value.photoPages;
+  localPages.value = value.tilePages;
 });
 const list = ref<HTMLElement | null>(null);
 const status = ref("");
-
-function pageKey(media: string[]) {
-  return JSON.stringify(media);
-}
 
 function showPage(index: number) {
   const pageIndex = 1 + plan.value.continuationPages.length + index;
@@ -45,9 +41,9 @@ function showPage(index: number) {
 }
 
 async function movePage(from: number, to: number) {
-  const pages = reorderStepPhotoPages(plan.value, from, to);
+  const pages = reorderStepTilePages(plan.value, from, to);
   if (!pages || saving.value) return;
-  const key = pageKey(plan.value.photoPages[from].page.media);
+  const key = plan.value.tilePages[from].page.id;
   status.value = "";
   mutation.mutate({ sid: props.step.id, update: { pages } });
   await nextTick();
@@ -82,13 +78,13 @@ useDraggable(
     <div
       ref="list"
       role="list"
-      :aria-label="t('nav.photoPages')"
+      :aria-label="t('nav.tilePages')"
       class="page-list"
     >
       <div
         v-for="({ page }, index) in localPages"
-        :key="pageKey(page.media)"
-        :data-page-key="pageKey(page.media)"
+        :key="page.id"
+        :data-page-key="page.id"
         class="page-row"
         role="listitem"
       >
@@ -109,14 +105,16 @@ useDraggable(
             class="page-thumbnails"
             :class="{ panorama: page.kind === 'panorama_spread' }"
           >
-            <img
-              v-for="name in page.media"
-              :key="name"
-              :src="mediaThumbUrl(name, step.aid)"
-              alt=""
-              loading="lazy"
-              draggable="false"
-            />
+            <template v-for="slot in page.slots" :key="slot.id">
+              <img
+                v-if="slot.kind === 'photo' && slot.media_name"
+                :src="mediaThumbUrl(slot.media_name, step.aid)"
+                alt=""
+                loading="lazy"
+                draggable="false"
+              />
+              <span v-else class="text-thumb" dir="auto">{{ slot.text }}</span>
+            </template>
           </span>
         </button>
         <q-btn
@@ -229,6 +227,17 @@ useDraggable(
   flex: 1;
   width: 0;
   object-fit: cover;
+}
+.text-thumb {
+  flex: 1;
+  min-width: 0;
+  padding: var(--gap-xs);
+  overflow: hidden;
+  color: var(--text);
+  font-family: var(--font-album-body);
+  font-size: var(--type-xs);
+  line-height: 1.2;
+  text-align: start;
 }
 .page-thumbnails.panorama {
   height: 2rem;

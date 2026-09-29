@@ -172,6 +172,16 @@
     "resizeCrop": "שינוי גודל החיתוך. אפשר לכוון בעזרת החצים.",
     "loadError": "לא הצלחנו לטעון את התמונה. @:common.retry"
   },
+  "textTile": {
+    "title": "עריכת תיבת טקסט",
+    "preview": "תצוגה מקדימה של תיבת הטקסט",
+    "replace": "החלפת תמונה בטקסט",
+    "edit": "עריכת תיבת טקסט",
+    "remove": "הסרת תיבת טקסט",
+    "label": "טקסט",
+    "overflow": "הטקסט לא נכנס לתיבה. יש לקצר אותו לפני השמירה.",
+    "apply": "שמירת טקסט"
+  },
   "settings": {
     "menu": "תפריט",
     "appearance": "מראה",
@@ -393,9 +403,9 @@
     "selectAlbum": "בחירת אלבום",
     "hideStep": "הסתרת צעד",
     "showStep": "הצגת צעד",
-    "photoPages": "עמודי תמונות",
-    "photoPage": "עמוד תמונות {number}",
-    "reorderPage": "שינוי מיקום עמוד תמונות {number}",
+    "photoPages": "עמודי אלבום",
+    "photoPage": "עמוד אלבום {number}",
+    "reorderPage": "שינוי מיקום עמוד אלבום {number}",
     "movePageUp": "הזזה למעלה",
     "movePageDown": "הזזה למטה",
     "pageMoved": "עמוד התמונות הועבר למיקום {number}",

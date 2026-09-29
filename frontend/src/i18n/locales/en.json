@@ -172,6 +172,16 @@
     "resizeCrop": "Resize crop. Use arrow keys to adjust.",
     "loadError": "Couldn't load this photo. @:common.retry"
   },
+  "textTile": {
+    "title": "Edit text tile",
+    "preview": "Text tile preview",
+    "replace": "Replace photo with text",
+    "edit": "Edit text tile",
+    "remove": "Remove text tile",
+    "label": "Text",
+    "overflow": "This text does not fit in the tile. Shorten it before saving.",
+    "apply": "Save text"
+  },
   "settings": {
     "menu": "Settings",
     "appearance": "Appearance",
@@ -393,9 +403,9 @@
     "selectAlbum": "Select album",
     "hideStep": "Hide step",
     "showStep": "Show step",
-    "photoPages": "Photo pages",
-    "photoPage": "Photo page {number}",
-    "reorderPage": "Reorder photo page {number}",
+    "photoPages": "Album pages",
+    "photoPage": "Album page {number}",
+    "reorderPage": "Reorder album page {number}",
     "movePageUp": "Move up",
     "movePageDown": "Move down",
     "pageMoved": "Photo page moved to position {number}",

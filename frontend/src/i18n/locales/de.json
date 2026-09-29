@@ -172,6 +172,16 @@
     "resizeCrop": "Ausschnitt vergrößern oder verkleinern. Mit Pfeiltasten anpassen.",
     "loadError": "Das Foto konnte nicht geladen werden. @:common.retry"
   },
+  "textTile": {
+    "title": "Textfeld bearbeiten",
+    "preview": "Vorschau des Textfelds",
+    "replace": "Foto durch Text ersetzen",
+    "edit": "Textfeld bearbeiten",
+    "remove": "Textfeld entfernen",
+    "label": "Text",
+    "overflow": "Der Text passt nicht in das Feld. Kürze ihn vor dem Speichern.",
+    "apply": "Text speichern"
+  },
   "settings": {
     "menu": "Einstellungen",
     "appearance": "Erscheinungsbild",
@@ -393,9 +403,9 @@
     "selectAlbum": "Album auswählen",
     "hideStep": "Schritt ausblenden",
     "showStep": "Schritt einblenden",
-    "photoPages": "Fotoseiten",
-    "photoPage": "Fotoseite {number}",
-    "reorderPage": "Fotoseite {number} neu anordnen",
+    "photoPages": "Albumseiten",
+    "photoPage": "Albumseite {number}",
+    "reorderPage": "Albumseite {number} neu anordnen",
     "movePageUp": "Nach oben verschieben",
     "movePageDown": "Nach unten verschieben",
     "pageMoved": "Fotoseite an Position {number} verschoben",

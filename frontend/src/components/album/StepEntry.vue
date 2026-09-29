@@ -1,7 +1,7 @@
 <script lang="ts" setup>
 import type { StepRead as Step } from "@/client";
 import StepMainPage from "./step/StepMainPage.vue";
-import StepPhotoPage from "./step/StepPhotoPage.vue";
+import StepTilePage from "./step/StepTilePage.vue";
 import StepDescriptionPage from "./step/StepDescriptionPage.vue";
 import PanoramaSpreadPage from "./PanoramaSpreadPage.vue";
 import { useStepLayout } from "@/composables/useStepLayout";
@@ -44,7 +44,7 @@ const continuationPages = computed(() => stepPagePlan.value.continuationPages);
 const continuationPhotos = computed(
   () => stepPagePlan.value.continuationPhotos,
 );
-const photoPages = computed(() => stepPagePlan.value.photoPages);
+const tilePages = computed(() => stepPagePlan.value.tilePages);
 
 const selectedDescriptionPage = computed(() => {
   if (props.pageIndex == null) return null;
@@ -54,11 +54,11 @@ const selectedDescriptionPage = computed(() => {
     : null;
 });
 
-const selectedPhotoPage = computed(() => {
+const selectedTilePage = computed(() => {
   if (props.pageIndex == null) return null;
   const index = props.pageIndex - 1 - continuationPages.value.length;
-  return index >= 0 && index < photoPages.value.length
-    ? { ...photoPages.value[index], index }
+  return index >= 0 && index < tilePages.value.length
+    ? { ...tilePages.value[index], index }
     : null;
 });
 
@@ -122,37 +122,35 @@ const hasPhotoDropZone = computed(() => stepPagePlan.value.hasPhotoDropZone);
       />
 
       <div
-        v-if="selectedPhotoPage?.page.kind === 'panorama_spread'"
+        v-if="selectedTilePage?.page.kind === 'panorama_spread'"
         class="panorama-spread row no-wrap"
       >
         <PanoramaSpreadPage
-          :media="selectedPhotoPage.page.media[0]!"
+          :media="selectedTilePage.page.media[0]!"
           side="left"
-          @make-full-page="
-            onMakeFullPage(selectedPhotoPage.originalIdx, $event)
-          "
+          @make-full-page="onMakeFullPage(selectedTilePage.originalIdx, $event)"
         />
         <PanoramaSpreadPage
-          :media="selectedPhotoPage.page.media[0]!"
+          :media="selectedTilePage.page.media[0]!"
           side="right"
-          @make-full-page="
-            onMakeFullPage(selectedPhotoPage.originalIdx, $event)
-          "
+          @make-full-page="onMakeFullPage(selectedTilePage.originalIdx, $event)"
         />
       </div>
-      <StepPhotoPage
-        v-else-if="selectedPhotoPage"
-        :page="selectedPhotoPage.page"
-        @update:page="onPageUpdate(selectedPhotoPage.originalIdx, $event.media)"
-        @make-full-page="onMakeFullPage(selectedPhotoPage.originalIdx, $event)"
+      <StepTilePage
+        v-else-if="selectedTilePage"
+        :page="selectedTilePage.page"
+        @update:page="
+          onPageUpdate(selectedTilePage.originalIdx, $event, continuationPhotos)
+        "
+        @make-full-page="onMakeFullPage(selectedTilePage.originalIdx, $event)"
         @make-panorama-spread="
-          onMakePanoramaSpread(selectedPhotoPage.originalIdx, $event)
+          onMakePanoramaSpread(selectedTilePage.originalIdx, $event)
         "
       />
       <template
         v-else-if="pageIndex == null"
-        v-for="{ originalIdx, page } in photoPages"
-        :key="`page-${originalIdx}`"
+        v-for="{ originalIdx, page } in tilePages"
+        :key="page.id"
       >
         <div
           v-if="page.kind === 'panorama_spread'"
@@ -169,10 +167,10 @@ const hasPhotoDropZone = computed(() => stepPagePlan.value.hasPhotoDropZone);
             @make-full-page="onMakeFullPage(originalIdx, $event)"
           />
         </div>
-        <StepPhotoPage
+        <StepTilePage
           v-else
           :page="page"
-          @update:page="onPageUpdate(originalIdx, $event.media)"
+          @update:page="onPageUpdate(originalIdx, $event, continuationPhotos)"
           @make-full-page="onMakeFullPage(originalIdx, $event)"
           @make-panorama-spread="onMakePanoramaSpread(originalIdx, $event)"
         />
