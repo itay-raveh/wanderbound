@@ -29,7 +29,7 @@ class StepSlotLayout(SQLModel):
     media_name: str | None = Field(default=None, max_length=255)
     text: str | None = Field(default=None, max_length=4000)
     frame_orientation: Literal["portrait", "landscape"] = "landscape"
-    continuation_priority: int | None = None
+    continuation_priority: int | None = Field(default=None, ge=0)
 
     @model_validator(mode="after")
     def validate_content(self) -> Self:
@@ -43,7 +43,7 @@ class StepSlotLayout(SQLModel):
 class StepPageLayout(SQLModel):
     id: UUID
     kind: StepPageKind
-    slots: list[StepSlotLayout]
+    slots: list[StepSlotLayout] = Field(min_length=1)
 
     @computed_field
     @property

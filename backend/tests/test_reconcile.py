@@ -154,6 +154,15 @@ class TestPickCover:
 
 
 class TestReconcileStep:
+    def test_reupload_keeps_text_only_page_and_identity(self) -> None:
+        text_slot = StepSlotLayout(id=uuid4(), kind="text", text="A day in Lima")
+        page = StepPageLayout(id=uuid4(), kind="grid", slots=[text_slot])
+        step = _step(pages=[page])
+
+        result = _reconcile_step(step, _ps_step(1), set(), set(), {})
+
+        assert result.pages == [page]
+
     def test_missing_media_removed_from_pages(self) -> None:
         step = _step(
             pages=[
