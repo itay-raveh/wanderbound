@@ -65,6 +65,13 @@ def test_upgrade_preserves_page_order_photos_and_orientation(
                     "width": 1200,
                     "height": 800,
                 },
+                {
+                    "uid": 1,
+                    "aid": "trip",
+                    "name": "c.jpg",
+                    "width": 1200,
+                    "height": 800,
+                },
             ],
         )
         conn.execute(
@@ -88,6 +95,15 @@ def test_upgrade_preserves_page_order_photos_and_orientation(
                     "page_kind": "grid",
                     "media_name": "a.jpg",
                 },
+                {
+                    "uid": 1,
+                    "aid": "trip",
+                    "step_id": 4,
+                    "page_index": 0,
+                    "position_index": 1,
+                    "page_kind": "grid",
+                    "media_name": "c.jpg",
+                },
             ],
         )
         monkeypatch.setattr(
@@ -101,7 +117,7 @@ def test_upgrade_preserves_page_order_photos_and_orientation(
                     "s.media_name, s.frame_orientation, s.continuation_priority "
                     "FROM step_page p "
                     "JOIN step_page_slot s ON s.page_id = p.id "
-                    "ORDER BY p.position_index"
+                    "ORDER BY p.position_index, s.position_index"
                 )
             )
             .mappings()
@@ -110,7 +126,12 @@ def test_upgrade_preserves_page_order_photos_and_orientation(
 
     assert [
         (r["position_index"], r["media_name"], r["frame_orientation"]) for r in rows
-    ] == [(0, "a.jpg", "portrait"), (2, "b.jpg", "landscape")]
+    ] == [
+        (0, "a.jpg", "portrait"),
+        (0, "c.jpg", "landscape"),
+        (2, "b.jpg", "landscape"),
+    ]
+    assert rows[0]["page_id"] == rows[1]["page_id"]
     assert len({r["page_id"] for r in rows}) == 2
-    assert len({r["slot_id"] for r in rows}) == 2
-    assert [r["continuation_priority"] for r in rows] == [0, 1]
+    assert len({r["slot_id"] for r in rows}) == 3
+    assert [r["continuation_priority"] for r in rows] == [0, 1, 2]
