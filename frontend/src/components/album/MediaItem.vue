@@ -54,8 +54,9 @@ const props = withDefaults(
     panoramaDestinationKind?: string;
     makeFullPage?: boolean;
     makePanoramaSpread?: boolean;
+    showPhotoEdit?: boolean;
   }>(),
-  { focusable: true, alt: "", lazy: true },
+  { focusable: true, alt: "", lazy: true, showPhotoEdit: true },
 );
 
 const emit = defineEmits<{
@@ -147,7 +148,7 @@ const mediaCacheKey = computed(() => {
 
 const albumMedia = computed(() => mediaByName.value.get(props.media));
 const canEditPhoto = computed(
-  () => !printMode && albumMedia.value?.kind === "photo",
+  () => !printMode && props.showPhotoEdit && albumMedia.value?.kind === "photo",
 );
 const panorama = computed(() => albumMedia.value?.panorama);
 const activePanorama = computed(() => panorama.value != null);

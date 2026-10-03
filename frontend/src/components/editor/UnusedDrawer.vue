@@ -65,6 +65,7 @@ useDraggable(trackRef, localUnused, {
     </div>
     <div ref="trackRef" class="drawer-track column no-wrap">
       <MediaItem
+        :show-photo-edit="false"
         v-for="photo in localUnused"
         :key="photo"
         :media="photo"
