@@ -35,8 +35,8 @@ test("adding and editing text preserves photos and prints the saved tile", async
 
   await openEditor(page);
   await page.locator('[data-nav-step="1"]').click();
-  await page.getByRole("button", { name: "Actions for album page 1" }).click();
-  await page.getByRole("menuitem", { name: "Add text tile" }).click();
+  await page.getByRole("button", { name: "Album page 1", exact: true }).click();
+  await page.getByRole("button", { name: "Add text tile" }).click();
 
   await page
     .getByRole("button", { name: /Edit text tile:/ })

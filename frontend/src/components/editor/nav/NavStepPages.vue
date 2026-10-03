@@ -1,11 +1,8 @@
 <script setup lang="ts">
 import type { AlbumMedia, StepRead } from "@/client";
 import {
-  gridPage,
-  pageSlots,
   planStepPages,
   reorderStepTilePages,
-  withSlots,
 } from "@/components/album/stepPages";
 import { useActiveSection } from "@/composables/useActiveSection";
 import { useStepMutation } from "@/queries/useStepMutation";
@@ -18,7 +15,6 @@ import {
   symOutlinedArrowDownward,
   symOutlinedArrowUpward,
   symOutlinedDragIndicator,
-  symOutlinedEditNote,
   symOutlinedMoreVert,
 } from "@quasar/extras/material-symbols-outlined";
 
@@ -38,7 +34,6 @@ watch(plan, (value) => {
 });
 const list = ref<HTMLElement | null>(null);
 const status = ref("");
-const pendingTextSlotId = ref<string | null>(null);
 
 function showPage(index: number) {
   const pageIndex = 1 + plan.value.continuationPages.length + index;
@@ -60,40 +55,6 @@ async function movePage(from: number, to: number) {
     ?.focus({ preventScroll: true });
   status.value = t("nav.pageMoved", { number: to + 1 });
 }
-
-function addText(index: number) {
-  const selected = plan.value.tilePages[index];
-  if (!selected || saving.value) return;
-  const slot = {
-    id: crypto.randomUUID(),
-    kind: "text" as const,
-    text: "",
-    frame_orientation: "landscape" as const,
-  };
-  const pages = [...props.step.pages];
-  const target = pages[selected.originalIdx];
-  if (target.kind === "grid" && pageSlots(selected.page).length < 6) {
-    pages[selected.originalIdx] = withSlots(target, [
-      ...pageSlots(target),
-      slot,
-    ]);
-  } else {
-    pages.splice(selected.originalIdx + 1, 0, gridPage([slot]));
-  }
-  pendingTextSlotId.value = slot.id;
-  mutation.mutate({ sid: props.step.id, update: { pages } });
-}
-
-watch(plan, (value) => {
-  const slotId = pendingTextSlotId.value;
-  if (!slotId) return;
-  const index = value.tilePages.findIndex(({ page }) =>
-    page.slots.some((slot) => slot.id === slotId),
-  );
-  if (index < 0) return;
-  pendingTextSlotId.value = null;
-  void nextTick(() => showPage(index));
-});
 
 useDraggable(
   list,
@@ -166,17 +127,6 @@ useDraggable(
         >
           <q-menu>
             <q-list dense role="menu">
-              <q-item
-                v-close-popup
-                clickable
-                role="menuitem"
-                @click="addText(index)"
-              >
-                <q-item-section avatar
-                  ><q-icon :name="symOutlinedEditNote"
-                /></q-item-section>
-                <q-item-section>{{ t("nav.addText") }}</q-item-section>
-              </q-item>
               <q-item
                 v-close-popup
                 clickable
@@ -267,7 +217,7 @@ useDraggable(
   display: flex;
   width: 5rem;
   height: 3.5rem;
-  gap: 0.125rem;
+  gap: var(--gap-xs);
   overflow: hidden;
   border-radius: var(--radius-xs);
   background: var(--bg-secondary);

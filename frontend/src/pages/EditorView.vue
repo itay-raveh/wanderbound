@@ -19,6 +19,14 @@ import { useUndoStack } from "@/composables/useUndoStack";
 import { useActiveSection } from "@/composables/useActiveSection";
 import { PHOTO_EDIT_KEY } from "@/composables/usePhotoEdit";
 import { useLocalStorage } from "@vueuse/core";
+import { PAGE_WIDTH_MM, MM_PX } from "@/utils/pageSize";
+import {
+  DEFAULT_ZOOM,
+  editorZoomManuallySet,
+  fitEditorZoom,
+  MIN_ZOOM,
+  ZOOM_STEP,
+} from "@/composables/useEditorZoom";
 import { useMeta, useQuasar } from "quasar";
 import { useI18n } from "vue-i18n";
 import {
@@ -50,19 +58,13 @@ useMeta({ title: "Editor" });
 
 import { LAST_ALBUM_KEY } from "@/utils/storage-keys";
 import { indexSteps } from "@/utils/steps";
-const DRAWER_WIDTH = 280;
-const NAVIGATION_BREAKPOINT = 959;
-const INSPECTOR_BREAKPOINT = 1439;
-
 const $q = useQuasar();
-const navigationStandard = computed(
-  () => $q.screen.width > NAVIGATION_BREAKPOINT,
+editorZoomManuallySet.value = false;
+const drawerWidth = computed(() =>
+  Math.min(280, Math.max(240, Math.floor($q.screen.width / 5))),
 );
-const inspectorStandard = computed(
-  () => $q.screen.width > INSPECTOR_BREAKPOINT,
-);
-const navigationOpen = ref(navigationStandard.value);
-const inspectorOpen = ref(inspectorStandard.value);
+const navigationOpen = ref(true);
+const inspectorOpen = ref(true);
 const navigationOpenControl = ref<InstanceType<
   typeof EditorRailControl
 > | null>(null);
@@ -96,13 +98,6 @@ function toggleInspector() {
   );
 }
 
-watch(navigationStandard, (standard) => {
-  navigationOpen.value = standard;
-});
-watch(inspectorStandard, (standard) => {
-  inspectorOpen.value = standard;
-});
-
 const { data: userData, locale, isDemo, exitDemo } = useUserQuery();
 const albumIds = computed(() => userData.value?.album_ids ?? null);
 const storedAlbumId = useLocalStorage<string | null>(LAST_ALBUM_KEY, null);
@@ -130,6 +125,31 @@ watch(
 
 const { data: album } = useAlbumQuery(selectedAlbumId);
 const { data: media } = useMediaQuery(selectedAlbumId);
+watch(
+  () =>
+    [
+      $q.screen.width,
+      navigationOpen.value,
+      inspectorOpen.value,
+      album.value?.interior_bleed_mm,
+    ] as const,
+  () => {
+    const availableWidth =
+      $q.screen.width -
+      (navigationOpen.value ? drawerWidth.value : 0) -
+      (inspectorOpen.value ? drawerWidth.value : 0) -
+      24;
+    const pageWidth =
+      (PAGE_WIDTH_MM + 2 * (album.value?.interior_bleed_mm ?? 0)) * MM_PX;
+    const fitZoom = Math.max(
+      MIN_ZOOM,
+      Math.floor(availableWidth / pageWidth / ZOOM_STEP + 0.0001) * ZOOM_STEP,
+    );
+    if (!editorZoomManuallySet.value)
+      fitEditorZoom(Math.min(DEFAULT_ZOOM, fitZoom));
+  },
+  { immediate: true },
+);
 const photoEditName = ref<string | null>(null);
 const photoEditMedia = computed(() =>
   media.value?.find((item) => item.name === photoEditName.value),
@@ -171,6 +191,14 @@ const activeStep = computed(() =>
     ? displayedStepIndex.value.byId.get(activeStepId.value)
     : undefined,
 );
+const activePage = ref<{ stepId: number; pageId: string | null } | null>(null);
+const activePageId = computed(() =>
+  activePage.value &&
+  activeStep.value &&
+  activePage.value.stepId === activeStep.value.id
+    ? activePage.value.pageId
+    : null,
+);
 </script>
 
 <template>
@@ -202,10 +230,9 @@ const activeStep = computed(() =>
   <q-drawer
     side="left"
     :model-value="navigationOpen"
-    :breakpoint="NAVIGATION_BREAKPOINT"
-    persistent
+    behavior="desktop"
     bordered
-    :width="DRAWER_WIDTH"
+    :width="drawerWidth"
     :aria-label="t('nav.stepNavigation')"
     class="print-hide"
     @update:model-value="navigationOpen = $event"
@@ -248,10 +275,9 @@ const activeStep = computed(() =>
   <q-drawer
     side="right"
     :model-value="inspectorOpen"
-    :breakpoint="INSPECTOR_BREAKPOINT"
-    persistent
+    behavior="desktop"
     bordered
-    :width="DRAWER_WIDTH"
+    :width="drawerWidth"
     :aria-label="t('nav.inspector')"
     class="print-hide"
     @update:model-value="inspectorOpen = $event"
@@ -272,8 +298,8 @@ const activeStep = computed(() =>
           v-if="album && media && displayedSteps"
           :album="album"
           :media="media"
-          :steps="displayedSteps"
           :step="activeStep"
+          :page-id="activePageId"
           :section-key="activeSectionKey"
         />
       </div>
@@ -288,6 +314,7 @@ const activeStep = computed(() =>
       :steps="displayedSteps"
       :segment-outlines="segmentOutlines"
       @page-position="pagePosition = $event"
+      @page-context="activePage = $event"
       :preview-open="previewOpen"
       @close-preview="closePreview"
     />

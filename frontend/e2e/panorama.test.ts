@@ -121,6 +121,11 @@ test("frames a panorama globally and prints a two-page spread", async ({
   const state = await mockPanoramaAlbum(page);
   await openEditor(page);
   await expect(page.locator(".album-page-number:visible")).toHaveCount(0);
+  await page
+    .locator("#editor-inspector .panel-section")
+    .first()
+    .getByRole("button")
+    .click();
   await page.getByRole("switch", { name: "Show page numbers" }).click();
   await scrollToStep(page, "Amsterdam");
 
