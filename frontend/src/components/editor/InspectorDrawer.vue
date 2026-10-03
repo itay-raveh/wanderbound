@@ -140,6 +140,7 @@ const landscapeRows = computed(() => {
 
 const propertiesOpen = ref(false);
 const externalMediaOpen = ref(false);
+const contextOpen = ref(true);
 const stepMutation = useStepMutation(() => props.album.id);
 const { scrollToSection } = useActiveSection();
 const panelRef = ref<HTMLElement | null>(null);
@@ -198,8 +199,13 @@ watch(stepPagePlan, (plan) => {
   );
 });
 watch(
-  () => [context.value, props.step?.id],
+  () => [
+    context.value,
+    props.step?.id,
+    context.value === "cover" ? props.sectionKey : null,
+  ],
   () => {
+    contextOpen.value = true;
     if (panelRef.value) panelRef.value.scrollTop = 0;
   },
 );
@@ -272,22 +278,39 @@ const importTargetLabel = computed<string | null>(() => {
 
 <template>
   <div ref="panelRef" class="inspector-panel">
-    <div
+    <q-expansion-item
       v-if="context === 'step' || context === 'cover'"
-      class="inspector-context-tray"
+      v-model="contextOpen"
+      class="panel-section context-panel"
+      header-class="panel-section-header"
+      expand-icon-class="text-muted"
+      :label="
+        context === 'step'
+          ? t('editor.stepContent')
+          : `${t('editor.coverPhoto')} · ${panelLabel}`
+      "
     >
       <div v-if="context === 'step'" class="context-section">
-        <q-btn
-          outline
-          no-caps
-          class="add-text-btn"
-          :icon="symOutlinedEditNote"
-          :label="t('nav.addText')"
-          :disable="stepMutation.asyncStatus.value === 'loading'"
-          @click="addText"
-        />
+        <div class="step-action-row">
+          <button
+            type="button"
+            class="add-text-btn"
+            :disabled="stepMutation.asyncStatus.value === 'loading'"
+            :aria-busy="stepMutation.asyncStatus.value === 'loading'"
+            @click="addText"
+          >
+            <q-spinner
+              v-if="stepMutation.asyncStatus.value === 'loading'"
+              size="var(--type-sm)"
+              aria-hidden="true"
+            />
+            <q-icon v-else :name="symOutlinedEditNote" size="var(--type-sm)" />
+            <span>{{ t("nav.addText") }}</span>
+            <q-tooltip>{{ t("nav.addTextHint") }}</q-tooltip>
+          </button>
+        </div>
         <UnusedDrawer
-          :key="step!.unused.join('|')"
+          :key="step!.id"
           :step="step!"
           :album-id="album.id"
           class="unused-section"
@@ -295,13 +318,11 @@ const importTargetLabel = computed<string | null>(() => {
         />
       </div>
 
-      <div v-else class="context-section cover-context">
-        <div
-          class="context-tray-header row no-wrap items-center text-overline text-weight-semibold text-muted"
-        >
-          <span>{{ panelLabel }}</span>
-          <span class="text-faint">{{ landscapeMedia.length }}</span>
-        </div>
+      <div
+        v-else
+        class="context-section cover-context"
+        :class="{ 'cover-context-populated': landscapeMedia.length }"
+      >
         <div v-if="!isCoverBack" class="cover-darkness-control">
           <div class="cover-darkness-header">
             <span>{{ t("album.coverDarkness") }}</span>
@@ -350,24 +371,22 @@ const importTargetLabel = computed<string | null>(() => {
         </q-virtual-scroll>
         <div v-else class="panel-hint">{{ t("album.noLandscapePhotos") }}</div>
       </div>
-    </div>
+    </q-expansion-item>
 
     <q-expansion-item
       v-model="propertiesOpen"
-      group="inspector-primary"
       class="panel-section"
       header-class="panel-section-header"
-      expand-icon-class="text-faint"
+      expand-icon-class="text-muted"
       :label="t('editor.properties')"
     >
       <AlbumProperties :album="album" :media="media" />
     </q-expansion-item>
 
     <q-expansion-item
-      group="inspector-primary"
       class="panel-section"
       header-class="panel-section-header"
-      expand-icon-class="text-faint"
+      expand-icon-class="text-muted"
       :label="t('print.title')"
     >
       <PrintSettings :album="album" :chapter="activeChapter" />
@@ -375,10 +394,9 @@ const importTargetLabel = computed<string | null>(() => {
 
     <q-expansion-item
       v-model="externalMediaOpen"
-      group="inspector-primary"
       class="panel-section"
       header-class="panel-section-header"
-      expand-icon-class="text-faint"
+      expand-icon-class="text-muted"
       :label="t('externalMedia.section')"
     >
       <MediaPanel
@@ -395,6 +413,8 @@ const importTargetLabel = computed<string | null>(() => {
 </template>
 
 <style lang="scss" scoped>
+@use "@/styles/editor-secondary-action" as *;
+
 .inspector-panel {
   height: 100%;
   display: flex;
@@ -408,43 +428,35 @@ const importTargetLabel = computed<string | null>(() => {
   border-top: 1px solid var(--border-color);
 }
 
-.inspector-context-tray {
-  display: flex;
-  flex-direction: column;
-  border-top: 1px solid var(--border-color);
-}
-
 .context-section {
   display: flex;
   flex-direction: column;
-  padding: var(--gap-md);
+}
+
+.step-action-row {
+  padding: var(--gap-md) var(--gap-md) 0;
 }
 
 .unused-section {
   flex: none;
-  height: min(40vh, 22rem);
-  min-height: 12rem;
+  max-height: min(40vh, 22rem);
 }
 
 .unused-section-empty {
-  height: min(25vh, 14rem);
+  max-height: none;
 }
 
 .cover-context {
+  padding: var(--gap-md);
+}
+
+.cover-context-populated {
   height: min(50vh, 25rem);
   min-height: 14rem;
 }
 
 .add-text-btn {
-  align-self: stretch;
-  margin-block: var(--gap-sm) var(--gap-md);
-}
-
-.context-tray-header {
-  gap: var(--gap-xs);
-  min-height: 2rem;
-  padding-block-end: var(--gap-sm);
-  letter-spacing: var(--tracking-wide);
+  @include editor-secondary-action;
 }
 
 .cover-darkness-control {
@@ -491,17 +503,6 @@ const importTargetLabel = computed<string | null>(() => {
 .cover-grid {
   flex: 1;
   overflow-y: auto;
-  scrollbar-width: thin;
-  scrollbar-color: var(--border-color) transparent;
-
-  &::-webkit-scrollbar {
-    width: 0.25rem;
-  }
-
-  &::-webkit-scrollbar-thumb {
-    background: var(--border-color);
-    border-radius: var(--radius-xs);
-  }
 }
 
 .cover-row {

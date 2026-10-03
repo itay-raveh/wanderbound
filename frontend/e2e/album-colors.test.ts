@@ -37,9 +37,8 @@ for (const width of [1600, 1024]) {
     });
     await openEditor(page);
     await page
-      .locator("#editor-inspector .panel-section")
-      .first()
-      .getByRole("button")
+      .locator("#editor-inspector .panel-section-header")
+      .filter({ hasText: rtl ? "מאפיינים" : "Properties" })
       .click();
     const country = page.getByRole("button", {
       name: rtl ? "הולנד · צבעי הדגשה" : "Netherlands · Accent colors",

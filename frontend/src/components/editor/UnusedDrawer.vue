@@ -113,7 +113,7 @@ useDraggable(
     >
       <q-icon :name="matPhotoLibrary" size="var(--type-md)" />
       <span>{{ t("album.unused") }}</span>
-      <span class="text-faint">{{ localUnused.length }}</span>
+      <span>{{ localUnused.length }}</span>
       <q-tooltip>{{ t("album.unusedHint") }}</q-tooltip>
     </div>
     <div ref="trackRef" class="drawer-track column no-wrap">
@@ -162,7 +162,7 @@ useDraggable(
         </template>
       </MediaItem>
       <div v-if="localUnused.length === 0" class="drawer-empty">
-        {{ t("album.dropPhotosHere") }}
+        {{ t("album.unusedEmpty") }}
       </div>
     </div>
   </div>
@@ -185,26 +185,28 @@ useDraggable(
 
 .drawer-empty {
   grid-column: 1 / -1;
-  min-height: 8rem;
-  flex: 1;
+  min-height: 3.5rem;
   display: flex;
   align-items: center;
   justify-content: center;
   padding: var(--gap-md-lg) var(--gap-sm);
-  border: 0.125rem dashed color-mix(in srgb, var(--text) 18%, transparent);
+  border: var(--gap-xs) dashed var(--border-color);
   border-radius: var(--radius-sm);
   font-size: var(--type-xs);
-  color: var(--text-faint);
+  color: var(--text-muted);
   text-align: center;
   transition:
+    min-height var(--duration-fast),
     border-color var(--duration-fast),
-    color var(--duration-fast);
+    color var(--duration-fast),
+    background-color var(--duration-fast);
 }
 
-// Highlight empty state when dragging over
-.unused-drawer:has(.sortable-ghost) .drawer-empty {
-  border-color: color-mix(in srgb, var(--q-primary) 50%, transparent);
-  color: var(--q-primary);
+:global(body:has(.sortable-chosen)) .drawer-empty {
+  min-height: 6rem;
+  border-color: var(--q-primary);
+  color: var(--primary-text);
+  background-color: color-mix(in srgb, var(--q-primary) 8%, var(--surface));
 }
 
 .drawer-track {
@@ -213,26 +215,14 @@ useDraggable(
   grid-template-columns: repeat(2, 1fr);
   gap: var(--gap-sm);
   overflow-y: auto;
-  scrollbar-width: thin;
-  scrollbar-color: var(--border-color) transparent;
-
-  &::-webkit-scrollbar {
-    width: 0.25rem;
-  }
-
-  &::-webkit-scrollbar-thumb {
-    background: var(--border-color);
-    border-radius: var(--radius-xs);
-  }
 
   // Hide video play overlay - just static thumbnails in the tray.
   :deep(.play-overlay) {
     display: none;
   }
 
-  // Constrain ALL children - including SortableJS ghost clones dragged
-  // in from photo pages, which would otherwise retain their large page size.
-  > :deep(*) {
+  // Constrain SortableJS ghost clones dragged in from photo pages.
+  > :deep(.media-item) {
     width: 100%;
     aspect-ratio: 4 / 3;
     border-radius: var(--radius-xs);

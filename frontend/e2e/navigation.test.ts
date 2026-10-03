@@ -67,9 +67,15 @@ test.describe("responsive editor rails", () => {
     await expect(page.locator("body")).not.toHaveClass(
       /q-body--prevent-scroll/,
     );
-    await expect(
-      page.getByRole("button", { name: "Add text tile" }),
-    ).toBeVisible();
+    await expect(page.getByRole("button", { name: "Add text" })).toBeVisible();
+    await page
+      .getByRole("button", { name: 'Collapse "Photos and text"' })
+      .click();
+    await expect(page.getByRole("button", { name: "Add text" })).toBeHidden();
+    await expect(page.getByRole("region", { name: "Unused" })).toBeHidden();
+    await page
+      .getByRole("button", { name: 'Expand "Photos and text"' })
+      .click();
     await expect(page.locator(".album-container")).toBeInViewport();
     await expect(step).toBeInViewport();
     const navigationBox = await page
