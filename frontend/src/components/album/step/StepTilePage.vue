@@ -18,6 +18,8 @@ import type { StepPageLayoutOutput, StepSlotLayout } from "@/client";
 import { pageSlots, withSlots } from "../stepPages";
 import { useI18n } from "vue-i18n";
 import { symOutlinedClose } from "@quasar/extras/material-symbols-outlined";
+import { matDeleteOutline } from "@quasar/extras/material-icons";
+import PromptDialog from "@/components/ui/PromptDialog.vue";
 
 const { mediaByName, mediaResolutionWarningPreset } = useAlbum();
 const printMode = usePrintMode();
@@ -90,6 +92,8 @@ function syncPage() {
 const editingSlotId = ref<string | null>(null);
 const draft = ref("");
 const overflowing = ref(false);
+const pendingRemovalId = ref<string | null>(null);
+const showRemoveConfirm = ref(false);
 
 function openTextEditor(slot: StepSlotLayout) {
   if (slot.kind !== "text") return;
@@ -157,6 +161,19 @@ function removeText(slot: StepSlotLayout) {
       pageSlots(props.page).filter((item) => item.id !== slot.id),
     ),
   );
+}
+
+function requestRemoveText(slot: StepSlotLayout) {
+  pendingRemovalId.value = slot.id;
+  showRemoveConfirm.value = true;
+}
+
+function confirmRemoveText() {
+  showRemoveConfirm.value = false;
+  const id = pendingRemovalId.value;
+  pendingRemovalId.value = null;
+  const slot = pageSlots(props.page).find((item) => item.id === id);
+  if (slot) removeText(slot);
 }
 
 if (!printMode) {
@@ -269,12 +286,15 @@ const photoQualities = computed(() =>
           >
             {{ t("textTile.overflow") }}
           </p>
-          <div v-if="!printMode" class="album-actions">
+          <div
+            v-if="!printMode && editingSlotId !== originalSlot(value)?.id"
+            class="album-actions"
+          >
             <button
               type="button"
               class="album-action"
               :aria-label="t('textTile.remove')"
-              @click="removeText(originalSlot(value)!)"
+              @click="requestRemoveText(originalSlot(value)!)"
             >
               <q-icon :name="symOutlinedClose" />
             </button>
@@ -295,6 +315,16 @@ const photoQualities = computed(() =>
         />
       </template>
     </div>
+    <PromptDialog
+      v-if="!printMode"
+      v-model="showRemoveConfirm"
+      :icon="matDeleteOutline"
+      :title="t('textTile.removeConfirmTitle')"
+      :body="t('textTile.removeConfirmBody')"
+      :confirm-label="t('textTile.remove')"
+      :cancel-label="t('common.cancel')"
+      @confirm="confirmRemoveText"
+    />
   </AlbumPage>
 </template>
 

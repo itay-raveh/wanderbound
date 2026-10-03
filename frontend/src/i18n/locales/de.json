@@ -177,6 +177,8 @@
   "textTile": {
     "edit": "Textfeld bearbeiten",
     "remove": "Textfeld entfernen",
+    "removeConfirmTitle": "Dieses Textfeld entfernen?",
+    "removeConfirmBody": "Der Text in diesem Feld wird gelöscht.",
     "label": "Text",
     "placeholder": "Klicken, um Text hinzuzufügen",
     "overflow": "Der Text passt nicht in das Feld. Kürze ihn, um fortzufahren."

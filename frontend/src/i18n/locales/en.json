@@ -177,6 +177,8 @@
   "textTile": {
     "edit": "Edit text tile",
     "remove": "Remove text tile",
+    "removeConfirmTitle": "Remove this text tile?",
+    "removeConfirmBody": "The text in this tile will be deleted.",
     "label": "Text",
     "placeholder": "Click to add text",
     "overflow": "This text does not fit in the tile. Shorten it to continue."

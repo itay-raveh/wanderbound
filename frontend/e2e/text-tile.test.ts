@@ -1,7 +1,7 @@
 import { expect, openEditor, test } from "./fixtures";
 import { mockAlbum, mockMedia, mockStep } from "../tests/fixtures/mocks";
 
-test("adding and editing text preserves photos and prints the saved tile", async ({
+test("editing and removing a text tile preserves photos and prints saved text", async ({
   authedPage: page,
 }) => {
   let step = { ...mockStep, aid: "aid-1", uid: 1 };
@@ -71,10 +71,33 @@ test("adding and editing text preserves photos and prints the saved tile", async
   await expect(editor).toBeFocused();
   await editor.press("Escape");
 
+  await page.getByRole("button", { name: "Remove text tile" }).click();
+  const removeDialog = page.getByRole("dialog", {
+    name: "Remove this text tile?",
+  });
+  await expect(removeDialog).toBeVisible();
+  await expect(page.locator(".page-content .text-item")).toContainText(
+    "A day in Lima",
+  );
+  await removeDialog.getByRole("button", { name: "Cancel" }).click();
+  await expect(removeDialog).toBeHidden();
+  expect(step.pages[0].slots.at(-1)).toMatchObject({
+    kind: "text",
+    text: "A day in Lima",
+  });
+
   await page.goto("/print/aid-1?part=content&chapter=chapter-1");
   await expect(page.locator(".page-content .text-item")).toContainText(
     "A day in Lima",
   );
   const pdf = await page.pdf({ printBackground: true });
   expect(pdf.subarray(0, 5).toString()).toBe("%PDF-");
+
+  await openEditor(page);
+  await page.locator('[data-nav-step="1"]').click();
+  await page.getByRole("button", { name: "Album page 1", exact: true }).click();
+  await page.getByRole("button", { name: "Remove text tile" }).click();
+  await removeDialog.getByRole("button", { name: "Remove text tile" }).click();
+  await expect(page.locator(".page-content .text-item")).toHaveCount(0);
+  expect(step.pages[0].slots.map((slot) => slot.id)).toEqual(originalSlots);
 });
