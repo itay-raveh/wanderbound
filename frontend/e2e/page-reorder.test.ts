@@ -3,6 +3,7 @@ import {
   mockAlbum,
   mockAuthStateAuthenticated,
   mockMedia,
+  mockComposedPage,
   mockStep,
   mockUser,
 } from "../tests/fixtures/mocks";
@@ -27,9 +28,9 @@ for (const rtl of [false, true]) {
     const original: StepMediaLayout = {
       cover: "cover.jpg",
       pages: [
-        { kind: "grid", media: ["a.jpg", "b.jpg"] },
-        { kind: "panorama_spread", media: ["wide.jpg"] },
-        { kind: "grid", media: ["c.jpg"] },
+        mockComposedPage("grid", ["a.jpg", "b.jpg"]),
+        mockComposedPage("panorama_spread", ["wide.jpg"]),
+        mockComposedPage("grid", ["c.jpg"]),
       ],
       unused: ["unused.jpg"],
     };
@@ -90,7 +91,7 @@ for (const rtl of [false, true]) {
     await rows
       .nth(2)
       .getByRole("button", {
-        name: rtl ? "שינוי מיקום עמוד תמונות 3" : "Reorder photo page 3",
+        name: rtl ? "פעולות לעמוד אלבום 3" : "Actions for album page 3",
       })
       .click();
     await page
@@ -106,7 +107,7 @@ for (const rtl of [false, true]) {
     await page.locator('[data-nav-step="1"]').click();
     await expect(rows.nth(2)).toHaveAttribute(
       "data-page-key",
-      JSON.stringify(["wide.jpg"]),
+      original.pages[1].id,
     );
     expect(step.cover).toBe(original.cover);
     expect(step.unused).toEqual(original.unused);

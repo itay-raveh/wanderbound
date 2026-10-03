@@ -1,3 +1,4 @@
+import argparse
 import json
 from pathlib import Path
 
@@ -21,18 +22,23 @@ def country_codes() -> list[str]:
     )
 
 
-def download(code: str, output_dir: Path) -> None:
+def download(code: str, output_dir: Path, *, refresh: bool = False) -> None:
     url = SOURCE.format(code=code)
-    download_atomic(url, output_dir / f"{code}.png")
+    download_atomic(url, output_dir / f"{code}.png", skip_existing=not refresh)
 
 
 def main() -> None:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--refresh", action="store_true")
+    refresh = parser.parse_args().refresh
     output_dir = ROOT / "frontend" / "public" / "flags"
     output_dir.mkdir(parents=True, exist_ok=True)
     remove_partial_downloads(output_dir)
     codes = country_codes()
     download_many(
-        codes, lambda code: download(code, output_dir), max_workers=MAX_WORKERS
+        codes,
+        lambda code: download(code, output_dir, refresh=refresh),
+        max_workers=MAX_WORKERS,
     )
     write_manifest(output_dir, source=SOURCE, files=[f"{code}.png" for code in codes])
     print(f"Generated {len(codes)} flag PNGs in {output_dir}")

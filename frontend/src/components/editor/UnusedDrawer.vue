@@ -3,10 +3,20 @@ import type { StepRead as Step } from "@/client";
 import { useDraggable } from "vue-draggable-plus";
 import MediaItem from "../album/MediaItem.vue";
 import { matPhotoLibrary } from "@quasar/extras/material-icons";
+import { symOutlinedAddPhotoAlternate } from "@quasar/extras/material-symbols-outlined";
 import { unusedUpdatePayload } from "@/composables/useStepLayout";
+import {
+  gridPage,
+  pageSlots,
+  photoSlot,
+  planStepPages,
+  withSlots,
+} from "../album/stepPages";
+import { useAlbum } from "@/composables/useAlbum";
 import { useStepMutation } from "@/queries/useStepMutation";
 import { useI18n } from "vue-i18n";
-import { ref, watch } from "vue";
+import { usePreferredReducedMotion } from "@vueuse/core";
+import { computed, nextTick, ref, watch } from "vue";
 
 const { t } = useI18n();
 
@@ -16,6 +26,18 @@ const props = defineProps<{
 }>();
 
 const stepMut = useStepMutation(() => props.albumId);
+const { mediaByName } = useAlbum();
+const saving = computed(() => stepMut.asyncStatus.value === "loading");
+const reducedMotion = usePreferredReducedMotion();
+const availablePages = computed(() =>
+  planStepPages(props.step, mediaByName.value).tilePages.flatMap(
+    ({ page, originalIdx }, index) =>
+      page.kind === "grid" &&
+      pageSlots(props.step.pages[originalIdx]).length < 6
+        ? [{ sourceIndex: originalIdx, number: index + 1 }]
+        : [],
+  ),
+);
 
 /** Local copy for instant drag feedback. Syncs from prop on external changes. */
 const localUnused = ref([...props.step.unused]);
@@ -38,41 +60,109 @@ function save() {
   });
 }
 
+function placePhoto(photo: string, pageIndex: number | null) {
+  if (saving.value || !props.step.unused.includes(photo)) return;
+  const pages = [...props.step.pages];
+  if (pageIndex === null) {
+    pages.push(gridPage([photoSlot(photo)]));
+  } else {
+    const page = pages[pageIndex];
+    if (!page || page.kind !== "grid" || pageSlots(page).length >= 6) return;
+    pages[pageIndex] = withSlots(page, [...pageSlots(page), photoSlot(photo)]);
+  }
+  stepMut.mutate({
+    sid: props.step.id,
+    update: {
+      pages,
+      unused: props.step.unused.filter((name) => name !== photo),
+    },
+  });
+  void nextTick(() => {
+    requestAnimationFrame(() => {
+      const tray = document.querySelector<HTMLElement>(".unused-drawer");
+      const target =
+        tray?.querySelector<HTMLElement>(".unused-place-button") ??
+        tray?.querySelector<HTMLElement>(".drawer-header");
+      target?.focus({ preventScroll: true });
+    });
+  });
+}
+
 const trackRef = ref<HTMLElement | null>(null);
 
-useDraggable(trackRef, localUnused, {
-  group: "photos",
-  animation: 200,
-  draggable: ".media-item",
-  onUpdate() {
-    save();
-  },
-  onAdd() {
-    save();
-  },
-});
+useDraggable(
+  trackRef,
+  localUnused,
+  computed(() => ({
+    group: "photos",
+    animation: reducedMotion.value === "reduce" ? 0 : 200,
+    draggable: ".media-item",
+    filter: ".unused-place-button",
+    preventOnFilter: false,
+    onUpdate: save,
+    onAdd: save,
+  })),
+);
 </script>
 
 <template>
   <div class="unused-drawer" role="region" :aria-label="t('album.unused')">
     <div
       class="drawer-header row no-wrap items-center text-overline text-weight-semibold text-muted"
+      tabindex="-1"
     >
       <q-icon :name="matPhotoLibrary" size="var(--type-md)" />
       <span>{{ t("album.unused") }}</span>
-      <span class="text-faint">{{ localUnused.length }}</span>
+      <span>{{ localUnused.length }}</span>
       <q-tooltip>{{ t("album.unusedHint") }}</q-tooltip>
     </div>
     <div ref="trackRef" class="drawer-track column no-wrap">
       <MediaItem
+        :show-photo-edit="false"
         v-for="photo in localUnused"
         :key="photo"
         :media="photo"
         :lazy-root="trackRef"
         :lazy="false"
-      />
+      >
+        <template #actions>
+          <button
+            type="button"
+            class="album-action unused-place-button"
+            :aria-label="t('album.placePhoto', { name: photo })"
+            :disabled="saving"
+          >
+            <q-icon :name="symOutlinedAddPhotoAlternate" />
+            <q-tooltip>{{ t("album.placePhoto", { name: photo }) }}</q-tooltip>
+            <q-menu>
+              <q-list dense role="menu">
+                <q-item
+                  v-for="page in availablePages"
+                  :key="page.sourceIndex"
+                  v-close-popup
+                  clickable
+                  role="menuitem"
+                  @click="placePhoto(photo, page.sourceIndex)"
+                >
+                  <q-item-section>{{
+                    t("nav.photoPage", { number: page.number })
+                  }}</q-item-section>
+                </q-item>
+                <q-item
+                  v-close-popup
+                  clickable
+                  role="menuitem"
+                  @click="placePhoto(photo, null)"
+                >
+                  <q-item-section>{{ t("album.newPhotoPage") }}</q-item-section>
+                </q-item>
+              </q-list>
+            </q-menu>
+          </button>
+        </template>
+      </MediaItem>
       <div v-if="localUnused.length === 0" class="drawer-empty">
-        {{ t("album.dropPhotosHere") }}
+        {{ t("album.unusedEmpty") }}
       </div>
     </div>
   </div>
@@ -95,26 +185,28 @@ useDraggable(trackRef, localUnused, {
 
 .drawer-empty {
   grid-column: 1 / -1;
-  min-height: 8rem;
-  flex: 1;
+  min-height: 3.5rem;
   display: flex;
   align-items: center;
   justify-content: center;
   padding: var(--gap-md-lg) var(--gap-sm);
-  border: 0.125rem dashed color-mix(in srgb, var(--text) 18%, transparent);
+  border: var(--gap-xs) dashed var(--border-color);
   border-radius: var(--radius-sm);
   font-size: var(--type-xs);
-  color: var(--text-faint);
+  color: var(--text-muted);
   text-align: center;
   transition:
+    min-height var(--duration-fast),
     border-color var(--duration-fast),
-    color var(--duration-fast);
+    color var(--duration-fast),
+    background-color var(--duration-fast);
 }
 
-// Highlight empty state when dragging over
-.unused-drawer:has(.sortable-ghost) .drawer-empty {
-  border-color: color-mix(in srgb, var(--q-primary) 50%, transparent);
-  color: var(--q-primary);
+:global(body:has(.sortable-chosen)) .drawer-empty {
+  min-height: 6rem;
+  border-color: var(--q-primary);
+  color: var(--primary-text);
+  background-color: color-mix(in srgb, var(--q-primary) 8%, var(--surface));
 }
 
 .drawer-track {
@@ -123,26 +215,14 @@ useDraggable(trackRef, localUnused, {
   grid-template-columns: repeat(2, 1fr);
   gap: var(--gap-sm);
   overflow-y: auto;
-  scrollbar-width: thin;
-  scrollbar-color: var(--border-color) transparent;
-
-  &::-webkit-scrollbar {
-    width: 0.25rem;
-  }
-
-  &::-webkit-scrollbar-thumb {
-    background: var(--border-color);
-    border-radius: var(--radius-xs);
-  }
 
   // Hide video play overlay - just static thumbnails in the tray.
   :deep(.play-overlay) {
     display: none;
   }
 
-  // Constrain ALL children - including SortableJS ghost clones dragged
-  // in from photo pages, which would otherwise retain their large page size.
-  > :deep(*) {
+  // Constrain SortableJS ghost clones dragged in from photo pages.
+  > :deep(.media-item) {
     width: 100%;
     aspect-ratio: 4 / 3;
     border-radius: var(--radius-xs);

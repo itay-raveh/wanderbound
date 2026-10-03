@@ -46,7 +46,7 @@ test.describe("Editor", () => {
 });
 
 test.describe("responsive editor rails", () => {
-  test("keeps the scrolled album visible while an overlay rail is open", async ({
+  test("keeps both rails and the scrolled album usable at the smallest editor width", async ({
     focusPage: page,
   }) => {
     await page.setViewportSize({ width: 1024, height: 768 });
@@ -62,17 +62,42 @@ test.describe("responsive editor rails", () => {
     const position = page.locator(".page-position");
     const label = await position.innerText();
 
-    await page.getByRole("button", { name: "Show inspector" }).click();
-    await expect(page.locator("body")).toHaveClass(/q-body--prevent-scroll/);
+    await expect(page.locator("#editor-navigation")).toBeVisible();
+    await expect(page.locator("#editor-inspector")).toBeVisible();
+    await expect(page.locator("body")).not.toHaveClass(
+      /q-body--prevent-scroll/,
+    );
+    await expect(page.getByRole("button", { name: "Add text" })).toBeVisible();
+    await page
+      .getByRole("button", { name: 'Collapse "Photos and text"' })
+      .click();
+    await expect(page.getByRole("button", { name: "Add text" })).toBeHidden();
+    await expect(page.getByRole("region", { name: "Unused" })).toBeHidden();
+    await page
+      .getByRole("button", { name: 'Expand "Photos and text"' })
+      .click();
+    await expect(page.locator(".album-container")).toBeInViewport();
     await expect(step).toBeInViewport();
+    const navigationBox = await page
+      .locator("#editor-navigation")
+      .boundingBox();
+    const inspectorBox = await page.locator("#editor-inspector").boundingBox();
+    const pageBox = await step.boundingBox();
+    expect(pageBox!.x).toBeGreaterThanOrEqual(
+      navigationBox!.x + navigationBox!.width,
+    );
+    expect(pageBox!.x + pageBox!.width).toBeLessThanOrEqual(inspectorBox!.x);
     await expect(position).toHaveText(label);
 
     await page.getByRole("button", { name: "Hide inspector" }).click();
+    await expect(page.locator("#editor-inspector")).toBeHidden();
     await expect(page.locator("body")).not.toHaveClass(
       /q-body--prevent-scroll/,
     );
     await expect(step).toBeInViewport();
     await expect(position).toHaveText(label);
+    await page.getByRole("button", { name: "Show inspector" }).click();
+    await expect(page.locator("#editor-inspector")).toBeVisible();
   });
 
   test("opens both rails on a wide desktop and toggles them independently", async ({
@@ -115,7 +140,7 @@ test.describe("responsive editor rails", () => {
 
     await page.setViewportSize({ width: 1280, height: 800 });
     await expect(navigation).toBeVisible();
-    await expect(inspector).toBeHidden();
+    await expect(inspector).toBeVisible();
   });
 
   test("attaches closed controls to their physical rails in RTL", async ({
@@ -129,6 +154,9 @@ test.describe("responsive editor rails", () => {
     await expect(page.locator("html")).toHaveAttribute("dir", "rtl");
     await page
       .locator('#editor-navigation button[aria-controls="editor-navigation"]')
+      .click();
+    await page
+      .locator('#editor-inspector button[aria-controls="editor-inspector"]')
       .click();
 
     const navigationBox = await page

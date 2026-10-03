@@ -4,6 +4,7 @@ import he from "../src/i18n/locales/he.json" with { type: "json" };
 import {
   mockAlbum,
   mockStep,
+  mockComposedPage,
   mockUser,
   mockAuthStateAuthenticated,
 } from "../tests/fixtures/mocks";
@@ -23,7 +24,7 @@ for (const rtl of [false, true]) {
     );
     const step = {
       ...mockStep,
-      pages: [{ kind: "panorama_spread", media: ["cover.jpg"] }],
+      pages: [mockComposedPage("panorama_spread", ["cover.jpg"])],
     };
     const album = {
       ...mockAlbum,

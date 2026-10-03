@@ -59,7 +59,14 @@ describe("filterCoverFromPages", () => {
       ],
     ],
   ])("filters cover entries from %j", (pages, expected) => {
-    expect(filterCoverFromPages(pages, "cover")).toEqual(expected);
+    expect(
+      filterCoverFromPages(makeStep({ pages }).pages, "cover").map(
+        ({ originalIdx, page }) => ({
+          originalIdx,
+          page: { kind: page.kind, media: page.media },
+        }),
+      ),
+    ).toEqual(expected);
   });
 });
 
