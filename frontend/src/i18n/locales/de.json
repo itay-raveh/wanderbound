@@ -173,14 +173,11 @@
     "loadError": "Das Foto konnte nicht geladen werden. @:common.retry"
   },
   "textTile": {
-    "title": "Textfeld bearbeiten",
-    "preview": "Vorschau des Textfelds",
-    "replace": "Foto durch Text ersetzen",
     "edit": "Textfeld bearbeiten",
     "remove": "Textfeld entfernen",
     "label": "Text",
-    "overflow": "Der Text passt nicht in das Feld. Kürze ihn vor dem Speichern.",
-    "apply": "Text speichern"
+    "placeholder": "Klicken, um Text hinzuzufügen",
+    "overflow": "Der Text passt nicht in das Feld. Kürze ihn, um fortzufahren."
   },
   "settings": {
     "menu": "Einstellungen",
@@ -405,7 +402,8 @@
     "showStep": "Schritt einblenden",
     "photoPages": "Albumseiten",
     "photoPage": "Albumseite {number}",
-    "reorderPage": "Albumseite {number} neu anordnen",
+    "pageActions": "Aktionen für Albumseite {number}",
+    "addText": "Textfeld hinzufügen",
     "movePageUp": "Nach oben verschieben",
     "movePageDown": "Nach unten verschieben",
     "pageMoved": "Fotoseite an Position {number} verschoben",

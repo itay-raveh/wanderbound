@@ -91,7 +91,7 @@ for (const rtl of [false, true]) {
     await rows
       .nth(2)
       .getByRole("button", {
-        name: rtl ? "שינוי מיקום עמוד אלבום 3" : "Reorder album page 3",
+        name: rtl ? "פעולות לעמוד אלבום 3" : "Actions for album page 3",
       })
       .click();
     await page

@@ -1,13 +1,12 @@
 <script lang="ts" setup>
 import AlbumPage from "@/components/album/AlbumPage.vue";
-import { computed, nextTick, ref, watch } from "vue";
+import { computed, nextTick, onBeforeUnmount, ref, watch } from "vue";
 import { useDraggable } from "vue-draggable-plus";
 import MediaItem from "../MediaItem.vue";
-import PreviewDialog from "@/components/ui/PreviewDialog.vue";
 import { useAlbum } from "@/composables/useAlbum";
 import { usePrintMode } from "@/composables/usePrintReady";
 import { isPortraitByName } from "@/utils/media";
-import { useElementVisibility, useResizeObserver } from "@vueuse/core";
+import { useElementVisibility } from "@vueuse/core";
 import {
   enforceOrientationOrder,
   photoPageFit,
@@ -91,66 +90,63 @@ function syncPage() {
   );
 }
 
-const dialogOpen = ref(false);
-const editingSlot = ref<StepSlotLayout | null>(null);
+const editingSlotId = ref<string | null>(null);
 const draft = ref("");
-const measureText = ref<HTMLElement | null>(null);
-const editingTile = ref<HTMLElement | null>(null);
-const tileSize = ref({ width: 1, height: 1 });
 const overflowing = ref(false);
 
 function openTextEditor(slot: StepSlotLayout) {
-  editingSlot.value = slot;
-  draft.value = slot.kind === "text" ? (slot.text ?? "") : "";
-  editingTile.value = containerRef.value?.children[
-    localPage.value.indexOf(token(slot))
-  ] as HTMLElement | null;
-  updateTileSize();
-  dialogOpen.value = true;
-  void document.fonts.ready.then(checkOverflow);
+  if (slot.kind !== "text") return;
+  editingSlotId.value = slot.id;
+  draft.value = slot.text ?? "";
+  overflowing.value = false;
+  void nextTick(() =>
+    containerRef.value
+      ?.querySelector<HTMLTextAreaElement>(`[data-text-slot="${slot.id}"]`)
+      ?.focus({ preventScroll: true }),
+  );
 }
 
-function updateTileSize() {
-  if (!editingTile.value) return;
-  tileSize.value = {
-    width: editingTile.value.clientWidth,
-    height: editingTile.value.clientHeight,
-  };
+function onTextInput(event: Event) {
+  const input = event.target as HTMLTextAreaElement;
+  if (input.scrollHeight > input.clientHeight + 1) {
+    input.value = draft.value;
+    overflowing.value = true;
+    return;
+  }
+  draft.value = input.value;
+  overflowing.value = false;
 }
-useResizeObserver(editingTile, updateTileSize);
 
-async function checkOverflow() {
-  await nextTick();
-  const element = measureText.value;
-  overflowing.value =
-    !!element && element.scrollHeight > element.clientHeight + 1;
+function cancelTextEdit() {
+  editingSlotId.value = null;
+  overflowing.value = false;
 }
-watch([dialogOpen, draft, tileSize], () => {
-  void checkOverflow();
-});
 
 function saveText() {
-  const slot = editingSlot.value;
-  if (!slot || !draft.value.trim() || overflowing.value) return;
+  const id = editingSlotId.value;
+  if (!id) return;
+  editingSlotId.value = null;
+  const slot = pageSlots(props.page).find((current) => current.id === id);
+  if (!slot) return;
+  if (!draft.value.trim()) {
+    if (slot.text) removeText(slot);
+    return;
+  }
+  if (draft.value === slot.text) return;
   const slots = pageSlots(props.page).map((current) =>
-    current.id === slot.id
+    current.id === id
       ? {
           ...current,
           kind: "text" as const,
           media_name: null,
           text: draft.value,
-          frame_orientation:
-            current.kind === "photo" && current.media_name
-              ? isPortraitByName(current.media_name, mediaByName.value)
-                ? "portrait"
-                : "landscape"
-              : current.frame_orientation,
         }
       : current,
   );
   emit("update:page", withSlots(props.page, slots));
-  dialogOpen.value = false;
 }
+
+onBeforeUnmount(saveText);
 
 function removeText(slot: StepSlotLayout) {
   emit(
@@ -236,9 +232,42 @@ const photoQualities = computed(() =>
         :key="originalSlot(value)?.id ?? value"
       >
         <div v-if="originalSlot(value)?.kind === 'text'" class="item text-item">
-          <div class="tile-text" dir="auto">
+          <div v-if="printMode" class="tile-text" dir="auto">
             {{ originalSlot(value)?.text }}
           </div>
+          <textarea
+            v-else-if="editingSlotId === originalSlot(value)?.id"
+            :data-text-slot="originalSlot(value)?.id"
+            class="tile-text tile-input"
+            dir="auto"
+            :value="draft"
+            :aria-label="t('textTile.label')"
+            :maxlength="4000"
+            @input="onTextInput"
+            @blur="saveText"
+            @keydown.esc.prevent.stop="cancelTextEdit"
+            @keydown.ctrl.enter.prevent="saveText"
+          />
+          <div
+            v-else
+            class="tile-text tile-display"
+            dir="auto"
+            role="button"
+            tabindex="0"
+            :aria-label="t('textTile.edit')"
+            @click="openTextEditor(originalSlot(value)!)"
+            @keydown.enter.prevent="openTextEditor(originalSlot(value)!)"
+            @keydown.space.prevent="openTextEditor(originalSlot(value)!)"
+          >
+            {{ originalSlot(value)?.text || t("textTile.placeholder") }}
+          </div>
+          <p
+            v-if="overflowing && editingSlotId === originalSlot(value)?.id"
+            class="text-overflow"
+            role="alert"
+          >
+            {{ t("textTile.overflow") }}
+          </p>
           <div v-if="!printMode" class="album-actions">
             <button
               type="button"
@@ -270,53 +299,10 @@ const photoQualities = computed(() =>
           class="item photo-item"
           @make-full-page="emit('make-full-page', $event)"
           @make-panorama-spread="emit('make-panorama-spread', $event)"
-        >
-          <template #actions>
-            <button
-              type="button"
-              class="album-action"
-              :aria-label="t('textTile.replace')"
-              @click="openTextEditor(originalSlot(value)!)"
-            >
-              <q-icon :name="symOutlinedEditNote" />
-              <q-tooltip>{{ t("textTile.replace") }}</q-tooltip>
-            </button>
-          </template>
-        </MediaItem>
+        />
       </template>
     </div>
   </AlbumPage>
-  <PreviewDialog
-    v-if="!printMode"
-    v-model="dialogOpen"
-    :title="t('textTile.title')"
-    :preview-label="t('textTile.preview')"
-    :aspect-ratio="tileSize.width / tileSize.height"
-    :apply-label="t('textTile.apply')"
-    :apply-disabled="!draft.trim() || overflowing"
-    @apply="saveText"
-  >
-    <div class="text-preview tile-text" dir="auto">{{ draft }}</div>
-    <div
-      class="item text-item text-measure"
-      :style="{ width: `${tileSize.width}px`, height: `${tileSize.height}px` }"
-    >
-      <div ref="measureText" class="tile-text" dir="auto">{{ draft }}</div>
-    </div>
-    <template #controls>
-      <q-input
-        v-model="draft"
-        type="textarea"
-        dir="auto"
-        autogrow
-        outlined
-        autofocus
-        :label="t('textTile.label')"
-        :maxlength="4000"
-      />
-      <p v-if="overflowing" role="alert">{{ t("textTile.overflow") }}</p>
-    </template>
-  </PreviewDialog>
 </template>
 
 <style lang="scss" scoped>
@@ -365,24 +351,41 @@ const photoQualities = computed(() =>
   white-space: pre-wrap;
   overflow-wrap: anywhere;
   font-family: var(--font-album-body);
-  font-size: var(--type-2xl);
+  font-size: var(--type-md);
   line-height: 1.5;
   text-align: start;
 }
 
-.text-preview {
-  padding: var(--page-inset-y);
-  box-sizing: border-box;
-  color: var(--text);
-  background: var(--page-bg);
+.tile-display {
+  cursor: text;
 }
 
-.text-measure {
-  position: fixed;
-  inset-block-start: -10000px;
-  inset-inline-start: 0;
-  visibility: hidden;
-  pointer-events: none;
+.tile-display:focus-visible,
+.tile-input:focus-visible {
+  outline: 0.125rem dashed var(--q-primary);
+  outline-offset: var(--gap-xs);
+}
+
+.tile-input {
+  display: block;
+  box-sizing: border-box;
+  padding: 0;
+  border: 0;
+  resize: none;
+  background: transparent;
+  color: inherit;
+  overflow: hidden;
+}
+
+.text-overflow {
+  position: absolute;
+  inset-block-end: var(--gap-md);
+  inset-inline: var(--gap-md);
+  margin: 0;
+  padding: var(--gap-sm);
+  background: var(--surface);
+  color: var(--q-negative);
+  font-size: var(--type-xs);
 }
 
 .text-item .album-actions {

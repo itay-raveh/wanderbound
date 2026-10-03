@@ -173,14 +173,11 @@
     "loadError": "Couldn't load this photo. @:common.retry"
   },
   "textTile": {
-    "title": "Edit text tile",
-    "preview": "Text tile preview",
-    "replace": "Replace photo with text",
     "edit": "Edit text tile",
     "remove": "Remove text tile",
     "label": "Text",
-    "overflow": "This text does not fit in the tile. Shorten it before saving.",
-    "apply": "Save text"
+    "placeholder": "Click to add text",
+    "overflow": "This text does not fit in the tile. Shorten it to continue."
   },
   "settings": {
     "menu": "Settings",
@@ -405,7 +402,8 @@
     "showStep": "Show step",
     "photoPages": "Album pages",
     "photoPage": "Album page {number}",
-    "reorderPage": "Reorder album page {number}",
+    "pageActions": "Actions for album page {number}",
+    "addText": "Add text tile",
     "movePageUp": "Move up",
     "movePageDown": "Move down",
     "pageMoved": "Photo page moved to position {number}",

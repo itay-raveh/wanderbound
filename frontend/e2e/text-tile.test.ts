@@ -1,11 +1,11 @@
 import { expect, openEditor, test } from "./fixtures";
 import { mockAlbum, mockMedia, mockStep } from "../tests/fixtures/mocks";
 
-test("replacing a photo with text keeps its slot and prints the same text", async ({
+test("adding and editing text preserves photos and prints the saved tile", async ({
   authedPage: page,
 }) => {
   let step = { ...mockStep, aid: "aid-1", uid: 1 };
-  const originalSlot = step.pages[0].slots[1].id;
+  const originalSlots = step.pages[0].slots.map((slot) => slot.id);
   await page.route("**/api/v1/albums/aid-1", (route) =>
     route.fulfill({ json: mockAlbum }),
   );
@@ -35,31 +35,30 @@ test("replacing a photo with text keeps its slot and prints the same text", asyn
 
   await openEditor(page);
   await page.locator('[data-nav-step="1"]').click();
-  await page.getByRole("button", { name: "Replace photo with text" }).click();
-  await page
-    .getByRole("textbox", { name: "Text" })
-    .fill("Long text ".repeat(400));
-  await expect(page.getByRole("button", { name: "Save text" })).toBeDisabled();
-  await page.getByRole("textbox", { name: "Text" }).fill("A day in Lima");
-  await page.getByRole("button", { name: "Save text" }).click();
-  await expect(page.getByRole("dialog")).toBeHidden();
+  await page.getByRole("button", { name: "Actions for album page 1" }).click();
+  await page.getByRole("menuitem", { name: "Add text tile" }).click();
+
+  await page.getByRole("button", { name: "Edit text tile" }).first().click();
+  const editor = page.getByRole("textbox", { name: "Text" });
+  await expect(editor).toBeVisible();
+  await editor.fill("Long text ".repeat(400));
+  await expect(page.getByRole("alert")).toContainText("does not fit");
+  await expect(editor).toHaveValue("");
+  await editor.fill("A day in Lima");
+  await editor.press("Tab");
 
   await expect(page.locator(".page-content .text-item")).toContainText(
     "A day in Lima",
   );
-  expect(step.pages[0].slots[1].id).toBe(originalSlot);
-  expect(step.pages[0].slots[1].kind).toBe("text");
-  expect(step.unused).toContain("photo2.jpg");
-
-  await page
-    .locator('.unused-drawer [data-media="photo2.jpg"]')
-    .dragTo(page.locator(".page-content .text-item"));
-  await expect.poll(() => step.unused).toEqual([]);
-  expect(
-    step.pages[0].slots.some(
-      (slot) => slot.id === originalSlot && slot.kind === "text",
-    ),
-  ).toBe(true);
+  expect(step.pages[0].slots.map((slot) => slot.id)).toEqual([
+    ...originalSlots,
+    expect.any(String),
+  ]);
+  expect(step.pages[0].slots.at(-1)).toMatchObject({
+    kind: "text",
+    text: "A day in Lima",
+  });
+  expect(step.unused).toEqual([]);
 
   await page.goto("/print/aid-1?part=content&chapter=chapter-1");
   await expect(page.locator(".page-content .text-item")).toContainText(
