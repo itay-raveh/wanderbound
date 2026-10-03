@@ -17,10 +17,7 @@ import { mediaQuality } from "@/utils/photoQuality";
 import type { StepPageLayoutOutput, StepSlotLayout } from "@/client";
 import { pageSlots, withSlots } from "../stepPages";
 import { useI18n } from "vue-i18n";
-import {
-  symOutlinedClose,
-  symOutlinedEditNote,
-} from "@quasar/extras/material-symbols-outlined";
+import { symOutlinedClose } from "@quasar/extras/material-symbols-outlined";
 
 const { mediaByName, mediaResolutionWarningPreset } = useAlbum();
 const printMode = usePrintMode();
@@ -273,14 +270,6 @@ const photoQualities = computed(() =>
             {{ t("textTile.overflow") }}
           </p>
           <div v-if="!printMode" class="album-actions">
-            <button
-              type="button"
-              class="album-action"
-              :aria-label="t('textTile.edit')"
-              @click="openTextEditor(originalSlot(value)!)"
-            >
-              <q-icon :name="symOutlinedEditNote" />
-            </button>
             <button
               type="button"
               class="album-action"

@@ -63,6 +63,14 @@ test("adding and editing text preserves photos and prints the saved tile", async
   });
   expect(step.unused).toEqual([]);
 
+  const tile = page.getByRole("button", {
+    name: "Edit text tile: A day in Lima",
+  });
+  await tile.focus();
+  await tile.press("Enter");
+  await expect(editor).toBeFocused();
+  await editor.press("Escape");
+
   await page.goto("/print/aid-1?part=content&chapter=chapter-1");
   await expect(page.locator(".page-content .text-item")).toContainText(
     "A day in Lima",
