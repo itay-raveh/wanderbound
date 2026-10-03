@@ -38,7 +38,10 @@ test("adding and editing text preserves photos and prints the saved tile", async
   await page.getByRole("button", { name: "Actions for album page 1" }).click();
   await page.getByRole("menuitem", { name: "Add text tile" }).click();
 
-  await page.getByRole("button", { name: "Edit text tile" }).first().click();
+  await page
+    .getByRole("button", { name: /Edit text tile:/ })
+    .first()
+    .click();
   const editor = page.getByRole("textbox", { name: "Text" });
   await expect(editor).toBeVisible();
   await editor.fill("Long text ".repeat(400));

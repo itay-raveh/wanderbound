@@ -99,22 +99,26 @@ function openTextEditor(slot: StepSlotLayout) {
   editingSlotId.value = slot.id;
   draft.value = slot.text ?? "";
   overflowing.value = false;
-  void nextTick(() =>
-    containerRef.value
-      ?.querySelector<HTMLTextAreaElement>(`[data-text-slot="${slot.id}"]`)
-      ?.focus({ preventScroll: true }),
-  );
+  void nextTick(() => {
+    const input = containerRef.value?.querySelector<HTMLTextAreaElement>(
+      `[data-text-slot="${slot.id}"]`,
+    );
+    if (!input) return;
+    overflowing.value = input.scrollHeight > input.clientHeight + 1;
+    input.focus({ preventScroll: true });
+  });
 }
 
 function onTextInput(event: Event) {
   const input = event.target as HTMLTextAreaElement;
-  if (input.scrollHeight > input.clientHeight + 1) {
+  const exceedsTile = input.scrollHeight > input.clientHeight + 1;
+  if (exceedsTile && input.value.length >= draft.value.length) {
     input.value = draft.value;
     overflowing.value = true;
     return;
   }
   draft.value = input.value;
-  overflowing.value = false;
+  overflowing.value = exceedsTile;
 }
 
 function cancelTextEdit() {
@@ -124,7 +128,7 @@ function cancelTextEdit() {
 
 function saveText() {
   const id = editingSlotId.value;
-  if (!id) return;
+  if (!id || overflowing.value) return;
   editingSlotId.value = null;
   const slot = pageSlots(props.page).find((current) => current.id === id);
   if (!slot) return;
@@ -254,7 +258,7 @@ const photoQualities = computed(() =>
             dir="auto"
             role="button"
             tabindex="0"
-            :aria-label="t('textTile.edit')"
+            :aria-label="`${t('textTile.edit')}: ${originalSlot(value)?.text || t('textTile.placeholder')}`"
             @click="openTextEditor(originalSlot(value)!)"
             @keydown.enter.prevent="openTextEditor(originalSlot(value)!)"
             @keydown.space.prevent="openTextEditor(originalSlot(value)!)"
