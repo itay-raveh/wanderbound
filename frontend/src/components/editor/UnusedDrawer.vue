@@ -3,10 +3,20 @@ import type { StepRead as Step } from "@/client";
 import { useDraggable } from "vue-draggable-plus";
 import MediaItem from "../album/MediaItem.vue";
 import { matPhotoLibrary } from "@quasar/extras/material-icons";
+import { symOutlinedAddPhotoAlternate } from "@quasar/extras/material-symbols-outlined";
 import { unusedUpdatePayload } from "@/composables/useStepLayout";
+import {
+  gridPage,
+  pageSlots,
+  photoSlot,
+  planStepPages,
+  withSlots,
+} from "../album/stepPages";
+import { useAlbum } from "@/composables/useAlbum";
 import { useStepMutation } from "@/queries/useStepMutation";
 import { useI18n } from "vue-i18n";
-import { ref, watch } from "vue";
+import { usePreferredReducedMotion } from "@vueuse/core";
+import { computed, nextTick, ref, watch } from "vue";
 
 const { t } = useI18n();
 
@@ -16,6 +26,18 @@ const props = defineProps<{
 }>();
 
 const stepMut = useStepMutation(() => props.albumId);
+const { mediaByName } = useAlbum();
+const saving = computed(() => stepMut.asyncStatus.value === "loading");
+const reducedMotion = usePreferredReducedMotion();
+const availablePages = computed(() =>
+  planStepPages(props.step, mediaByName.value).tilePages.flatMap(
+    ({ page, originalIdx }, index) =>
+      page.kind === "grid" &&
+      pageSlots(props.step.pages[originalIdx]).length < 6
+        ? [{ sourceIndex: originalIdx, number: index + 1 }]
+        : [],
+  ),
+);
 
 /** Local copy for instant drag feedback. Syncs from prop on external changes. */
 const localUnused = ref([...props.step.unused]);
@@ -38,25 +60,56 @@ function save() {
   });
 }
 
+function placePhoto(photo: string, pageIndex: number | null) {
+  if (saving.value || !props.step.unused.includes(photo)) return;
+  const pages = [...props.step.pages];
+  if (pageIndex === null) {
+    pages.push(gridPage([photoSlot(photo)]));
+  } else {
+    const page = pages[pageIndex];
+    if (!page || page.kind !== "grid" || pageSlots(page).length >= 6) return;
+    pages[pageIndex] = withSlots(page, [...pageSlots(page), photoSlot(photo)]);
+  }
+  stepMut.mutate({
+    sid: props.step.id,
+    update: {
+      pages,
+      unused: props.step.unused.filter((name) => name !== photo),
+    },
+  });
+  void nextTick(() => {
+    requestAnimationFrame(() => {
+      const tray = document.querySelector<HTMLElement>(".unused-drawer");
+      const target =
+        tray?.querySelector<HTMLElement>(".unused-place-button") ??
+        tray?.querySelector<HTMLElement>(".drawer-header");
+      target?.focus({ preventScroll: true });
+    });
+  });
+}
+
 const trackRef = ref<HTMLElement | null>(null);
 
-useDraggable(trackRef, localUnused, {
-  group: "photos",
-  animation: 200,
-  draggable: ".media-item",
-  onUpdate() {
-    save();
-  },
-  onAdd() {
-    save();
-  },
-});
+useDraggable(
+  trackRef,
+  localUnused,
+  computed(() => ({
+    group: "photos",
+    animation: reducedMotion.value === "reduce" ? 0 : 200,
+    draggable: ".media-item",
+    filter: ".unused-place-button",
+    preventOnFilter: false,
+    onUpdate: save,
+    onAdd: save,
+  })),
+);
 </script>
 
 <template>
   <div class="unused-drawer" role="region" :aria-label="t('album.unused')">
     <div
       class="drawer-header row no-wrap items-center text-overline text-weight-semibold text-muted"
+      tabindex="-1"
     >
       <q-icon :name="matPhotoLibrary" size="var(--type-md)" />
       <span>{{ t("album.unused") }}</span>
@@ -71,7 +124,43 @@ useDraggable(trackRef, localUnused, {
         :media="photo"
         :lazy-root="trackRef"
         :lazy="false"
-      />
+      >
+        <template #actions>
+          <button
+            type="button"
+            class="album-action unused-place-button"
+            :aria-label="t('album.placePhoto', { name: photo })"
+            :disabled="saving"
+          >
+            <q-icon :name="symOutlinedAddPhotoAlternate" />
+            <q-tooltip>{{ t("album.placePhoto", { name: photo }) }}</q-tooltip>
+            <q-menu>
+              <q-list dense role="menu">
+                <q-item
+                  v-for="page in availablePages"
+                  :key="page.sourceIndex"
+                  v-close-popup
+                  clickable
+                  role="menuitem"
+                  @click="placePhoto(photo, page.sourceIndex)"
+                >
+                  <q-item-section>{{
+                    t("nav.photoPage", { number: page.number })
+                  }}</q-item-section>
+                </q-item>
+                <q-item
+                  v-close-popup
+                  clickable
+                  role="menuitem"
+                  @click="placePhoto(photo, null)"
+                >
+                  <q-item-section>{{ t("album.newPhotoPage") }}</q-item-section>
+                </q-item>
+              </q-list>
+            </q-menu>
+          </button>
+        </template>
+      </MediaItem>
       <div v-if="localUnused.length === 0" class="drawer-empty">
         {{ t("album.dropPhotosHere") }}
       </div>
