@@ -169,6 +169,8 @@ useDraggable(
 </template>
 
 <style lang="scss" scoped>
+@use "../album/AlbumActions.scss";
+
 .unused-drawer {
   display: flex;
   flex-direction: column;

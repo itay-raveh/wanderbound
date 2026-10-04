@@ -297,6 +297,7 @@ const photoQualities = computed(() =>
               @click="requestRemoveText(originalSlot(value)!)"
             >
               <q-icon :name="symOutlinedClose" />
+              <q-tooltip>{{ t("textTile.remove") }}</q-tooltip>
             </button>
           </div>
         </div>
@@ -329,6 +330,8 @@ const photoQualities = computed(() =>
 </template>
 
 <style lang="scss" scoped>
+@use "../AlbumActions.scss";
+
 :deep(.page) {
   display: flex;
   align-items: center;
@@ -412,31 +415,8 @@ const photoQualities = computed(() =>
 }
 
 .text-item .album-actions {
-  position: absolute;
-  inset-block-start: var(--gap-md);
+  inset-inline-start: auto;
   inset-inline-end: var(--gap-md);
-  display: flex;
-  border: 1px solid var(--q-primary);
-  background: var(--surface);
-  color: var(--q-primary);
-}
-
-.text-item .album-action {
-  width: 2.5rem;
-  height: 2.5rem;
-  border: 0;
-  background: transparent;
-  color: inherit;
-  cursor: pointer;
-}
-
-.text-item .album-action:hover {
-  background: color-mix(in srgb, var(--q-primary) 10%, transparent);
-}
-
-.text-item .album-action:focus-visible {
-  outline: 0.125rem solid var(--q-primary);
-  outline-offset: -0.125rem;
 }
 
 .container :deep(img) {
