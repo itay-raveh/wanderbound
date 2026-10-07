@@ -18,7 +18,7 @@ import type {
 import StepEntry from "./album/StepEntry.vue";
 import WraparoundCover from "./album/WraparoundCover.vue";
 import PanoramaSpreadPage from "./album/PanoramaSpreadPage.vue";
-import { paperTextColor } from "./album/colors";
+import { paperTextColors } from "./album/colors";
 import { provideAlbum } from "@/composables/useAlbum";
 import { editorZoom, setEditorZoom } from "@/composables/useEditorZoom";
 import { DEFAULT_BODY_FONT, DEFAULT_FONT, fontStack } from "@/utils/fonts";
@@ -103,11 +103,16 @@ watchEffect(() => {
 
 const albumStyle = computed(() => {
   const sm = safeMarginMm.value;
+  const paper = props.album.background_color
+    ? paperTextColors(props.album.background_color)
+    : null;
   return {
-    ...(props.album.background_color
+    ...(props.album.background_color && paper
       ? {
           "--album-paper-bg": props.album.background_color,
-          "--album-paper-text": paperTextColor(props.album.background_color),
+          "--album-paper-text": paper.text,
+          "--album-paper-muted": paper.muted,
+          "--album-paper-faint": paper.faint,
         }
       : {}),
     "--font-album": fontStack(props.album.font ?? DEFAULT_FONT),

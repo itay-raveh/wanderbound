@@ -35,15 +35,41 @@ function parseHex(hex: string): [number, number, number] {
   ];
 }
 
-/** Use the higher WCAG contrast of black/white, including saturated midtones. */
-export function paperTextColor(hex: string): string {
-  const channels = parseHex(hex).map((value) => {
+function relativeLuminance(rgb: number[]): number {
+  const channels = rgb.map((value) => {
     const srgb = value / 255;
     return srgb <= 0.04045 ? srgb / 12.92 : ((srgb + 0.055) / 1.055) ** 2.4;
   });
-  const luminance =
-    channels[0] * 0.2126 + channels[1] * 0.7152 + channels[2] * 0.0722;
-  return luminance > 0.179 ? "#000000" : "#ffffff";
+  return channels[0] * 0.2126 + channels[1] * 0.7152 + channels[2] * 0.0722;
+}
+
+/** Solid paper-tinted shades, clamped after rounding so small text stays ≥4.5:1. */
+export function paperTextColors(hex: string): {
+  text: string;
+  muted: string;
+  faint: string;
+} {
+  const paper = parseHex(hex);
+  const paperLuminance = relativeLuminance(paper);
+  const foreground = paperLuminance > 0.179 ? 0 : 255;
+  const text = foreground === 0 ? "#000000" : "#ffffff";
+
+  function shade(maxMix: number): string {
+    for (let mix = maxMix; mix > 0; mix--) {
+      const rgb = paper.map((channel) =>
+        Math.round(foreground + ((channel - foreground) * mix) / 100),
+      );
+      const luminance = relativeLuminance(rgb);
+      const contrast =
+        (Math.max(paperLuminance, luminance) + 0.05) /
+        (Math.min(paperLuminance, luminance) + 0.05);
+      if (contrast >= 4.5)
+        return `#${rgb.map((channel) => channel.toString(16).padStart(2, "0")).join("")}`;
+    }
+    return text;
+  }
+
+  return { text, muted: shade(30), faint: shade(45) };
 }
 
 function rgbToHsl(r: number, g: number, b: number): [number, number, number] {

@@ -81,6 +81,9 @@ for (const { rtl, width } of [
       "background-color",
       defaultColor,
     );
+    const defaultMuted = await paper
+      .locator(".coords")
+      .evaluate((element) => getComputedStyle(element).color);
     await background.focus();
     await page.keyboard.press("Enter");
     const hex = page.locator(".q-color-picker__header input");
@@ -94,6 +97,13 @@ for (const { rtl, width } of [
       "color",
       "rgb(0, 0, 0)",
     );
+    const lightMuted = await paper
+      .locator(".coords")
+      .evaluate((element) => getComputedStyle(element).color);
+    expect(lightMuted).not.toBe("rgb(0, 0, 0)");
+    if (rtl)
+      await page.getByRole("button", { name: "הסתרת המאפיינים" }).click();
+    await paper.screenshot({ path: testInfo.outputPath("light-paper.png") });
     expect(album.colors).toEqual(mockAlbum.colors);
     await page.reload();
     await showProperties();
@@ -107,6 +117,7 @@ for (const { rtl, width } of [
     });
     await reset.click();
     await expect(paper).toHaveCSS("background-color", defaultColor);
+    await expect(paper.locator(".coords")).toHaveCSS("color", defaultMuted);
     await page.keyboard.press("Control+z");
     await expect(paper).toHaveCSS("background-color", "rgb(255, 238, 170)");
     await background.click();
@@ -129,8 +140,14 @@ for (const { rtl, width } of [
       "color",
       "rgb(240, 240, 245)",
     );
+    const darkMuted = await paper
+      .locator(".coords")
+      .evaluate((element) => getComputedStyle(element).color);
+    expect(darkMuted).not.toBe("rgb(255, 255, 255)");
     await paper.scrollIntoViewIfNeeded();
     await page.screenshot({ path: testInfo.outputPath("editor.png") });
+    if (rtl)
+      await page.getByRole("button", { name: "הסתרת המאפיינים" }).click();
     await paper.screenshot({ path: testInfo.outputPath("paper.png") });
     await page.route("**/api/v1/albums/*/print-bundle*", (route) =>
       route.fulfill({
@@ -167,6 +184,7 @@ for (const { rtl, width } of [
       "color",
       "rgb(255, 255, 255)",
     );
+    await expect(printPaper.locator(".coords")).toHaveCSS("color", darkMuted);
     await page.screenshot({
       path: testInfo.outputPath("print.png"),
       fullPage: true,

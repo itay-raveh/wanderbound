@@ -45,8 +45,8 @@ withDefaults(
   box-sizing: border-box;
   --text: var(--album-paper-text, var(--theme-page-text));
   --text-bright: var(--album-paper-text, var(--theme-page-text-bright));
-  --text-muted: var(--album-paper-text, var(--theme-page-text-muted));
-  --text-faint: var(--album-paper-text, var(--theme-page-text-faint));
+  --text-muted: var(--album-paper-muted, var(--theme-page-text-muted));
+  --text-faint: var(--album-paper-faint, var(--theme-page-text-faint));
   --bg: var(--album-paper-bg, var(--theme-page-bg));
   color: var(--text);
   background-color: var(--album-paper-bg, var(--page-bg, var(--bg)));
@@ -58,6 +58,8 @@ withDefaults(
 .preserve-background {
   --album-paper-bg: initial;
   --album-paper-text: initial;
+  --album-paper-muted: initial;
+  --album-paper-faint: initial;
 }
 .cover-sheet {
   --bleed: var(--cover-bleed, 0mm);
