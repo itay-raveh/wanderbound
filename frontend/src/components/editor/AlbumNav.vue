@@ -223,6 +223,8 @@ async function saveMap(range: DateRange) {
 .nav-list {
   flex: 1;
   overflow-y: auto;
+  // Let chapter lists chain here, but never scroll the album behind the nav.
+  overscroll-behavior-y: contain;
   scrollbar-width: thin;
   scrollbar-color: var(--border-color) transparent;
 

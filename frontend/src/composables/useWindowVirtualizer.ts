@@ -78,7 +78,9 @@ export function useWindowVirtualizer(options: MaybeRef<WindowVirtualizerOpts>) {
           const body = document.body;
           const position = instance.options.horizontal ? "left" : "top";
           callback(
-            body.classList.contains("q-body--prevent-scroll")
+            document.documentElement.classList.contains(
+              "q-document--prevent-scroll",
+            )
               ? -parseFloat(body.style[position])
               : offset,
             scrolling,
