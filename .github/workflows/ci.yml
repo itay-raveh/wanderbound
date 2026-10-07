@@ -187,7 +187,7 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: playwright-report
-          path: frontend/e2e/test-results/
+          path: frontend/test-results/
           retention-days: 7
 
   test-migrations:
@@ -218,6 +218,14 @@ jobs:
           version: 2026.9.1
           install_args: python uv
       - run: uv sync --all-packages
+      - name: Verify album migration branches converge
+        working-directory: backend
+        run: |
+          for revision in b45c61407294 8f61c23e0a95 72ac9f130be4; do
+            uv run alembic upgrade "$revision"
+            uv run alembic upgrade head
+            uv run alembic downgrade base
+          done
       - run: uv run alembic upgrade head
         working-directory: backend
       - name: Verify DBOS native restart recovery

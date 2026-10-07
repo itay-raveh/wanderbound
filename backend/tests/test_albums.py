@@ -181,6 +181,34 @@ class TestChapterPrintBundle:
 
 class TestUpdateAlbum:
     @pytest.mark.usefixtures("signed_album")
+    @pytest.mark.parametrize("color", ["red", "#abc", "#12345678", "prefix#123456"])
+    async def test_invalid_background_leaves_album_unchanged(
+        self, album_routes: AlbumRoutes, color: str
+    ) -> None:
+        before = (await album_routes.get_album()).json()
+        response = await album_routes.update_album(
+            background_color=color, font="Georgia"
+        )
+        assert response.status_code == 422
+        assert (await album_routes.get_album()).json() == before
+
+    @pytest.mark.usefixtures("signed_album")
+    async def test_background_persists_and_resets_without_changing_accents(
+        self, album_routes: AlbumRoutes
+    ) -> None:
+        before = (await album_routes.get_album()).json()
+        assert before["background_color"] is None
+        response = await album_routes.update_album(background_color="#AaBBcc")
+        assert response.status_code == 200
+        assert (await album_routes.get_album()).json() == {
+            **before,
+            "background_color": "#aabbcc",
+        }
+        response = await album_routes.update_album(background_color=None)
+        assert response.status_code == 200
+        assert (await album_routes.get_album()).json() == before
+
+    @pytest.mark.usefixtures("signed_album")
     @pytest.mark.parametrize(
         "colors",
         [

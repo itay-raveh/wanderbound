@@ -128,6 +128,15 @@ body,
   );
 }
 
+.body--dark,
+.body--light {
+  --theme-page-text: var(--text);
+  --theme-page-text-bright: var(--text-bright);
+  --theme-page-text-muted: var(--text-muted);
+  --theme-page-text-faint: var(--text-faint);
+  --theme-page-bg: var(--bg);
+}
+
 /* Custom color palette - follows Quasar convention (see quasar.dev/style/color-palette#adding-your-own-colors).
    !important matches Quasar's own color classes; `color="danger"` works on QBtn/QIcon/etc. */
 .text-bright {

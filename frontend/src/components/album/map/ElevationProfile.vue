@@ -211,13 +211,19 @@ const unitY = computed(() => (yLabels.value.at(-1)?.y ?? PAD.top) - 4);
 
 .axis-label {
   font-size: 5.5px;
-  fill: color-mix(in srgb, var(--text) 90%, transparent);
+  fill: var(
+    --album-paper-muted,
+    color-mix(in srgb, var(--text) 90%, transparent)
+  );
   font-family: var(--font-ui);
   font-weight: 500;
 }
 
 .unit-label {
   font-size: 5px;
-  fill: color-mix(in srgb, var(--text) 60%, transparent);
+  fill: var(
+    --album-paper-faint,
+    color-mix(in srgb, var(--text) 60%, transparent)
+  );
 }
 </style>

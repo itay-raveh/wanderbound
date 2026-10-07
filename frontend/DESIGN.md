@@ -114,7 +114,14 @@ exported artwork.
 
 The toolbar export dialog owns chapter selection and combined or separate output.
 
-Properties groups album fonts and country accent colors. Each country row opens
+Properties groups album fonts, album-wide page paper, and country accent colors.
+The paper row keeps its label, color swatch, and reset action together; hex editing
+stays inside the picker. Country accent rows use their country labels without a
+separate heading. Paper reset participates in album undo.
+Custom paper keeps normal text black or white and blends muted/faint text toward
+the paper, limiting each solid shade to at least 4.5:1 contrast. Levels can converge
+on borderline paper colors. Photos, maps, and overview artwork keep their
+treatment. Each country row opens
 Quasar's color picker, and its color applies throughout the album.
 
 ## 6. Do's and Don'ts

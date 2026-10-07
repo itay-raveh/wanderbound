@@ -138,7 +138,10 @@
     "resolutionWarningsOff": "כבוי",
     "resolutionWarningsRelaxed": "רגוע",
     "resolutionWarningsPrint": "דפוס",
-    "zoom": "זום"
+    "zoom": "זום",
+    "pageBackground": "רקע העמודים",
+    "themeDefault": "ברירת המחדל של ערכת הנושא",
+    "resetBackground": "איפוס"
   },
   "panorama": {
     "treat": "הגדרה כפנורמה",

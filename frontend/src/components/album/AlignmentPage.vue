@@ -44,21 +44,21 @@ const printMode = usePrintMode();
   border-radius: var(--radius-lg);
   background: color-mix(in srgb, var(--surface) 92%, transparent);
   box-shadow: var(--shadow-md);
-  color: var(--text);
+  color: var(--theme-page-text);
   font-family: var(--font-ui);
   text-align: center;
 }
 
 .alignment-note strong {
   display: block;
-  color: var(--text-bright);
+  color: var(--theme-page-text-bright);
   font-size: var(--type-2xl);
   line-height: 1.2;
 }
 
 .alignment-note p {
   margin: var(--gap-lg) 0 0;
-  color: var(--text-muted);
+  color: var(--theme-page-text-muted);
   font-size: var(--type-md);
   line-height: 1.5;
 }

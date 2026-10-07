@@ -138,7 +138,10 @@
     "resolutionWarningsOff": "Off",
     "resolutionWarningsRelaxed": "Relaxed",
     "resolutionWarningsPrint": "Print",
-    "zoom": "Zoom"
+    "zoom": "Zoom",
+    "pageBackground": "Page background",
+    "themeDefault": "Theme default",
+    "resetBackground": "Reset"
   },
   "panorama": {
     "treat": "Treat as panorama",

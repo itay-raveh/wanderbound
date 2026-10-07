@@ -10,6 +10,7 @@ import {
 } from "@/utils/fonts";
 import { useI18n } from "vue-i18n";
 import { computed } from "vue";
+import { Dark } from "quasar";
 
 const { t } = useI18n();
 
@@ -22,6 +23,14 @@ const albumMutation = useAlbumMutation(() => props.album.id);
 const { countryName } = useUserQuery();
 const saving = computed(() => albumMutation.asyncStatus.value === "loading");
 const colors = computed(() => props.album.colors as Record<string, string>);
+
+const backgroundColor = computed(
+  () => props.album.background_color ?? (Dark.isActive ? "#232338" : "#ffffff"),
+);
+function updateBackground(color: string | null) {
+  if (color === (props.album.background_color ?? null)) return;
+  albumMutation.mutate({ background_color: color });
+}
 
 const currentFont = computed(() => props.album.font ?? DEFAULT_FONT);
 const currentBodyFont = computed(
@@ -86,31 +95,63 @@ function updateColor(code: string, color: string) {
         </q-item>
       </template>
     </q-select>
-    <div v-if="Object.keys(colors).length" class="accent-colors">
-      <span class="color-label">{{ t("editor.accentColors") }}</span>
-      <q-btn
-        v-for="(color, code) in colors"
-        :key="code"
-        flat
-        no-caps
-        class="country-color"
-        :aria-label="`${countryName(code, code)} · ${t('editor.accentColors')}`"
-      >
-        <span class="country-name">{{ countryName(code, code) }}</span>
-        <span
-          class="color-swatch"
-          :style="{ backgroundColor: color }"
-          aria-hidden="true"
-        />
-        <q-popup-proxy :aria-label="countryName(code, code)">
-          <q-color
-            :model-value="color"
-            format-model="hex"
-            :disable="saving"
-            @change="updateColor(code, $event)"
+    <div class="album-colors">
+      <div class="background-row">
+        <q-btn
+          flat
+          no-caps
+          class="country-color background-color"
+          :aria-label="t('editor.pageBackground')"
+        >
+          <span class="country-name">{{ t("editor.pageBackground") }}</span>
+          <span
+            class="color-swatch"
+            :style="{ backgroundColor }"
+            aria-hidden="true"
           />
-        </q-popup-proxy>
-      </q-btn>
+          <q-popup-proxy :aria-label="t('editor.pageBackground')">
+            <q-color
+              :model-value="backgroundColor"
+              format-model="hex"
+              :disable="saving"
+              @change="updateBackground($event)"
+            />
+          </q-popup-proxy>
+        </q-btn>
+        <q-btn
+          flat
+          dense
+          no-caps
+          :label="t('editor.resetBackground')"
+          :disable="saving || !album.background_color"
+          @click="updateBackground(null)"
+        />
+      </div>
+      <div v-if="Object.keys(colors).length" class="accent-colors">
+        <q-btn
+          v-for="(color, code) in colors"
+          :key="code"
+          flat
+          no-caps
+          class="country-color"
+          :aria-label="`${countryName(code, code)} · ${t('editor.accentColors')}`"
+        >
+          <span class="country-name">{{ countryName(code, code) }}</span>
+          <span
+            class="color-swatch"
+            :style="{ backgroundColor: color }"
+            aria-hidden="true"
+          />
+          <q-popup-proxy :aria-label="countryName(code, code)">
+            <q-color
+              :model-value="color"
+              format-model="hex"
+              :disable="saving"
+              @change="updateColor(code, $event)"
+            />
+          </q-popup-proxy>
+        </q-btn>
+      </div>
     </div>
     <q-toggle
       :model-value="album.show_page_numbers ?? false"
@@ -146,15 +187,18 @@ function updateColor(code: string, color: string) {
   }
 }
 
+.background-row {
+  display: flex;
+  align-items: center;
+  gap: var(--gap-sm);
+}
+.background-color {
+  flex: 1;
+  min-width: 0;
+}
 .accent-colors {
   display: flex;
   flex-direction: column;
-}
-
-.color-label {
-  color: var(--text-muted);
-  font-size: var(--type-xs);
-  margin-block-end: var(--gap-sm);
 }
 
 .country-color {

@@ -367,7 +367,7 @@ const photoQualities = computed(() =>
   position: relative;
   min-width: 0;
   min-height: 0;
-  background: var(--page-bg);
+  background: var(--album-paper-bg, var(--page-bg));
   color: var(--text);
   padding: var(--page-inset-y);
   box-sizing: border-box;
