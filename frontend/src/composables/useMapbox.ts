@@ -179,6 +179,17 @@ export function useMapbox(options: UseMapboxOptions) {
 
       map.value = m;
 
+      if (options.preserveDrawingBuffer) {
+        m.on("style.load", () => {
+          // A print snapshot needs final tiles, not animation frames queued
+          // ahead of GPU readback. fadeDuration only controls symbol fades.
+          for (const layer of m.getStyle().layers ?? []) {
+            if (layer.type === "raster")
+              m.setPaintProperty(layer.id, "raster-fade-duration", 0);
+          }
+        });
+      }
+
       m.on("load", () => {
         options.onReady?.(m);
       });
