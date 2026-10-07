@@ -1,12 +1,19 @@
 <script lang="ts" setup>
 import AlbumPage from "@/components/album/AlbumPage.vue";
-import { computed, nextTick, onBeforeUnmount, ref, watch } from "vue";
+import {
+  computed,
+  nextTick,
+  onBeforeUnmount,
+  onMounted,
+  ref,
+  watch,
+} from "vue";
 import { useDraggable } from "vue-draggable-plus";
 import MediaItem from "../MediaItem.vue";
 import { useAlbum } from "@/composables/useAlbum";
 import { usePrintMode } from "@/composables/usePrintReady";
 import { isPortraitByName } from "@/utils/media";
-import { useElementVisibility } from "@vueuse/core";
+import { useElementVisibility, useResizeObserver } from "@vueuse/core";
 import {
   enforceOrientationOrder,
   photoPageFit,
@@ -21,7 +28,7 @@ import { symOutlinedClose } from "@quasar/extras/material-symbols-outlined";
 import { matDeleteOutline } from "@quasar/extras/material-icons";
 import PromptDialog from "@/components/ui/PromptDialog.vue";
 
-const { mediaByName, mediaResolutionWarningPreset } = useAlbum();
+const { mediaByName, mediaResolutionWarningPreset, pageSize } = useAlbum();
 const printMode = usePrintMode();
 const { t } = useI18n();
 
@@ -93,6 +100,52 @@ const editingSlotId = ref<string | null>(null);
 const draft = ref("");
 const draftFits = ref(true);
 const overflowing = ref(false);
+const overflowingSlotIds = ref<string[]>([]);
+
+// Check rendered text without modifying it. PrintView also checks these markers
+// after fonts settle, including pages absent from the virtual editor viewport.
+function checkTextOverflow() {
+  const ids: string[] = [];
+  containerRef.value
+    ?.querySelectorAll<HTMLElement>("[data-text-slot]")
+    .forEach((el) => {
+      const exceeds =
+        el.scrollHeight > el.clientHeight + 1 ||
+        el.scrollWidth > el.clientWidth + 1;
+      if (el.dataset.textSlot === editingSlotId.value) {
+        draftFits.value = !exceeds;
+        overflowing.value = exceeds;
+      }
+      if (exceeds) {
+        el.dataset.textOverflow = "";
+        ids.push(el.dataset.textSlot!);
+      } else delete el.dataset.textOverflow;
+    });
+  overflowingSlotIds.value = ids;
+}
+useResizeObserver(containerRef, checkTextOverflow);
+watch(
+  () => props.page,
+  () => void nextTick(checkTextOverflow),
+  { deep: true },
+);
+let styleObserver: MutationObserver | undefined;
+onMounted(() => {
+  void document.fonts.ready.then(checkTextOverflow);
+  document.fonts.addEventListener("loadingdone", checkTextOverflow);
+  styleObserver = new MutationObserver(() => void nextTick(checkTextOverflow));
+  // Typography and physical geometry are inherited from album/root tokens.
+  for (let el = containerRef.value; el; el = el.parentElement) {
+    styleObserver.observe(el, {
+      attributes: true,
+      attributeFilter: ["style", "class"],
+    });
+  }
+});
+onBeforeUnmount(() => {
+  styleObserver?.disconnect();
+  document.fonts.removeEventListener("loadingdone", checkTextOverflow);
+});
 const pendingRemovalId = ref<string | null>(null);
 const showRemoveConfirm = ref(false);
 
@@ -228,6 +281,7 @@ const photoQualities = computed(() =>
           photoFit.value,
           mediaByName.value,
           mediaResolutionWarningPreset.value,
+          pageSize.value,
         ),
   ),
 );
@@ -253,7 +307,12 @@ const photoQualities = computed(() =>
         :key="originalSlot(value)?.id ?? value"
       >
         <div v-if="originalSlot(value)?.kind === 'text'" class="item text-item">
-          <div v-if="printMode" class="tile-text" dir="auto">
+          <div
+            v-if="printMode"
+            :data-text-slot="originalSlot(value)?.id"
+            class="tile-text"
+            dir="auto"
+          >
             {{ originalSlot(value)?.text }}
           </div>
           <textarea
@@ -271,6 +330,7 @@ const photoQualities = computed(() =>
           />
           <div
             v-else
+            :data-text-slot="originalSlot(value)?.id"
             class="tile-text tile-display"
             dir="auto"
             role="button"
@@ -283,7 +343,11 @@ const photoQualities = computed(() =>
             {{ originalSlot(value)?.text || t("textTile.placeholder") }}
           </div>
           <p
-            v-if="overflowing && editingSlotId === originalSlot(value)?.id"
+            v-if="
+              !printMode &&
+              ((overflowing && editingSlotId === originalSlot(value)?.id) ||
+                overflowingSlotIds.includes(originalSlot(value)!.id))
+            "
             class="text-overflow"
             role="alert"
           >

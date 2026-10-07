@@ -14,7 +14,7 @@ const spine = computed(() => props.chapter.spine_width_mm ?? 0);
 <template>
   <AlbumPage
     cover
-    :width-mm="594 + spine"
+    :width-mm="2 * (album.page_width_mm ?? 297) + spine"
     class="wraparound"
     :style="{ '--spine': `${spine}mm` }"
   >
@@ -50,11 +50,11 @@ const spine = computed(() => props.chapter.spine_width_mm ?? 0);
   --cover-photo-right: calc(var(--spine) / 2);
 }
 .wrap-front {
-  left: calc(297mm + var(--spine));
+  left: calc(var(--page-width) + var(--spine));
   --cover-photo-left: calc(var(--spine) / 2);
 }
 .spine-guide {
-  left: 297mm;
+  left: var(--page-width);
   width: var(--spine);
   top: 0;
   bottom: 0;
@@ -64,7 +64,7 @@ const spine = computed(() => props.chapter.spine_width_mm ?? 0);
 .cover-safe-guide {
   top: var(--safe-margin, 0mm);
   bottom: var(--safe-margin, 0mm);
-  width: calc(297mm - 2 * var(--safe-margin, 0mm));
+  width: calc(var(--page-width) - 2 * var(--safe-margin, 0mm));
   border: var(--guide-width, 1px) dashed white;
   box-shadow: 0 0 0 var(--guide-width, 1px) black;
 }
@@ -72,7 +72,7 @@ const spine = computed(() => props.chapter.spine_width_mm ?? 0);
   left: var(--safe-margin, 0mm);
 }
 .front-safe {
-  left: calc(297mm + var(--spine) + var(--safe-margin, 0mm));
+  left: calc(var(--page-width) + var(--spine) + var(--safe-margin, 0mm));
 }
 /* rtl:end:ignore */
 .spine-guide,

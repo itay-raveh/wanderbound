@@ -44,6 +44,7 @@ const props = defineProps<{
 // Provide album context so child components (MediaItem in UnusedDrawer)
 // can call useAlbum() even though InspectorDrawer lives outside AlbumViewer.
 provideAlbum({
+  geometrySettings: computed(() => props.album),
   albumId: computed(() => props.album.id),
   colors: computed(() => (props.album.colors ?? {}) as Record<string, string>),
   media: computed(() => props.media),
@@ -149,6 +150,8 @@ const stepPagePlan = computed(() =>
     ? planStepPages(
         props.step,
         new Map(props.media.map((item) => [item.name, item])),
+        undefined,
+        props.album,
       )
     : null,
 );

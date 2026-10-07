@@ -1,6 +1,5 @@
 import { client } from "@/client/client.gen";
 import type { AlbumMedia } from "@/client";
-import { PAGE_WIDTH_MM } from "@/utils/pageSize";
 import { rotatedSize } from "@/utils/photoEdit";
 
 export function mediaUrl(name: string, albumId: string): string {
@@ -38,11 +37,6 @@ export function posterPath(path: string): string {
 
 // Must match backend logic/layout/media.py THUMB_WIDTHS - backend generates thumbnails at these sizes.
 export const THUMB_WIDTHS = [200, 800] as const;
-// Can't use CSS vars in img `sizes` attribute.
-// Uses zoom=1 so images are always loaded at full resolution regardless of editor zoom.
-const PAGE_WIDTH = `${PAGE_WIDTH_MM}mm`;
-export const SIZES_FULL = PAGE_WIDTH;
-export const SIZES_HALF = `calc(${PAGE_WIDTH} * 0.5)`;
 
 export function mediaThumbUrl(
   name: string,

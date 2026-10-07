@@ -3232,6 +3232,20 @@
             "title": "Body Font",
             "default": "Frank Ruhl Libre"
           },
+          "page_width_mm": {
+            "type": "number",
+            "maximum": 420.0,
+            "minimum": 250.0,
+            "title": "Page Width Mm",
+            "default": 297
+          },
+          "page_height_mm": {
+            "type": "number",
+            "maximum": 297.0,
+            "minimum": 180.0,
+            "title": "Page Height Mm",
+            "default": 210
+          },
           "safe_margin_mm": {
             "type": "integer",
             "maximum": 15.0,
@@ -3403,6 +3417,34 @@
             "title": "Body Font",
             "default": "Frank Ruhl Libre"
           },
+          "page_width_mm": {
+            "anyOf": [
+              {
+                "type": "number",
+                "maximum": 420.0,
+                "minimum": 250.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Page Width Mm",
+            "default": 297
+          },
+          "page_height_mm": {
+            "anyOf": [
+              {
+                "type": "number",
+                "maximum": 297.0,
+                "minimum": 180.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Page Height Mm",
+            "default": 210
+          },
           "safe_margin_mm": {
             "anyOf": [
               {
@@ -3545,6 +3587,20 @@
             "type": "string",
             "title": "Body Font",
             "default": "Frank Ruhl Libre"
+          },
+          "page_width_mm": {
+            "type": "number",
+            "maximum": 420.0,
+            "minimum": 250.0,
+            "title": "Page Width Mm",
+            "default": 297
+          },
+          "page_height_mm": {
+            "type": "number",
+            "maximum": 297.0,
+            "minimum": 180.0,
+            "title": "Page Height Mm",
+            "default": 210
           },
           "safe_margin_mm": {
             "type": "integer",

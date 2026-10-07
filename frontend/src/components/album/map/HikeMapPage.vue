@@ -42,7 +42,7 @@ const props = defineProps<{
   allSegments: SegmentOutline[];
 }>();
 
-const { albumId, colors } = useAlbum();
+const { albumId, colors, pageSize } = useAlbum();
 const container = useTemplateRef("hike-map");
 const { isKm, locale, distanceUnit, elevationUnit } = useUserQuery();
 const printMode = usePrintMode();
@@ -345,9 +345,9 @@ watch(countryColor, () => {
   if (map.value?.isStyleLoaded()) drawMap(map.value, { fitBounds: false });
 });
 
-// Refit bounds when safe margin changes so the route stays within the safe zone
+// Refit after geometry changes; elevation overlay padding depends on page width.
 watch(
-  [safeMarginMm, interiorBleedMm],
+  [safeMarginMm, interiorBleedMm, pageSize],
   () => {
     if (!map.value || !fullHikeSegment.value || !map.value.isStyleLoaded())
       return;

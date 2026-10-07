@@ -16,8 +16,6 @@ import {
   mediaUrl,
   mediaThumbUrl,
   posterPath,
-  SIZES_FULL,
-  SIZES_HALF,
   THUMB_WIDTHS,
 } from "@/utils/media";
 import {
@@ -64,7 +62,7 @@ const emit = defineEmits<{
   "make-panorama-spread": [media: string];
 }>();
 
-const { albumId, mediaByName, placementMediaUrl } = useAlbum();
+const { albumId, mediaByName, placementMediaUrl, pageSize } = useAlbum();
 const openPanoramaDialog = usePanoramaFrame();
 const openPhotoEdit = usePhotoEdit();
 const printMode = usePrintMode();
@@ -230,7 +228,7 @@ const imgSrcset = computed(() => {
 });
 const imgSizes = computed(() => {
   if (!imgSrcset.value) return undefined;
-  return (props.cols ?? 1) >= 2 ? SIZES_HALF : SIZES_FULL;
+  return `${pageSize.value.widthMm * ((props.cols ?? 1) >= 2 ? 0.5 : 1)}mm`;
 });
 
 const playing = ref(false);

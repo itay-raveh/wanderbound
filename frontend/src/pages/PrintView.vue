@@ -15,6 +15,7 @@ import { computed, onMounted, onUnmounted, ref } from "vue";
 import { useRoute } from "vue-router";
 import type { SegmentOutline } from "@/client";
 import { z } from "zod";
+import { albumPageSize, sheetSize } from "@/utils/pageSize";
 
 const printQuery = z.object({
   dark: z
@@ -52,15 +53,20 @@ useStyleTag(
     const interior = album.value?.interior_bleed_mm ?? 0;
     const cover = album.value?.cover_bleed_mm ?? 0;
     const spine = album.value?.chapters?.[0]?.spine_width_mm ?? 0;
-    const coverWidth = printPart.value === "cover" ? 594 + spine : 297;
-    const width =
-      printPart.value === "cover" ? coverWidth + 2 * cover : 297 + 2 * interior;
-    const height = 210 + 2 * (printPart.value === "cover" ? cover : interior);
+    const size = albumPageSize(album.value);
+    const interiorSize = sheetSize(size, interior);
+    const coverSize = sheetSize(
+      size,
+      cover,
+      printPart.value === "cover" ? spine : undefined,
+    );
+    const bodyPage = printPart.value === "cover" ? "cover" : "interior";
+    const bodySize = bodyPage === "cover" ? coverSize : interiorSize;
     // Matching the body page prevents Chromium from appending an unnamed blank sheet.
-    return `body { page: ${printPart.value === "cover" ? "cover" : "interior"}; }
-    @page { size: ${width}mm ${height}mm; margin: 0; }
-    @page interior { size: ${297 + 2 * interior}mm ${210 + 2 * interior}mm; margin: 0; }
-    @page cover { size: ${coverWidth + 2 * cover}mm ${210 + 2 * cover}mm; margin: 0; }`;
+    return `body { page: ${bodyPage}; }
+    @page { size: ${bodySize.widthMm}mm ${bodySize.heightMm}mm; margin: 0; }
+    @page interior { size: ${interiorSize.widthMm}mm ${interiorSize.heightMm}mm; margin: 0; }
+    @page cover { size: ${coverSize.widthMm}mm ${coverSize.heightMm}mm; margin: 0; }`;
   }),
 );
 const media = computed(() => bundle.value?.album.media ?? []);
@@ -116,7 +122,11 @@ async function loadFonts(): Promise<void> {
 let pollTimer = 0;
 
 type PrintError = {
-  code: "map-render-failed" | "font-load-failed" | "render-timeout";
+  code:
+    | "map-render-failed"
+    | "font-load-failed"
+    | "render-timeout"
+    | "text-overflow";
   message: string;
   mapError?: string;
 };
@@ -227,6 +237,20 @@ function waitForPrintReady() {
 
     if (!fontsLoaded) {
       schedulePoll(100);
+      return;
+    }
+    const overflow = Array.from(
+      document.querySelectorAll<HTMLElement>("[data-text-slot]"),
+    ).filter(
+      (tile) =>
+        tile.scrollHeight > tile.clientHeight + 1 ||
+        tile.scrollWidth > tile.clientWidth + 1,
+    );
+    if (overflow.length) {
+      setPrintError({
+        code: "text-overflow",
+        message: `Text does not fit in tiles: ${overflow.map((tile) => tile.dataset.textSlot).join(", ")}. Enlarge the page or edit those tiles.`,
+      });
       return;
     }
     setReady();

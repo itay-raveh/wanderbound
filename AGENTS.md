@@ -21,7 +21,8 @@ albums. It is a FastAPI and Vue 3 monorepo.
 
 ## Product invariants
 
-- Album pages are A4 landscape, 297 by 210 mm.
+- Album trim dimensions are persisted millimeters within the supported landscape
+  bounds. Existing albums default to A4 landscape, 297 by 210 mm.
 - Editor preview and PDF output must render the same album visuals. Print mode
   may hide editor controls, but must not change album content or layout.
 - Processing-session SSE reconnects replay stored events. They do not restart

@@ -520,6 +520,43 @@ test.describe("PDF map snapshots", () => {
     expect(tiles.fullMediaRequests()).toBe(0);
   });
 
+  test("renders maximum trim and bleed maps within the canvas budget", async ({
+    page,
+  }) => {
+    test.setTimeout(120_000);
+    await installPdfMapFixture(page, 0, {
+      ...bundle,
+      album: {
+        ...bundle.album,
+        page_width_mm: 420,
+        page_height_mm: 297,
+        interior_bleed_mm: 20,
+      },
+    });
+    await page.goto("/print/aid-1");
+    await releasePrintMapMemory(page);
+    await page.waitForFunction(
+      () =>
+        (window as unknown as Record<string, unknown>).__PRINT_READY__ ||
+        (window as unknown as Record<string, unknown>).__PRINT_ERROR__,
+    );
+    expect(
+      await page.evaluate(
+        () => (window as unknown as Record<string, unknown>).__PRINT_ERROR__,
+      ),
+    ).toBeUndefined();
+    await expect(
+      page.locator("[data-map][data-map-snapshot-ready]"),
+    ).toHaveCount(2);
+    expect(
+      await page
+        .locator(".mapbox-print-snapshot")
+        .first()
+        .evaluate((el) => (el as HTMLImageElement).naturalWidth),
+    ).toBeGreaterThan(3000);
+    await expect(page.locator(".mapboxgl-canvas")).toHaveCount(0);
+  });
+
   test("renders every map in one print document without exhausting WebGL contexts", async ({
     page,
   }) => {

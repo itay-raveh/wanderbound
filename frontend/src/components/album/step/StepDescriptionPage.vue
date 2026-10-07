@@ -7,7 +7,7 @@ import EditableText from "../EditableText.vue";
 import MediaItem from "../MediaItem.vue";
 import { computed } from "vue";
 
-const { mediaByName, mediaResolutionWarningPreset } = useAlbum();
+const { mediaByName, mediaResolutionWarningPreset, pageSize } = useAlbum();
 
 const props = defineProps<{
   page: TextPage;
@@ -27,6 +27,7 @@ const photoQuality = computed(() =>
         "cover",
         mediaByName.value,
         mediaResolutionWarningPreset.value,
+        pageSize.value,
       )
     : null,
 );

@@ -501,6 +501,16 @@
     }
   },
   "print": {
+    "pageSize": "גודל עמוד",
+    "dimensionUnits": "יחידות מידה",
+    "sizePreset": "גודל מוגדר",
+    "customSize": "מותאם אישית",
+    "pageWidth": "רוחב",
+    "pageHeight": "גובה",
+    "lockRatio": "נעילת יחס",
+    "pageSizeBounds": "רוחב 250–420 מ״מ, גובה 180–297 מ״מ; יחס רוחבי 1.25–1.8.",
+    "pageSizeNote": "לאחר ההחלה, בדקו את זרימת הטקסט ומסגור התמונות.",
+    "applySize": "החלה",
     "mapLoading": "המפה בטעינה…",
     "mapFailed": "לא ניתן לטעון את המפה.",
     "retryMap": "טעינת המפה מחדש",

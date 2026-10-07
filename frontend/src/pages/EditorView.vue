@@ -19,7 +19,7 @@ import { useUndoStack } from "@/composables/useUndoStack";
 import { useActiveSection } from "@/composables/useActiveSection";
 import { PHOTO_EDIT_KEY } from "@/composables/usePhotoEdit";
 import { useLocalStorage } from "@vueuse/core";
-import { PAGE_WIDTH_MM, MM_PX } from "@/utils/pageSize";
+import { albumPageSize, MM_PX } from "@/utils/pageSize";
 import {
   DEFAULT_ZOOM,
   editorZoomManuallySet,
@@ -140,7 +140,9 @@ watch(
       (inspectorOpen.value ? drawerWidth.value : 0) -
       24;
     const pageWidth =
-      (PAGE_WIDTH_MM + 2 * (album.value?.interior_bleed_mm ?? 0)) * MM_PX;
+      (albumPageSize(album.value).widthMm +
+        2 * (album.value?.interior_bleed_mm ?? 0)) *
+      MM_PX;
     const fitZoom = Math.max(
       MIN_ZOOM,
       Math.floor(availableWidth / pageWidth / ZOOM_STEP + 0.0001) * ZOOM_STEP,

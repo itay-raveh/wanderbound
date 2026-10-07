@@ -24,7 +24,12 @@ import { editorZoom, setEditorZoom } from "@/composables/useEditorZoom";
 import { DEFAULT_BODY_FONT, DEFAULT_FONT, fontStack } from "@/utils/fonts";
 import { daysBetween, parseLocalDate } from "@/utils/date";
 import { indexSteps } from "@/utils/steps";
-import { PAGE_HEIGHT_MM, MM_PX } from "@/utils/pageSize";
+import {
+  albumPageSize,
+  pageSizeStyle,
+  sheetSize,
+  MM_PX,
+} from "@/utils/pageSize";
 import {
   DEFAULT_MEDIA_RESOLUTION_WARNING_PRESET,
   summarizeQuality,
@@ -102,12 +107,21 @@ watchEffect(() => {
   interiorBleedMm.value = props.album.interior_bleed_mm ?? 0;
 });
 
+const pageSize = computed(() => albumPageSize(props.album));
+const coverSize = computed(() =>
+  sheetSize(
+    pageSize.value,
+    props.album.cover_bleed_mm ?? 0,
+    coverGroups.value[0]?.chapter.spine_width_mm ?? 0,
+  ),
+);
 const albumStyle = computed(() => {
   const sm = safeMarginMm.value;
   const paper = props.album.background_color
     ? paperTextColors(props.album.background_color)
     : null;
   return {
+    ...pageSizeStyle(pageSize.value),
     ...(props.album.background_color && paper
       ? {
           "--album-paper-bg": props.album.background_color,
@@ -153,6 +167,7 @@ const mediaResolutionWarningPreset = computed(
 );
 const { mediaByName } = provideAlbum({
   albumId,
+  geometrySettings: computed(() => props.album),
   colors: albumColors,
   media: albumMedia,
   tripStart,
@@ -187,6 +202,7 @@ if (!props.printMode) {
         group.chapter.back_cover_photo,
         mediaByName.value,
         mediaResolutionWarningPreset.value,
+        pageSize.value,
       );
       summary.caution += chapterSummary.caution;
       summary.warning += chapterSummary.warning;
@@ -198,7 +214,7 @@ if (!props.printMode) {
 const pageH = computed(
   () =>
     Math.round(
-      (PAGE_HEIGHT_MM +
+      (pageSize.value.heightMm +
         2 *
           Math.max(
             props.album.interior_bleed_mm ?? 0,
@@ -209,7 +225,7 @@ const pageH = computed(
     ) + 12,
 );
 const editorItems = computed(() =>
-  buildEditorItems(chapterRenderGroups.value, mediaByName.value),
+  buildEditorItems(chapterRenderGroups.value, mediaByName.value, props.album),
 );
 const physicalRenderItems = computed(() =>
   buildPhysicalRenderItems(editorItems.value),
@@ -450,12 +466,7 @@ watchEffect(() => {
     :title="t('print.previewCover')"
     controls-below
     :preview-label="t('print.previewCover')"
-    :aspect-ratio="
-      (594 +
-        (coverGroups[0]!.chapter.spine_width_mm ?? 0) +
-        2 * (album.cover_bleed_mm ?? 0)) /
-      (210 + 2 * (album.cover_bleed_mm ?? 0))
-    "
+    :aspect-ratio="coverSize.widthMm / coverSize.heightMm"
     @update:model-value="previewCoverChapterId = null"
   >
     <div
@@ -469,7 +480,7 @@ watchEffect(() => {
         :style="{
           '--editor-zoom':
             coverPreviewWidth /
-            ((594 +
+            ((2 * pageSize.widthMm +
               (group.chapter.spine_width_mm ?? 0) +
               2 * (album.cover_bleed_mm ?? 0)) *
               MM_PX),

@@ -3,7 +3,6 @@ import AlbumPage from "@/components/album/AlbumPage.vue";
 import { useAlbum } from "@/composables/useAlbum";
 import { usePrintMediaReady, usePrintMode } from "@/composables/usePrintReady";
 import { usePanoramaFrame } from "@/composables/usePanoramaFrame";
-import { PAGE_HEIGHT_MM, PAGE_WIDTH_MM } from "@/utils/pageSize";
 import { computed } from "vue";
 import PanoramaActions from "./PanoramaActions.vue";
 
@@ -16,11 +15,13 @@ const emit = defineEmits<{
   "make-full-page": [media: string];
 }>();
 
-const { placementMediaUrl } = useAlbum();
+const { placementMediaUrl, pageSize } = useAlbum();
 const openPanoramaDialog = usePanoramaFrame();
 const printMode = usePrintMode();
 const printMediaReady = usePrintMediaReady();
-const spreadAspectRatio = (PAGE_WIDTH_MM * 2) / PAGE_HEIGHT_MM;
+const spreadAspectRatio = computed(
+  () => (pageSize.value.widthMm * 2) / pageSize.value.heightMm,
+);
 const src = computed(() => placementMediaUrl(props.media));
 const renderedSrc = computed(() =>
   printMode && !printMediaReady.value ? undefined : src.value,
@@ -29,7 +30,7 @@ const renderedSrc = computed(() =>
 function openPanoramaFrame(): void {
   openPanoramaDialog?.({
     media: props.media,
-    aspectRatio: spreadAspectRatio,
+    aspectRatio: spreadAspectRatio.value,
     showSeam: true,
   });
 }

@@ -29,13 +29,16 @@ export function createUndoStack(maxEntries: number) {
   let undoEntries: UndoEntry[] = [];
   let redoEntries: UndoEntry[] = [];
   let replaying = false;
+  let replayRollback: (() => void) | undefined;
+  let pending = 0;
+  let generation = 0;
 
   const canUndo = ref(false);
   const canRedo = ref(false);
 
   function syncFlags() {
-    canUndo.value = undoEntries.length > 0;
-    canRedo.value = redoEntries.length > 0;
+    canUndo.value = pending === 0 && undoEntries.length > 0;
+    canRedo.value = pending === 0 && redoEntries.length > 0;
   }
 
   let stepMutator: ((sid: number, update: StepMutationUpdate) => void) | null =
@@ -46,8 +49,10 @@ export function createUndoStack(maxEntries: number) {
     entry: UndoEntry,
     snapshot: StepMutationUpdate | AlbumUpdate,
     focus?: PhotoFocusSnapshot,
+    rollback?: () => void,
   ) {
     replaying = true;
+    replayRollback = rollback;
     try {
       if (entry.type === "step") {
         stepMutator?.(entry.sid, snapshot as StepMutationUpdate);
@@ -57,6 +62,7 @@ export function createUndoStack(maxEntries: number) {
       }
     } finally {
       replaying = false;
+      replayRollback = undefined;
     }
   }
 
@@ -66,9 +72,44 @@ export function createUndoStack(maxEntries: number) {
     undoEntries.push(entry);
     redoEntries = [];
     syncFlags();
+    return entry;
+  }
+
+  function capturePush() {
+    const originalGeneration = generation;
+    const wasReplaying = replaying;
+    return (entry: UndoEntry) => {
+      if (!wasReplaying && generation === originalGeneration)
+        return push(entry);
+    };
+  }
+
+  function captureRollback() {
+    const originalGeneration = generation;
+    const rollback = replayRollback;
+    return () => {
+      if (generation === originalGeneration) rollback?.();
+    };
+  }
+
+  function discard(entry: UndoEntry | undefined) {
+    if (!entry) return;
+    undoEntries = undoEntries.filter((item) => item !== entry);
+    redoEntries = redoEntries.filter((item) => item !== entry);
+    syncFlags();
+  }
+
+  function suspend() {
+    pending++;
+    syncFlags();
+    return () => {
+      pending--;
+      syncFlags();
+    };
   }
 
   function undo() {
+    if (pending) return;
     const entry = undoEntries.pop();
     if (!entry) return;
     redoEntries.push(entry);
@@ -77,10 +118,16 @@ export function createUndoStack(maxEntries: number) {
       entry,
       entry.before,
       entry.type === "step" ? entry.focus?.before : undefined,
+      () => {
+        redoEntries = redoEntries.filter((item) => item !== entry);
+        undoEntries.push(entry);
+        syncFlags();
+      },
     );
   }
 
   function redo() {
+    if (pending) return;
     const entry = redoEntries.pop();
     if (!entry) return;
     if (undoEntries.length >= maxEntries) undoEntries.shift();
@@ -90,10 +137,16 @@ export function createUndoStack(maxEntries: number) {
       entry,
       entry.after,
       entry.type === "step" ? entry.focus?.after : undefined,
+      () => {
+        undoEntries = undoEntries.filter((item) => item !== entry);
+        redoEntries.push(entry);
+        syncFlags();
+      },
     );
   }
 
   function clear() {
+    generation++;
     undoEntries = [];
     redoEntries = [];
     stepMutator = null;
@@ -109,7 +162,19 @@ export function createUndoStack(maxEntries: number) {
     albumMutator = album;
   }
 
-  return { canUndo, canRedo, push, undo, redo, clear, registerMutators };
+  return {
+    canUndo,
+    canRedo,
+    push,
+    capturePush,
+    captureRollback,
+    discard,
+    suspend,
+    undo,
+    redo,
+    clear,
+    registerMutators,
+  };
 }
 
 const undoStack = createUndoStack(MAX_STACK);
