@@ -103,12 +103,7 @@ function updateColor(code: string, color: string) {
           class="country-color background-color"
           :aria-label="t('editor.pageBackground')"
         >
-          <span class="color-name">
-            <span>{{ t("editor.pageBackground") }}</span>
-            <span class="color-value">{{
-              album.background_color ?? t("editor.themeDefault")
-            }}</span>
-          </span>
+          <span class="country-name">{{ t("editor.pageBackground") }}</span>
           <span
             class="color-swatch"
             :style="{ backgroundColor }"
@@ -133,7 +128,6 @@ function updateColor(code: string, color: string) {
         />
       </div>
       <div v-if="Object.keys(colors).length" class="accent-colors">
-        <span class="color-label">{{ t("editor.accentColors") }}</span>
         <q-btn
           v-for="(color, code) in colors"
           :key="code"
@@ -202,26 +196,9 @@ function updateColor(code: string, color: string) {
   flex: 1;
   min-width: 0;
 }
-.color-name {
-  display: flex;
-  flex-direction: column;
-  text-align: start;
-  min-width: 0;
-}
-.color-value {
-  font-size: var(--type-xs);
-  color: var(--text-muted);
-  font-variant-numeric: tabular-nums;
-}
 .accent-colors {
   display: flex;
   flex-direction: column;
-}
-
-.color-label {
-  color: var(--text-muted);
-  font-size: var(--type-xs);
-  margin-block-end: var(--gap-sm);
 }
 
 .country-color {
