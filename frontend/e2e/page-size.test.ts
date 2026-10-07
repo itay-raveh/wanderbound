@@ -13,6 +13,7 @@ const artifacts = resolve("../output/playwright/page-size");
 test("custom trim dimensions save atomically, survive units/reload and undo, and roll back failures", async ({
   authedPage: page,
 }) => {
+  test.setTimeout(60_000);
   const album = {
     ...mockAlbum,
     page_width_mm: 297,

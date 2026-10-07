@@ -116,7 +116,6 @@ async function apply() {
       <q-input
         :model-value="display(widthMm)"
         :label="t('print.pageWidth')"
-        :suffix="unit"
         type="number"
         step="any"
         outlined
@@ -128,7 +127,6 @@ async function apply() {
       <q-input
         :model-value="display(heightMm)"
         :label="t('print.pageHeight')"
-        :suffix="unit"
         type="number"
         step="any"
         outlined
@@ -187,6 +185,10 @@ async function apply() {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: var(--gap-md);
+}
+.size-dimensions :deep(input) {
+  direction: ltr;
+  text-align: left;
 }
 .size-note,
 .size-error {
