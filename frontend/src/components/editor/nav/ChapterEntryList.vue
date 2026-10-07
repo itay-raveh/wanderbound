@@ -121,5 +121,7 @@ defineEmits<{
 .chapter-entries-virtual {
   max-height: calc(100vh - 13rem);
   overflow-y: auto;
+  // Quasar maintains the scroll offset as virtual rows are replaced.
+  overflow-anchor: none;
 }
 </style>

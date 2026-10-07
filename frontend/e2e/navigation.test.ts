@@ -62,17 +62,39 @@ test.describe("responsive editor rails", () => {
     const position = page.locator(".page-position");
     const label = await position.innerText();
 
+    const inspector = page.locator("#editor-inspector");
     await page.getByRole("button", { name: "Show inspector" }).click();
-    await expect(page.locator("body")).toHaveClass(/q-body--prevent-scroll/);
+    await expect(inspector).toBeVisible();
     await expect(step).toBeInViewport();
+    await expect(position).toHaveText(label);
+    const lockedTop = await step.evaluate(
+      (el) => el.getBoundingClientRect().top,
+    );
+    // The center of this viewport is the backdrop, outside either rail.
+    await page.mouse.move(512, 384);
+    await page.mouse.wheel(0, 600);
+    await page.waitForTimeout(200);
+    expect(
+      Math.abs(
+        (await step.evaluate((el) => el.getBoundingClientRect().top)) -
+          lockedTop,
+      ),
+    ).toBeLessThanOrEqual(1);
     await expect(position).toHaveText(label);
 
     await page.getByRole("button", { name: "Hide inspector" }).click();
-    await expect(page.locator("body")).not.toHaveClass(
-      /q-body--prevent-scroll/,
-    );
+    await expect(inspector).toBeHidden();
     await expect(step).toBeInViewport();
     await expect(position).toHaveText(label);
+    await expect
+      .poll(() => page.evaluate(() => window.scrollY))
+      .toBeGreaterThan(2000);
+    const restoredScrollY = await page.evaluate(() => window.scrollY);
+    await page.mouse.move(512, 384);
+    await page.mouse.wheel(0, -600);
+    await expect
+      .poll(() => page.evaluate(() => window.scrollY))
+      .toBeLessThan(restoredScrollY);
   });
 
   test("opens both rails on a wide desktop and toggles them independently", async ({
