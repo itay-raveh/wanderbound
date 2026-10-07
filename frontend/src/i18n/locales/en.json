@@ -141,8 +141,7 @@
     "zoom": "Zoom",
     "pageBackground": "Page background",
     "themeDefault": "Theme default",
-    "resetBackground": "Reset",
-    "backgroundScope": "All chapters · page paper only. Photos, maps and overview keep their artwork."
+    "resetBackground": "Reset"
   },
   "panorama": {
     "treat": "Treat as panorama",

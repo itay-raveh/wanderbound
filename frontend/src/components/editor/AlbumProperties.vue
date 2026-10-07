@@ -132,7 +132,6 @@ function updateColor(code: string, color: string) {
           @click="updateBackground(null)"
         />
       </div>
-      <p class="color-scope">{{ t("editor.backgroundScope") }}</p>
       <div v-if="Object.keys(colors).length" class="accent-colors">
         <span class="color-label">{{ t("editor.accentColors") }}</span>
         <q-btn
@@ -209,17 +208,10 @@ function updateColor(code: string, color: string) {
   text-align: start;
   min-width: 0;
 }
-.color-value,
-.color-scope {
+.color-value {
   font-size: var(--type-xs);
   color: var(--text-muted);
-}
-.color-value {
   font-variant-numeric: tabular-nums;
-}
-.color-scope {
-  margin: var(--gap-sm) var(--gap-sm) var(--gap-md-lg);
-  line-height: 1.4;
 }
 .accent-colors {
   display: flex;

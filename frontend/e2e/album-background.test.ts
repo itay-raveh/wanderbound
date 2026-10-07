@@ -41,6 +41,35 @@ for (const { rtl, width } of [
       show_page_numbers: true,
       hidden_headers: ["full-map"],
     };
+    const tileText = rtl ? "יום של טיול בתעלות" : "A day exploring the canals";
+    const steps = mockSteps.map((step) => ({
+      ...step,
+      pages: step.pages.map((page) => ({
+        ...page,
+        slots: [
+          ...page.slots,
+          {
+            id: "paper-contrast-text",
+            kind: "text",
+            text: tileText,
+            frame_orientation: "landscape",
+            continuation_priority: 100,
+          },
+        ],
+      })),
+    }));
+    await page.route("**/api/v1/albums/aid-1/steps", (route) =>
+      route.fulfill({ json: steps }),
+    );
+    const textTile = page.locator(".page-content .text-item").first();
+    const expectTextTile = async (background: string, color: string) => {
+      await expect(textTile).toHaveCSS("background-color", background);
+      await expect(textTile.locator(".tile-text")).toHaveCSS("color", color);
+      await expect(textTile.locator(".tile-text")).toHaveCSS(
+        "direction",
+        rtl ? "rtl" : "ltr",
+      );
+    };
     const updates: unknown[] = [];
     await page.route("**/api/v1/albums/aid-1", async (route) => {
       if (route.request().method() === "PATCH") {
@@ -97,6 +126,7 @@ for (const { rtl, width } of [
       "color",
       "rgb(0, 0, 0)",
     );
+    await expectTextTile("rgb(255, 238, 170)", "rgb(0, 0, 0)");
     const lightMuted = await paper
       .locator(".coords")
       .evaluate((element) => getComputedStyle(element).color);
@@ -140,6 +170,7 @@ for (const { rtl, width } of [
       "color",
       "rgb(240, 240, 245)",
     );
+    await expectTextTile("rgb(32, 32, 64)", "rgb(255, 255, 255)");
     const darkMuted = await paper
       .locator(".coords")
       .evaluate((element) => getComputedStyle(element).color);
@@ -149,11 +180,15 @@ for (const { rtl, width } of [
     if (rtl)
       await page.getByRole("button", { name: "הסתרת המאפיינים" }).click();
     await paper.screenshot({ path: testInfo.outputPath("paper.png") });
+    await textTile.locator(".tile-display").click();
+    await expect(textTile.locator("textarea")).toHaveValue(tileText);
+    await expectTextTile("rgb(32, 32, 64)", "rgb(255, 255, 255)");
+    await textTile.locator("textarea").press("Escape");
     await page.route("**/api/v1/albums/*/print-bundle*", (route) =>
       route.fulfill({
         json: {
           album: { ...album, media: mockMedia },
-          steps: mockSteps,
+          steps,
           segments: [],
           total_distance_km: 0,
         },
@@ -185,12 +220,24 @@ for (const { rtl, width } of [
       "rgb(255, 255, 255)",
     );
     await expect(printPaper.locator(".coords")).toHaveCSS("color", darkMuted);
+    await expectTextTile("rgb(32, 32, 64)", "rgb(255, 255, 255)");
     await page.screenshot({
       path: testInfo.outputPath("print.png"),
       fullPage: true,
     });
     await page.pdf({
       path: testInfo.outputPath("album.pdf"),
+      printBackground: true,
+      preferCSSPageSize: true,
+    });
+    album.background_color = "#ffeeaa";
+    await page.reload();
+    await page.waitForFunction(
+      () => (window as unknown as Record<string, unknown>).__PRINT_READY__,
+    );
+    await expectTextTile("rgb(255, 238, 170)", "rgb(0, 0, 0)");
+    await page.pdf({
+      path: testInfo.outputPath("light-album.pdf"),
       printBackground: true,
       preferCSSPageSize: true,
     });
