@@ -2,6 +2,15 @@ import subprocess
 import sys
 from pathlib import Path
 
+from alembic.script import ScriptDirectory
+
+
+def test_migrations_have_one_head() -> None:
+    backend = Path(__file__).resolve().parents[1]
+    scripts = ScriptDirectory(str(backend / "app" / "alembic"))
+
+    assert scripts.get_current_head() is not None
+
 
 def test_migrations_require_only_database_configuration(tmp_path: Path) -> None:
     backend = Path(__file__).resolve().parents[1]
