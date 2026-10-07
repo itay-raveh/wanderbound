@@ -283,6 +283,169 @@ test.describe("Large album editor performance", () => {
     }
   });
 
+  test("scrolls past the focused step without jumping the sidebar or viewer", async ({
+    page,
+  }) => {
+    await mockLargeAlbum(page);
+    await page.goto("/editor");
+    await expect(page.getByText("Large Album").first()).toBeVisible({
+      timeout: 15_000,
+    });
+    await scrollNavStepIntoView(page, 30);
+    const selectedStep = page.locator('[data-nav-step="30"]');
+    await selectedStep.click();
+    await expect(selectedStep).toBeFocused();
+    await expect(page.locator(".page-position")).toHaveText("Page 63 of 484");
+    // Let the initial navigation and virtual-list measurement settle before
+    // measuring user scrolling, including one-frame focus/anchoring jumps.
+    await page.waitForTimeout(200);
+
+    const navList = page.locator(".chapter-entries-virtual");
+    const trace = await navList.evaluateHandle((el) => {
+      const outer = el.closest<HTMLElement>(".nav-list")!;
+      const sample = () => ({
+        inner: el.scrollTop,
+        outer: outer.scrollTop,
+        top: el.getBoundingClientRect().top,
+        viewer: window.scrollY,
+        activePage: document.querySelector(".page-position")?.textContent,
+      });
+      const samples = [sample()];
+      let frame = 0;
+      const record = () => {
+        samples.push(sample());
+        frame = requestAnimationFrame(record);
+      };
+      frame = requestAnimationFrame(record);
+      return {
+        samples,
+        stop: () => cancelAnimationFrame(frame),
+      };
+    });
+
+    const wheelTarget = await navList.evaluate((el) => {
+      const rect = el.getBoundingClientRect();
+      return { x: rect.left + rect.width / 2, y: rect.top + 20 };
+    });
+    await page.mouse.move(wheelTarget.x, wheelTarget.y);
+    for (
+      let attempt = 0;
+      attempt < 8 && (await selectedStep.count());
+      attempt++
+    ) {
+      await page.mouse.wheel(0, 600);
+      await page.waitForTimeout(150);
+    }
+    // Moving offscreen is insufficient: exercise focus recovery when the
+    // selected row is actually removed from the virtualized DOM.
+    await expect(selectedStep).toHaveCount(0);
+    await expect(navList.locator(":focus")).toHaveCount(1);
+    const beforeContinuing = await navList.evaluate((el) => el.scrollTop);
+    await page.mouse.wheel(0, 600);
+    await expect
+      .poll(() => navList.evaluate((el) => el.scrollTop))
+      .toBeGreaterThan(beforeContinuing);
+    await page.waitForTimeout(150);
+    const samples = await trace.evaluate((trace) => {
+      trace.stop();
+      return trace.samples;
+    });
+    await trace.dispose();
+
+    for (const sample of samples) {
+      expect(Math.abs(sample.outer - samples[0].outer)).toBeLessThanOrEqual(1);
+      expect(Math.abs(sample.top - samples[0].top)).toBeLessThanOrEqual(1);
+      expect(Math.abs(sample.viewer - samples[0].viewer)).toBeLessThanOrEqual(
+        1,
+      );
+      expect(sample.activePage).toBe("Page 63 of 484");
+    }
+    for (let index = 1; index < samples.length; index++) {
+      expect(samples[index].inner).toBeGreaterThanOrEqual(
+        samples[index - 1].inner - 1,
+      );
+    }
+
+    const beforeReversing = await navList.evaluate((el) => el.scrollTop);
+    await page.mouse.wheel(0, -600);
+    await expect
+      .poll(() => navList.evaluate((el) => el.scrollTop))
+      .toBeLessThan(beforeReversing);
+    await page.waitForTimeout(150);
+    await expect(page.locator(".page-position")).toHaveText("Page 63 of 484");
+
+    // Focus recovery must leave the rendered steps reachable by keyboard.
+    await page.keyboard.press("Tab");
+    const keyboardStep = navList.locator("[data-nav-step]:focus");
+    await expect(keyboardStep).toHaveCount(1);
+    const step = Number(await keyboardStep.getAttribute("data-nav-step"));
+    await page.keyboard.press("Enter");
+    await expect(keyboardStep).toHaveAttribute("aria-current", "step");
+    await expect(page.locator(".page-position")).toHaveText(
+      `Page ${step * 2 + 3} of 484`,
+    );
+  });
+
+  test("keeps sidebar boundary scrolling out of the album viewer", async ({
+    page,
+  }) => {
+    await mockLargeAlbum(page);
+    await page.goto("/editor");
+    const entries = page.locator(".chapter-entries-virtual");
+    const outer = page.locator(".nav-list");
+    await expect(entries).toBeVisible({ timeout: 15_000 });
+    await expect(page.locator(".page-position")).toHaveText("Page 1 of 484");
+
+    // Start at the inner boundary; wheel input must still reach the outer
+    // sidebar so chapter headers and the last rows remain accessible.
+    await entries.evaluate((el) => {
+      el.scrollTop = el.scrollHeight;
+    });
+    await expect(page.locator('[data-nav-step="240"]')).toHaveCount(1);
+    const point = await entries.evaluate((el) => {
+      const rect = el.getBoundingClientRect();
+      const sidebar = el.closest(".nav-list")!.getBoundingClientRect();
+      return {
+        x: rect.left + rect.width / 2,
+        y: Math.min(rect.bottom, sidebar.bottom, innerHeight) - 30,
+      };
+    });
+    await page.mouse.move(point.x, point.y);
+    await page.mouse.wheel(0, 600);
+    await expect
+      .poll(() => outer.evaluate((el) => el.scrollTop))
+      .toBeGreaterThan(0);
+    await expect
+      .poll(() =>
+        outer.evaluate(
+          (el) => el.scrollHeight - el.clientHeight - el.scrollTop,
+        ),
+      )
+      .toBeLessThanOrEqual(1);
+
+    // Separate gestures after exhausting both scrollers must not chain to
+    // the document and make its active-step sync jump the sidebar backward.
+    for (let gesture = 0; gesture < 3; gesture++) {
+      await page.waitForTimeout(250);
+      await page.mouse.wheel(0, 800);
+    }
+    await page.waitForTimeout(250);
+    expect(await page.evaluate(() => window.scrollY)).toBe(0);
+    await expect(page.locator(".page-position")).toHaveText("Page 1 of 484");
+    expect(
+      await entries.evaluate(
+        (el) => el.scrollHeight - el.clientHeight - el.scrollTop,
+      ),
+    ).toBeLessThanOrEqual(1);
+
+    // The viewer remains independently scrollable outside the sidebar.
+    await page.mouse.move(800, 450);
+    await page.mouse.wheel(0, 800);
+    await expect
+      .poll(() => page.evaluate(() => window.scrollY))
+      .toBeGreaterThan(0);
+  });
+
   test("keeps the active step near the middle of the nav while scrolling", async ({
     page,
   }) => {
