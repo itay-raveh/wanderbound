@@ -1,6 +1,6 @@
 import {
   planStepPages,
-  reorderStepPhotoPages,
+  reorderStepTilePages,
 } from "@/components/album/stepPages";
 import type { TextPage } from "@/composables/useTextLayout";
 import { makeStep, photoGridPage } from "../helpers";
@@ -26,29 +26,39 @@ it("preserves finished pages and description portraits through repeated reorderi
     unused: ["unused"],
   });
   const original = planStepPages(step, media, text);
-  const reordered = reorderStepPhotoPages(original, 2, 0)!;
+  const reordered = reorderStepTilePages(original, 2, 0)!;
   const after = planStepPages({ ...step, pages: reordered }, media, text);
 
   expect(after.continuationPhotos).toEqual(original.continuationPhotos);
-  expect(after.photoPages.map(({ page }) => page)).toEqual([
+  expect(
+    after.tilePages.map(({ page }) => ({
+      kind: page.kind,
+      media: page.media,
+    })),
+  ).toEqual([
     photoGridPage("portrait-b", "other"),
     photoGridPage("landscape"),
     { kind: "panorama_spread", media: ["wide"] },
   ]);
   const restored = planStepPages(
-    { ...step, pages: reorderStepPhotoPages(after, 0, 2)! },
+    { ...step, pages: reorderStepTilePages(after, 0, 2)! },
     media,
     text,
   );
-  expect(restored.photoPages.map(({ page }) => page)).toEqual(
-    original.photoPages.map(({ page }) => page),
+  expect(restored.tilePages.map(({ page }) => page)).toEqual(
+    original.tilePages.map(({ page }) => page),
   );
   expect(restored.continuationPhotos).toEqual(["portrait-a"]);
-  expect(new Set(reordered.flatMap((page) => page.media))).toEqual(
+  expect(new Set(reordered.map((page) => page.id))).toEqual(
+    new Set(step.pages.map((page) => page.id)),
+  );
+  expect(
     new Set(
-      step.pages
-        .flatMap((page) => page.media)
-        .filter((name) => name !== step.cover),
+      reordered.flatMap((page) => page.slots?.map((slot) => slot.id) ?? []),
+    ),
+  ).toEqual(
+    new Set(
+      step.pages.flatMap((page) => page.slots?.map((slot) => slot.id) ?? []),
     ),
   );
 });

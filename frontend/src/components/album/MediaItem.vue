@@ -8,6 +8,7 @@ import { PROGRAMMATIC_SCROLL_KEY } from "@/composables/useProgrammaticScroll";
 import { useVideoFrameMutation } from "@/queries/useVideoFrameMutation";
 import PanoramaActions from "./PanoramaActions.vue";
 import { usePanoramaFrame } from "@/composables/usePanoramaFrame";
+import { usePhotoEdit } from "@/composables/usePhotoEdit";
 import { useElementVisibility, useResizeObserver } from "@vueuse/core";
 import {
   isVideo as checkVideo,
@@ -36,6 +37,7 @@ import {
   matChevronRight,
   matWarning,
 } from "@quasar/extras/material-icons";
+import { symOutlinedCropRotate } from "@quasar/extras/material-symbols-outlined";
 
 const { t } = useI18n();
 
@@ -52,8 +54,9 @@ const props = withDefaults(
     panoramaDestinationKind?: string;
     makeFullPage?: boolean;
     makePanoramaSpread?: boolean;
+    showPhotoEdit?: boolean;
   }>(),
-  { focusable: true, alt: "", lazy: true },
+  { focusable: true, alt: "", lazy: true, showPhotoEdit: true },
 );
 
 const emit = defineEmits<{
@@ -63,6 +66,7 @@ const emit = defineEmits<{
 
 const { albumId, mediaByName, placementMediaUrl } = useAlbum();
 const openPanoramaDialog = usePanoramaFrame();
+const openPhotoEdit = usePhotoEdit();
 const printMode = usePrintMode();
 const printMediaReady = usePrintMediaReady();
 const supportsIntersectionObserver =
@@ -143,6 +147,9 @@ const mediaCacheKey = computed(() => {
 });
 
 const albumMedia = computed(() => mediaByName.value.get(props.media));
+const canEditPhoto = computed(
+  () => !printMode && props.showPhotoEdit && albumMedia.value?.kind === "photo",
+);
 const panorama = computed(() => albumMedia.value?.panorama);
 const activePanorama = computed(() => panorama.value != null);
 const hasPanoramaAction = computed(
@@ -402,13 +409,33 @@ function onVideoKey(e: KeyboardEvent) {
       @make-full-page="emit('make-full-page', $event)"
       @make-panorama-spread="emit('make-panorama-spread', $event)"
     >
+      <button
+        v-if="canEditPhoto"
+        type="button"
+        class="album-action"
+        :aria-label="t('photoEdit.title')"
+        @click="openPhotoEdit?.(media)"
+      >
+        <q-icon :name="symOutlinedCropRotate" />
+        <q-tooltip>{{ t("photoEdit.title") }}</q-tooltip>
+      </button>
       <slot name="actions" />
     </PanoramaActions>
     <div
-      v-else-if="!printMode && $slots.actions"
+      v-else-if="!printMode && (canEditPhoto || $slots.actions)"
       class="album-actions"
       @click.stop
     >
+      <button
+        v-if="canEditPhoto"
+        type="button"
+        class="album-action"
+        :aria-label="t('photoEdit.title')"
+        @click="openPhotoEdit?.(media)"
+      >
+        <q-icon :name="symOutlinedCropRotate" />
+        <q-tooltip>{{ t("photoEdit.title") }}</q-tooltip>
+      </button>
       <slot name="actions" />
     </div>
   </div>

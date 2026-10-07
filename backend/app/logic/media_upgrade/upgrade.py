@@ -18,6 +18,8 @@ from app.core.db import get_engine
 from app.core.observability import start_span
 from app.core.worker_threads import run_sync
 from app.logic.layout.media import Media, MediaName, media_limiter
+from app.logic.panorama import panorama_output_size
+from app.logic.photo_edit import fit_photo_edit
 from app.models.album_media import AlbumMedia, is_panorama_size
 from app.models.google_photos import GoogleMediaId, PickedMediaItem, PickerSessionId
 from app.services.google_photos import (
@@ -180,6 +182,13 @@ async def _persist_upgrade_in_session(  # noqa: PLR0913
         row.height = updated.height
         if not is_panorama_size(updated.width, updated.height):
             row.panorama = None
+        if row.photo_edit is not None:
+            edit_size = (
+                panorama_output_size(updated.width, row.panorama.aspect_ratio)
+                if row.panorama is not None
+                else (updated.width, updated.height)
+            )
+            row.photo_edit = fit_photo_edit(row.photo_edit, *edit_size)
         row.byte_size = target.stat().st_size
         row.perceptual_hashes = None
         row.upgrade_candidate = False

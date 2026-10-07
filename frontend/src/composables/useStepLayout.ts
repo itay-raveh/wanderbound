@@ -4,6 +4,13 @@ import { useDragState } from "./useDragState";
 import { usePrintMode } from "./usePrintReady";
 import { inject, provide, ref, watch, type InjectionKey, type Ref } from "vue";
 import { useDraggable } from "vue-draggable-plus";
+import type { StepPageLayoutOutput } from "@/client";
+import {
+  gridPage,
+  pageSlots,
+  photoSlot,
+  withSlots,
+} from "@/components/album/stepPages";
 
 type StepMutateFn = (payload: {
   sid: number;
@@ -16,11 +23,16 @@ const STEP_MUTATE_KEY: InjectionKey<StepMutateFn> = Symbol("step-mutate");
 function stripPhotos(step: Step, photoSet: Set<string>) {
   return {
     pages: step.pages
-      .map((page) => ({
-        ...page,
-        media: page.media.filter((name) => !photoSet.has(name)),
-      }))
-      .filter((page) => page.media.length > 0),
+      .map((page) =>
+        withSlots(
+          page,
+          pageSlots(page).filter(
+            (slot) =>
+              slot.kind === "text" || !photoSet.has(slot.media_name ?? ""),
+          ),
+        ),
+      )
+      .filter((page) => pageSlots(page).length > 0),
     unused: step.unused.filter((p) => !photoSet.has(p)),
   };
 }
@@ -64,14 +76,18 @@ export function fullPageLayout(
   if (!target || !target.media.includes(media)) return null;
   const pages = [...step.pages];
   if (target.kind === "panorama_spread") {
-    pages[idx] = { kind: "grid", media: [media] };
+    pages[idx] = { ...target, kind: "grid" };
   } else {
-    if (target.media.length <= 1) return null;
+    if (pageSlots(target).length <= 1) return null;
+    const moved = pageSlots(target).find((slot) => slot.media_name === media)!;
     pages.splice(
       idx,
       1,
-      { ...target, media: target.media.filter((name) => name !== media) },
-      { kind: "grid", media: [media] },
+      withSlots(
+        target,
+        pageSlots(target).filter((slot) => slot.id !== moved.id),
+      ),
+      gridPage([moved]),
     );
   }
   return pages;
@@ -109,36 +125,77 @@ export function useStepLayout(
     saveField(coverUpdatePayload(step.value, cover));
   }
 
-  function onPageUpdate(idx: number, media: string[]) {
+  function onPageUpdate(
+    idx: number,
+    page: StepPageLayoutOutput,
+    continuationPhotos: string[] = [],
+  ) {
     const s = step.value;
     const target = s.pages[idx];
-    if (!target || (target.kind === "panorama_spread" && media.length !== 1))
+    if (
+      !target ||
+      (target.kind === "panorama_spread" && page.media.length !== 1)
+    )
       return;
 
+    const media = page.media;
     const existing = new Set(target.media);
     const added = media.filter((name) => !existing.has(name));
+    const originalSlots = s.pages.flatMap(pageSlots);
+    const slotForName = new Map(
+      originalSlots
+        .filter((slot) => slot.kind === "photo" && slot.media_name)
+        .map((slot) => [slot.media_name!, slot]),
+    );
+    const visibleSlots = pageSlots(page).map((slot) =>
+      slot.kind === "photo"
+        ? (slotForName.get(slot.media_name ?? "") ?? slot)
+        : slot,
+    );
+    const hiddenNames = new Set([s.cover, ...continuationPhotos]);
+    const hiddenSlots = pageSlots(target).filter(
+      (slot) => slot.kind === "photo" && hiddenNames.has(slot.media_name ?? ""),
+    );
+    const nextTarget = withSlots(target, [...hiddenSlots, ...visibleSlots]);
+    const displaced = pageSlots(target).flatMap((slot) =>
+      slot.kind === "photo" &&
+      visibleSlots.some(
+        (next) => next.id === slot.id && next.kind === "text",
+      ) &&
+      slot.media_name
+        ? [slot.media_name]
+        : [],
+    );
 
     if (added.length > 0) {
-      // Cross-list move: replace target page in-place, strip dragged photos
-      // from all other pages atomically (can't use withoutPhotos + splice
-      // because filtering empty pages shifts indices).
       const addedSet = new Set(added);
       const pages = s.pages
         .map((p, i) =>
           i === idx
-            ? { ...p, media }
-            : {
-                ...p,
-                media: p.media.filter((name) => !addedSet.has(name)),
-              },
+            ? nextTarget
+            : withSlots(
+                p,
+                pageSlots(p).filter(
+                  (slot) =>
+                    slot.kind === "text" ||
+                    !addedSet.has(slot.media_name ?? ""),
+                ),
+              ),
         )
-        .filter((p) => p.media.length > 0);
-      const unused = s.unused.filter((p) => !addedSet.has(p));
+        .filter((p) => pageSlots(p).length > 0);
+      const unused = [
+        ...s.unused.filter((p) => !addedSet.has(p)),
+        ...displaced,
+      ];
       saveField({ pages, unused });
     } else {
       const pages = [...s.pages];
-      pages[idx] = { ...target, media };
-      saveField({ pages });
+      if (pageSlots(nextTarget).length) pages[idx] = nextTarget;
+      else pages.splice(idx, 1);
+      saveField({
+        pages,
+        ...(displaced.length ? { unused: [...s.unused, ...displaced] } : {}),
+      });
     }
   }
 
@@ -157,17 +214,17 @@ export function useStepLayout(
     if (
       !target ||
       target.kind !== "grid" ||
-      target.media.length !== 1 ||
+      pageSlots(target).length !== 1 ||
       target.media[0] !== media
     )
       return;
     const pages = [...step.value.pages];
-    pages[idx] = { kind: "panorama_spread", media: [media] };
+    pages[idx] = { ...target, kind: "panorama_spread" };
     saveField({ pages });
   }
 
   if (!printMode) {
-    // dropZoneRef is null when totalPhotos < 2 (v-if hides the element).
+    // dropZoneRef is null while the add zone is hidden.
     // Defer SortableJS init until the element actually exists.
     const dropDraggable = useDraggable(dropZoneRef, dropZoneList, {
       group: "photos",
@@ -180,7 +237,18 @@ export function useStepLayout(
         const cleaned = withoutPhotos(new Set(photos));
         saveField({
           ...cleaned,
-          pages: [...cleaned.pages, { kind: "grid", media: photos }],
+          pages: [
+            ...cleaned.pages,
+            gridPage(
+              photos.map(
+                (name) =>
+                  step.value.pages
+                    .flatMap(pageSlots)
+                    .find((slot) => slot.media_name === name) ??
+                  photoSlot(name),
+              ),
+            ),
+          ],
         });
       },
     });

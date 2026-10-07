@@ -8,7 +8,7 @@ from fastapi import APIRouter, HTTPException, status
 from fastapi.responses import FileResponse
 
 from app.core.worker_threads import run_sync
-from app.logic.layout.media import MediaName, generation_lock
+from app.logic.layout.media import MediaName, generation_lock, open_oriented
 from app.logic.panorama import (
     PanoramaRenderError,
     PanoramaValidationError,
@@ -20,6 +20,7 @@ from app.logic.panorama import (
     render_panorama,
     resolve_panorama_source,
 )
+from app.logic.photo_edit import fit_photo_edit, render_photo_edit
 from app.models.album_media import AlbumMedia, PanoramaConfig
 
 from ..deps import SessionDep, UserDep, album_dir as _album_dir
@@ -86,6 +87,18 @@ def _source_or_404(album_dir: Path, name: str) -> Path:
         raise HTTPException(status.HTTP_404_NOT_FOUND) from error
 
 
+async def current_panorama_render(media: AlbumMedia, album_dir: Path) -> Path:
+    if media.panorama is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND)
+    source = _source_or_404(album_dir, media.name)
+    output = panorama_render_path(album_dir, media.name, source, media.panorama)
+    async with generation_lock(output):
+        if not await run_sync(output.is_file):
+            await _render_or_error(media, media.panorama, source, output)
+    await run_sync(remove_other_panorama_files, output)
+    return output
+
+
 @router.put("/{aid}/media/{name}/panorama")
 async def update_panorama(
     aid: str,
@@ -102,6 +115,9 @@ async def update_panorama(
     output_existed = await run_sync(output.is_file)
     media.panorama = body
     await _render_or_error(media, body, source, output)
+    if media.photo_edit is not None:
+        with open_oriented(output) as rendered:
+            media.photo_edit = fit_photo_edit(media.photo_edit, *rendered.size)
     try:
         media.updated_at = datetime.now(UTC)
         session.add(media)
@@ -128,6 +144,8 @@ async def disable_panorama(
     if media.panorama is None:
         raise HTTPException(status.HTTP_400_BAD_REQUEST)
     media.panorama = None
+    if media.photo_edit is not None:
+        media.photo_edit = fit_photo_edit(media.photo_edit, media.width, media.height)
     media.updated_at = datetime.now(UTC)
     session.add(media)
     await session.commit()
@@ -166,15 +184,10 @@ async def get_panorama_render(
     session: SessionDep,
 ) -> FileResponse:
     media = await _panorama_media(aid, name, user, session)
-    if media.panorama is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND)
     album_dir = _album_dir(user, aid)
-    source = _source_or_404(album_dir, name)
-    output = panorama_render_path(album_dir, name, source, media.panorama)
-    async with generation_lock(output):
-        if not await run_sync(output.is_file):
-            await _render_or_error(media, media.panorama, source, output)
-    await run_sync(remove_other_panorama_files, output)
+    output = await current_panorama_render(media, album_dir)
+    if media.photo_edit is not None:
+        output = await render_photo_edit(album_dir, output, media.photo_edit, name)
     return FileResponse(
         output,
         media_type="image/jpeg",

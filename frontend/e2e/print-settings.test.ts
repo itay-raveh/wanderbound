@@ -1,5 +1,10 @@
 import { expect, test } from "./fixtures";
-import { mockAlbum, mockMedia, mockSteps } from "../tests/fixtures/mocks";
+import {
+  mockAlbum,
+  mockComposedPage,
+  mockMedia,
+  mockSteps,
+} from "../tests/fixtures/mocks";
 
 test("cover preview preserves the chapter targeted by spine edits", async ({
   authedPage: page,
@@ -167,7 +172,7 @@ test("exports trim-sized interiors and a separate wraparound cover with bleed", 
   const steps = mockSteps.map((step) => ({
     ...step,
     weather: { ...step.weather, day: { ...step.weather.day, icon: "snow" } },
-    pages: [{ kind: "panorama_spread", media: ["photo2.jpg"] }],
+    pages: [mockComposedPage("panorama_spread", ["photo2.jpg"])],
   }));
   await page.route("**/api/v1/albums/*/print-bundle*", (route) =>
     route.fulfill({
@@ -292,7 +297,7 @@ test("exports trim-sized interiors and a separate wraparound cover with bleed", 
   album.hidden_headers = album.hidden_headers.filter(
     (key) => key !== "overview",
   );
-  steps[0].pages = [{ kind: "grid", media: ["photo2.jpg"] }];
+  steps[0].pages = [mockComposedPage("grid", ["photo2.jpg"])];
   await page.goto(`/print/aid-1?part=content&chapter=${album.chapters[0].id}`);
   await page.waitForFunction(
     () =>

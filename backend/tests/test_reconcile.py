@@ -1,37 +1,39 @@
 import json
 from collections.abc import AsyncIterator
 from pathlib import Path
-from typing import TYPE_CHECKING
 from unittest.mock import MagicMock
+from uuid import uuid4
+
+import pytest
 
 import app.logic.reconcile as reconcile_mod
 from app.core.http_clients import HttpClients
 from app.logic.layout.media import Media
+from app.logic.photo_edit import validate_photo_edit
 from app.logic.reconcile import (
     _fix_album_covers,
     _pick_cover,
     _reconcile_step,
+    _restore_media_edits,
     _scan_step_media,
     reconcile_trip,
 )
 from app.logic.trip_processing import PhaseUpdate, SegmentsFound
 from app.models.album import Album
-from app.models.album_media import AlbumMedia
+from app.models.album_media import AlbumMedia, PanoramaConfig, PhotoEdit
 from app.models.polarsteps import Location, PSStep
 from app.models.segment import Segment
-from app.models.step import StepPageLayout, StepRead
+from app.models.step import StepPageLayout, StepRead, StepSlotLayout
 from app.models.user import User
 from tests.factories import (
     collect_async,
+    create_test_jpeg,
     make_album,
     make_album_media,
     make_step_read,
     make_user,
     make_weather,
 )
-
-if TYPE_CHECKING:
-    import pytest
 
 _MOCK_HTTP = MagicMock(spec=HttpClients)
 _UID = 1
@@ -50,6 +52,16 @@ def _ps_step(step_id: int, slug: str = "step", *, location: Location = _LOC) -> 
         timestamp=1_700_000_000.0 + step_id * 3600,
         timezone_id="UTC",
         location=location,
+    )
+
+
+def _page(media: list[str]) -> StepPageLayout:
+    return StepPageLayout(
+        id=uuid4(),
+        kind="grid",
+        slots=[
+            StepSlotLayout(id=uuid4(), kind="photo", media_name=name) for name in media
+        ],
     )
 
 
@@ -124,7 +136,7 @@ def _media(name: str, *, portrait: bool) -> Media:
 
 class TestPickCover:
     def test_prefers_portrait(self) -> None:
-        pages = [StepPageLayout(kind="grid", media=["a.jpg", "b.jpg"])]
+        pages = [_page(["a.jpg", "b.jpg"])]
         unused = ["c.jpg"]
         media = {
             n: _media(n, portrait=p)
@@ -133,7 +145,7 @@ class TestPickCover:
         assert _pick_cover(pages, unused, media) == "b.jpg"
 
     def test_portrait_in_unused(self) -> None:
-        pages = [StepPageLayout(kind="grid", media=["land.jpg"])]
+        pages = [_page(["land.jpg"])]
         unused = ["port.jpg"]
         media = {
             "land.jpg": _media("land.jpg", portrait=False),
@@ -143,11 +155,20 @@ class TestPickCover:
 
 
 class TestReconcileStep:
+    def test_reupload_keeps_text_only_page_and_identity(self) -> None:
+        text_slot = StepSlotLayout(id=uuid4(), kind="text", text="A day in Lima")
+        page = StepPageLayout(id=uuid4(), kind="grid", slots=[text_slot])
+        step = _step(pages=[page])
+
+        result = _reconcile_step(step, _ps_step(1), set(), set(), {})
+
+        assert result.pages == [page]
+
     def test_missing_media_removed_from_pages(self) -> None:
         step = _step(
             pages=[
-                StepPageLayout(kind="grid", media=["a.jpg", "b.jpg"]),
-                StepPageLayout(kind="grid", media=["c.jpg"]),
+                _page(["a.jpg", "b.jpg"]),
+                _page(["c.jpg"]),
             ],
             cover="a.jpg",
         )
@@ -156,16 +177,13 @@ class TestReconcileStep:
         disk_media = {"a.jpg", "c.jpg"}
 
         result = _reconcile_step(step, ps, disk_media, all_on_disk, {})
-        assert result.pages == [
-            StepPageLayout(kind="grid", media=["a.jpg"]),
-            StepPageLayout(kind="grid", media=["c.jpg"]),
-        ]
+        assert [page.media for page in result.pages] == [["a.jpg"], ["c.jpg"]]
 
     def test_empty_page_dropped(self) -> None:
         step = _step(
             pages=[
-                StepPageLayout(kind="grid", media=["a.jpg"]),
-                StepPageLayout(kind="grid", media=["b.jpg"]),
+                _page(["a.jpg"]),
+                _page(["b.jpg"]),
             ]
         )
         ps = _ps_step(1)
@@ -173,10 +191,10 @@ class TestReconcileStep:
         disk_media = {"a.jpg"}
 
         result = _reconcile_step(step, ps, disk_media, all_on_disk, {})
-        assert result.pages == [StepPageLayout(kind="grid", media=["a.jpg"])]
+        assert [page.media for page in result.pages] == [["a.jpg"]]
 
     def test_new_media_added_to_unused(self) -> None:
-        step = _step(pages=[StepPageLayout(kind="grid", media=["a.jpg"])])
+        step = _step(pages=[_page(["a.jpg"])])
         ps = _ps_step(1)
         all_on_disk = {"a.jpg", "new.jpg"}
         disk_media = {"a.jpg", "new.jpg"}
@@ -186,7 +204,7 @@ class TestReconcileStep:
 
     def test_missing_cover_picks_new(self) -> None:
         step = _step(
-            pages=[StepPageLayout(kind="grid", media=["remain.jpg"])],
+            pages=[_page(["remain.jpg"])],
             cover="gone.jpg",
         )
         ps = _ps_step(1)
@@ -199,7 +217,7 @@ class TestReconcileStep:
 
     def test_cover_none_when_all_media_gone(self) -> None:
         step = _step(
-            pages=[StepPageLayout(kind="grid", media=["a.jpg"])],
+            pages=[_page(["a.jpg"])],
             unused=["b.jpg"],
             cover="a.jpg",
         )
@@ -222,14 +240,14 @@ class TestReconcileStep:
         assert result.location == _LOC2
 
     def test_new_media_not_on_disk_ignored(self) -> None:
-        step = _step(pages=[StepPageLayout(kind="grid", media=["a.jpg"])])
+        step = _step(pages=[_page(["a.jpg"])])
         ps = _ps_step(1)
         disk_media = {"a.jpg", "ghost.jpg"}
         all_on_disk = {"a.jpg"}  # ghost.jpg not in flattened dir
 
         result = _reconcile_step(step, ps, disk_media, all_on_disk, {})
         assert "ghost.jpg" not in result.unused
-        assert result.pages == [StepPageLayout(kind="grid", media=["a.jpg"])]
+        assert [page.media for page in result.pages] == [["a.jpg"]]
 
 
 class TestFixAlbumCovers:
@@ -384,12 +402,12 @@ class TestReconcileTripRebuildsSegments:
             "11111111-1111-4111-8111-111111111111_"
             "22222222-2222-4222-8222-222222222222.jpg"
         )
-        (trip_dir / media_name).write_bytes(b"\xff\xd8")
+        source = create_test_jpeg(trip_dir / media_name, 640, 480)
 
         existing_steps = [
             _existing_step(
                 1,
-                pages=[StepPageLayout(kind="grid", media=[media_name])],
+                pages=[_page([media_name])],
                 cover=media_name,
             )
         ]
@@ -400,7 +418,7 @@ class TestReconcileTripRebuildsSegments:
             kind="photo",
             width=640,
             height=480,
-            byte_size=2,
+            byte_size=source.stat().st_size,
             upgrade_candidate=False,
         )
         existing_media.perceptual_hashes = ["0123456789abcdef"]
@@ -417,8 +435,9 @@ class TestReconcileTripRebuildsSegments:
         assert row.upgrade_candidate is False
         assert row.perceptual_hashes == ["0123456789abcdef"]
 
+    @pytest.mark.parametrize("same_byte_size", [False, True])
     async def test_changed_reuploaded_media_is_left_for_background_hashing(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, *, same_byte_size: bool
     ) -> None:
         ps_steps = [_ps_step(1, slug="start")]
         trip_dir = _build_trip_dir(tmp_path, ps_steps)
@@ -426,7 +445,7 @@ class TestReconcileTripRebuildsSegments:
             "11111111-1111-4111-8111-111111111111_"
             "22222222-2222-4222-8222-222222222222.jpg"
         )
-        (trip_dir / media_name).write_bytes(b"new bytes")
+        source = create_test_jpeg(trip_dir / media_name, 800, 600)
         existing_media = make_album_media(
             _UID,
             _RECONCILE_AID,
@@ -434,7 +453,7 @@ class TestReconcileTripRebuildsSegments:
             kind="photo",
             width=640,
             height=480,
-            byte_size=123,
+            byte_size=source.stat().st_size if same_byte_size else 123,
             upgrade_candidate=False,
         )
         existing_media.perceptual_hashes = ["0123456789abcdef"]
@@ -453,7 +472,7 @@ class TestReconcileTripRebuildsSegments:
             [
                 _existing_step(
                     1,
-                    pages=[StepPageLayout(kind="grid", media=[media_name])],
+                    pages=[_page([media_name])],
                     cover=media_name,
                 )
             ],
@@ -464,6 +483,7 @@ class TestReconcileTripRebuildsSegments:
         row = next(obj for obj in media_rows if obj.name == media_name)
         assert row.perceptual_hashes is None
         assert row.upgrade_candidate is True
+        assert (row.width, row.height) == (800, 600)
 
     async def test_new_reuploaded_steps_are_added_to_existing_chapter(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
@@ -505,3 +525,80 @@ class TestReconcileTripRebuildsSegments:
 
         reconciled_album = next(obj for obj in db_out if isinstance(obj, Album))
         assert reconciled_album.chapters[0].step_ids == [1, 2]
+
+
+@pytest.mark.parametrize(
+    "name",
+    [
+        "photo.jpg",
+        "11111111-1111-4111-8111-111111111111_22222222-2222-4222-8222-222222222222.mp4",
+    ],
+)
+def test_reimport_does_not_transfer_photo_edits_without_a_stable_photo_identity(
+    name: str,
+) -> None:
+    previous = make_album_media(
+        name=name, kind="video" if name.endswith(".mp4") else "photo"
+    )
+    previous.photo_edit = PhotoEdit(angle=30, x=0.4, y=0.4, width=0.2, height=0.2)
+    previous.panorama = PanoramaConfig()
+    replacement = previous.model_copy(update={"photo_edit": None, "panorama": None})
+
+    _restore_media_edits(replacement, previous)
+
+    assert replacement.photo_edit is None
+    assert replacement.panorama is None
+
+
+def test_reimport_drops_invalid_panorama_projection() -> None:
+    name = (
+        "11111111-1111-4111-8111-111111111111_22222222-2222-4222-8222-222222222222.jpg"
+    )
+    previous = make_album_media(name=name, width=4000, height=1000)
+    previous.panorama = PanoramaConfig()
+    previous.photo_edit = PhotoEdit(angle=30, x=0.4, y=0.4, width=0.2, height=0.2)
+    replacement = previous.model_copy(
+        update={"width": 1000, "height": 667, "photo_edit": None, "panorama": None}
+    )
+
+    _restore_media_edits(replacement, previous)
+
+    assert replacement.panorama is None
+    assert replacement.photo_edit is not None
+    validate_photo_edit(replacement.photo_edit, replacement.width, replacement.height)
+
+
+@pytest.mark.parametrize("foreign_scope", ["user", "album"])
+async def test_reimport_does_not_restore_another_scope_media_state(
+    tmp_path: Path, *, foreign_scope: str
+) -> None:
+    trip_dir = _build_trip_dir(tmp_path, [_ps_step(1)])
+    name = (
+        "11111111-1111-4111-8111-111111111111_22222222-2222-4222-8222-222222222222.jpg"
+    )
+    source = create_test_jpeg(trip_dir / name, 640, 480)
+    previous = make_album_media(
+        _UID + 1 if foreign_scope == "user" else _UID,
+        "another-trip" if foreign_scope == "album" else _RECONCILE_AID,
+        name=name,
+        width=640,
+        height=480,
+        byte_size=source.stat().st_size,
+        upgrade_candidate=False,
+    )
+    previous.photo_edit = PhotoEdit(angle=30, x=0.4, y=0.4, width=0.2, height=0.2)
+    previous.perceptual_hashes = ["0123456789abcdef"]
+
+    _, objects = await _collect_reconcile(
+        trip_dir,
+        _existing_album(),
+        [_existing_step(1, pages=[_page([name])])],
+        existing_media_rows=[previous],
+    )
+
+    row = next(
+        obj for obj in objects if isinstance(obj, AlbumMedia) and obj.name == name
+    )
+    assert row.photo_edit is None
+    assert row.perceptual_hashes is None
+    assert row.upgrade_candidate is True

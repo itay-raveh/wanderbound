@@ -9,11 +9,20 @@ from collections.abc import AsyncIterator
 from pathlib import Path
 
 import structlog
+from pydantic import TypeAdapter, ValidationError
 
 from app.core.http_clients import HttpClients
 from app.core.worker_threads import run_sync
 from app.logic.layout import Layout
-from app.logic.layout.media import Media, media_limiter, normalize_name
+from app.logic.layout.media import (
+    Media,
+    MediaName,
+    is_video,
+    media_limiter,
+    normalize_name,
+)
+from app.logic.panorama import panorama_output_size
+from app.logic.photo_edit import fit_photo_edit
 from app.logic.step_media import step_media_rows
 from app.logic.trip_processing import (
     DbRow,
@@ -41,6 +50,7 @@ from app.models.step import Step, StepPageLayout, StepRead
 from app.models.user import User
 
 logger = structlog.get_logger(__name__)
+_MEDIA_NAME = TypeAdapter(MediaName)
 
 
 def _scan_step_media(trip_dir: Path, ps_step: PSStep) -> set[str]:
@@ -89,11 +99,17 @@ def _reconcile_step(
 
     step.pages = [
         page.model_copy(
-            update={"media": [name for name in page.media if name not in missing]}
+            update={
+                "slots": [
+                    slot
+                    for slot in page.slots
+                    if slot.kind == "text" or slot.media_name not in missing
+                ]
+            }
         )
         for page in step.pages
-        if any(name not in missing for name in page.media)
     ]
+    step.pages = [page for page in step.pages if page.slots]
     step.unused = [f for f in step.unused if f not in missing] + sorted(added)
 
     if step.cover and step.cover in missing:
@@ -110,19 +126,21 @@ def _reconcile_step(
 async def _probe_media(
     trip_dir: Path,
     steps: list[StepRead],
-    known: dict[str, Media],
+    existing_names: set[str],
 ) -> list[Media]:
-    """Probe dimensions for unknown media files, return full merged list."""
-    to_probe: set[str] = set()
+    """Probe uploaded sources, including replacements under existing names."""
+    to_probe = set(existing_names)
     for step_obj in steps:
         for page in step_obj.pages:
-            to_probe.update(name for name in page.media if name not in known)
-        if step_obj.cover and step_obj.cover not in known:
+            to_probe.update(page.media)
+        if step_obj.cover:
             to_probe.add(step_obj.cover)
-        to_probe.update(f for f in step_obj.unused if f not in known)
+        to_probe.update(step_obj.unused)
 
     async def _probe(name: str) -> Media:
         try:
+            if is_video(name):
+                return await Media.probe(trip_dir / name)
             return await run_sync(
                 Media.load,
                 trip_dir / name,
@@ -131,11 +149,7 @@ async def _probe_media(
         except OSError, ValueError:
             return Media(name=name, width=1920, height=1080)
 
-    probed = await asyncio.gather(*[_probe(f) for f in to_probe])
-    merged = dict(known)
-    for m in probed:
-        merged[m.name] = m
-    return list(merged.values())
+    return list(await asyncio.gather(*[_probe(f) for f in to_probe]))
 
 
 def _retained_media_state(
@@ -154,6 +168,26 @@ def _retained_media_state(
         if current_size == row.byte_size:
             retained[row.name] = row
     return retained
+
+
+def _restore_media_edits(media: AlbumMedia, previous: AlbumMedia) -> None:
+    # Composition belongs to the stable photo identity, not the uploaded bytes.
+    # Arbitrary filenames are not a safe identity for replacement media.
+    if media.kind != "photo" or previous.kind != "photo":
+        return
+    try:
+        _MEDIA_NAME.validate_python(media.name)
+    except ValidationError:
+        return
+    if media.panorama_candidate:
+        media.panorama = previous.panorama
+    if previous.photo_edit is not None:
+        edit_size = (
+            panorama_output_size(media.width, media.panorama.aspect_ratio)
+            if media.panorama is not None
+            else (media.width, media.height)
+        )
+        media.photo_edit = fit_photo_edit(previous.photo_edit, *edit_size)
 
 
 def _fix_album_covers(
@@ -266,7 +300,7 @@ async def _process_new_steps(  # noqa: PLR0913
                 weather=step.weather,
                 cover=step.cover_media_name,
                 pages=[
-                    StepPageLayout(kind="grid", media=page)
+                    StepPageLayout.model_validate({"kind": "grid", "media": page})
                     for page in (layout.pages if layout else [])
                 ],
                 unused=[],
@@ -344,6 +378,9 @@ async def reconcile_trip(  # noqa: PLR0913
     # Phase 4: Reconcile existing steps
     if existing_media_rows is None:
         existing_media_rows = []
+    existing_media_rows = [
+        row for row in existing_media_rows if row.uid == user.id and row.aid == aid
+    ]
     all_on_disk = {
         normalize_name(f.name)
         for f in trip_dir.iterdir()  # noqa: ASYNC240
@@ -365,18 +402,22 @@ async def reconcile_trip(  # noqa: PLR0913
         if ps.id in db_by_step_id
     ]
 
-    # Phase 5: Probe media dimensions for any new/unknown files
-    known_media: dict[str, Media] = {
-        row.name: Media(name=row.name, width=row.width, height=row.height)
-        for row in existing_media_rows
-        if row.name in all_on_disk
-    }
+    # A stable filename can contain replacement pixels, even at the same byte size.
+    # Probe the uploaded sources rather than reusing dimensions from the database.
     merged_media = await _probe_media(
-        trip_dir, [*new_step_objects, *reconciled_steps], known_media
+        trip_dir,
+        [*new_step_objects, *reconciled_steps],
+        {row.name for row in existing_media_rows if row.name in all_on_disk},
     )
     retained_media = await run_sync(
         _retained_media_state, trip_dir, all_on_disk, existing_media_rows
     )
+    retained_media = {
+        media.name: row
+        for media in merged_media
+        if (row := retained_media.get(media.name)) is not None
+        and (row.width, row.height) == (media.width, media.height)
+    }
     album_media = build_album_media_rows(
         user.id,
         aid,
@@ -389,9 +430,10 @@ async def reconcile_trip(  # noqa: PLR0913
             if row.perceptual_hashes is not None
         },
     )
+    previous_media = {row.name: row for row in existing_media_rows}
     for media in album_media:
-        if previous := retained_media.get(media.name):
-            media.panorama = previous.panorama
+        if previous := previous_media.get(media.name):
+            _restore_media_edits(media, previous)
 
     # Rebuild segments from GPS data (segments are not persisted across
     # re-uploads; always rebuild from GPS locations).

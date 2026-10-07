@@ -1,6 +1,11 @@
 import type { Page } from "@playwright/test";
 import { expect, openEditor, scrollToStep, test } from "./fixtures";
-import { mockAlbum, mockStep, TINY_JPEG_BASE64 } from "../tests/fixtures/mocks";
+import {
+  mockAlbum,
+  mockComposedPage,
+  mockStep,
+  TINY_JPEG_BASE64,
+} from "../tests/fixtures/mocks";
 
 const mediaBody = Buffer.from(TINY_JPEG_BASE64, "base64");
 const panoramaName = "wide.jpg";
@@ -20,7 +25,7 @@ async function mockPanoramaAlbum(page: Page) {
   let step = {
     ...mockStep,
     cover: "cover.jpg",
-    pages: [{ kind: "grid" as const, media: [panoramaName] }],
+    pages: [mockComposedPage("grid", [panoramaName])],
     unused: [],
   };
   const coverMedia = {
@@ -116,6 +121,7 @@ test("frames a panorama globally and prints a two-page spread", async ({
   const state = await mockPanoramaAlbum(page);
   await openEditor(page);
   await expect(page.locator(".album-page-number:visible")).toHaveCount(0);
+  await page.getByRole("button", { name: 'Expand "Properties"' }).click();
   await page.getByRole("switch", { name: "Show page numbers" }).click();
   await scrollToStep(page, "Amsterdam");
 

@@ -29,12 +29,12 @@ test("rejected files leave the uploader ready for an accepted ZIP", async ({
     ).toBeVisible();
     expect(uploads).toBe(0);
   }
-  const started = page.waitForRequest("**/api/v1/users/uploads/s3/**");
+  const response = page.waitForResponse("**/api/v1/users/uploads/s3/**");
   await input.setInputFiles({
     name: "trip.ZIP",
     mimeType: "application/zip",
     buffer: Buffer.alloc(1),
   });
-  await started;
+  expect((await response).status()).toBe(503);
   expect(uploads).toBe(1);
 });

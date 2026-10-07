@@ -99,6 +99,7 @@ async def replace_album_media_from_saved(
         )
         if not is_panorama_size(replacement.width, replacement.height):
             row.panorama = None
+        row.photo_edit = None
         await run_sync(remove_panorama_derivatives, album_dir, media_name)
         row.upgrade_candidate = False
         row.updated_at = datetime.now(UTC)

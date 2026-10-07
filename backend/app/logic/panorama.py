@@ -70,7 +70,7 @@ async def render_panorama(
     source_size: tuple[int, int],
 ) -> None:
     source_width, source_height = source_size
-    output_size = _output_size(source_width, config.aspect_ratio)
+    output_size = panorama_output_size(source_width, config.aspect_ratio)
     _validate_frame(config, source_width, source_height)
     await _render_image(
         source,
@@ -114,7 +114,7 @@ def _source_key(source: Path) -> str:
     return f"{stat.st_size:x}-{stat.st_mtime_ns:x}"
 
 
-def _output_size(source_width: int, aspect_ratio: float) -> tuple[int, int]:
+def panorama_output_size(source_width: int, aspect_ratio: float) -> tuple[int, int]:
     width = min(source_width, MAX_PANORAMA_DIMENSION)
     height = round(width / aspect_ratio)
     if height > MAX_PANORAMA_DIMENSION:

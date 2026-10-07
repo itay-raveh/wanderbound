@@ -78,7 +78,12 @@ class AlbumRoutes:
     ) -> Response:
         return await self.client.put(
             f"/api/v1/albums/{AID}/steps/{step_id}/media-layout",
-            json={"cover": cover, "pages": pages, "unused": unused},
+            json={
+                "layout_version": 1,
+                "cover": cover,
+                "pages": pages,
+                "unused": unused,
+            },
         )
 
     async def adjust_boundary(

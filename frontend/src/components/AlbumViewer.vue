@@ -74,6 +74,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   closePreview: [];
   "page-position": [label: string];
+  "page-context": [page: { stepId: number; pageId: string | null } | null];
 }>();
 
 const albumId = computed(() => props.album.id);
@@ -296,6 +297,24 @@ watchEffect(() => {
             total: expectedPageCount.value,
           })
       : "",
+  );
+});
+watchEffect(() => {
+  if (props.printMode) return;
+  const item = editorItems.value[activeItemIndex.value];
+  emit(
+    "page-context",
+    item && "step" in item
+      ? {
+          stepId: item.step.id,
+          pageId:
+            item.type === "grid"
+              ? item.page.id
+              : item.type === "panorama-spread"
+                ? (item.step.pages[item.originalPageIndex]?.id ?? null)
+                : null,
+        }
+      : null,
   );
 });
 </script>

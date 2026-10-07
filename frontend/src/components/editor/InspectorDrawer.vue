@@ -6,6 +6,14 @@ import CoverCell from "./CoverCell.vue";
 import MediaPanel from "./MediaPanel.vue";
 import UnusedDrawer from "./UnusedDrawer.vue";
 import { useAlbumMutation } from "@/queries/useAlbumMutation";
+import { useStepMutation } from "@/queries/useStepMutation";
+import {
+  gridPage,
+  pageSlots,
+  planStepPages,
+  withSlots,
+} from "@/components/album/stepPages";
+import { useActiveSection } from "@/composables/useActiveSection";
 import { provideAlbum } from "@/composables/useAlbum";
 import {
   THUMB_WIDTHS,
@@ -20,15 +28,16 @@ import {
 import { parseChapterHeaderSectionKey } from "../album/albumSections";
 import { useUserQuery } from "@/queries/useUserQuery";
 import { useI18n } from "vue-i18n";
-import { computed, ref, watch } from "vue";
+import { computed, nextTick, ref, watch } from "vue";
+import { symOutlinedEditNote } from "@quasar/extras/material-symbols-outlined";
 
 const { t } = useI18n();
 
 const props = defineProps<{
   album: AlbumMeta;
   media: AlbumMedia[];
-  steps: Step[];
   step?: Step;
+  pageId?: string | null;
   sectionKey?: string | null;
 }>();
 
@@ -129,8 +138,77 @@ const landscapeRows = computed(() => {
   return rows;
 });
 
-const propertiesOpen = ref(true);
+const propertiesOpen = ref(false);
 const externalMediaOpen = ref(false);
+const contextOpen = ref(true);
+const stepMutation = useStepMutation(() => props.album.id);
+const { scrollToSection } = useActiveSection();
+const panelRef = ref<HTMLElement | null>(null);
+const stepPagePlan = computed(() =>
+  props.step
+    ? planStepPages(
+        props.step,
+        new Map(props.media.map((item) => [item.name, item])),
+      )
+    : null,
+);
+const pendingTextSlotId = ref<string | null>(null);
+
+function addText() {
+  const step = props.step;
+  const plan = stepPagePlan.value;
+  if (!step || !plan || stepMutation.asyncStatus.value === "loading") return;
+  const selected = plan.tilePages.find(({ page }) => page.id === props.pageId);
+  const slot = {
+    id: crypto.randomUUID(),
+    kind: "text" as const,
+    text: "",
+    frame_orientation: "landscape" as const,
+  };
+  const pages = [...step.pages];
+  const target = selected && pages[selected.originalIdx];
+  if (selected && target?.kind === "grid" && pageSlots(target).length < 6) {
+    pages[selected.originalIdx] = withSlots(target, [
+      ...pageSlots(target),
+      slot,
+    ]);
+  } else {
+    pages.splice(
+      selected ? selected.originalIdx + 1 : pages.length,
+      0,
+      gridPage([slot]),
+    );
+  }
+  pendingTextSlotId.value = slot.id;
+  stepMutation.mutate({ sid: step.id, update: { pages } });
+}
+
+watch(stepPagePlan, (plan) => {
+  const slotId = pendingTextSlotId.value;
+  const step = props.step;
+  if (!slotId || !plan || !step) return;
+  const index = plan.tilePages.findIndex(({ page }) =>
+    page.slots.some((slot) => slot.id === slotId),
+  );
+  if (index < 0) return;
+  pendingTextSlotId.value = null;
+  void nextTick(() =>
+    scrollToSection(
+      `step-${step.id}-page-${1 + plan.continuationPages.length + index}`,
+    ),
+  );
+});
+watch(
+  () => [
+    context.value,
+    props.step?.id,
+    context.value === "cover" ? props.sectionKey : null,
+  ],
+  () => {
+    contextOpen.value = true;
+    if (panelRef.value) panelRef.value.scrollTop = 0;
+  },
+);
 
 function selectCoverPhoto(name: string) {
   const chapterId = activeChapter.value?.id;
@@ -199,66 +277,52 @@ const importTargetLabel = computed<string | null>(() => {
 </script>
 
 <template>
-  <div class="inspector-panel">
+  <div ref="panelRef" class="inspector-panel">
     <q-expansion-item
-      v-model="propertiesOpen"
-      group="inspector-primary"
-      class="panel-section"
+      v-if="context === 'step' || context === 'cover'"
+      v-model="contextOpen"
+      class="panel-section context-panel"
       header-class="panel-section-header"
-      expand-icon-class="text-faint"
-      :label="t('editor.properties')"
+      expand-icon-class="text-muted"
+      :label="
+        context === 'step'
+          ? t('editor.stepContent')
+          : `${t('editor.coverPhoto')} · ${panelLabel}`
+      "
     >
-      <AlbumProperties :album="album" :media="media" />
-    </q-expansion-item>
-
-    <q-expansion-item
-      group="inspector-primary"
-      class="panel-section"
-      header-class="panel-section-header"
-      expand-icon-class="text-faint"
-      :label="t('print.title')"
-    >
-      <PrintSettings :album="album" :chapter="activeChapter" />
-    </q-expansion-item>
-
-    <q-expansion-item
-      v-model="externalMediaOpen"
-      group="inspector-primary"
-      class="panel-section"
-      header-class="panel-section-header"
-      expand-icon-class="text-faint"
-      :label="t('externalMedia.section')"
-    >
-      <MediaPanel
-        :album-id="album.id"
-        :context="context"
-        :step-id="step?.id"
-        :target-label="importTargetLabel"
-        :media="media"
-        :resolution-warning-preset="resolutionWarningPreset"
-        @update:resolution-warning-preset="updateResolutionWarningPreset"
-      />
-    </q-expansion-item>
-
-    <div class="inspector-context-tray">
-      <!-- Step: unused photos tray -->
       <div v-if="context === 'step'" class="context-section">
+        <div class="step-action-row">
+          <button
+            type="button"
+            class="add-text-btn"
+            :disabled="stepMutation.asyncStatus.value === 'loading'"
+            :aria-busy="stepMutation.asyncStatus.value === 'loading'"
+            @click="addText"
+          >
+            <q-spinner
+              v-if="stepMutation.asyncStatus.value === 'loading'"
+              size="var(--type-sm)"
+              aria-hidden="true"
+            />
+            <q-icon v-else :name="symOutlinedEditNote" size="var(--type-sm)" />
+            <span>{{ t("nav.addText") }}</span>
+            <q-tooltip>{{ t("nav.addTextHint") }}</q-tooltip>
+          </button>
+        </div>
         <UnusedDrawer
-          :key="step!.unused.join('|')"
+          :key="step!.id"
           :step="step!"
           :album-id="album.id"
           class="unused-section"
+          :class="{ 'unused-section-empty': !step!.unused.length }"
         />
       </div>
 
-      <!-- Cover: photo picker grid -->
-      <div v-else-if="context === 'cover'" class="context-section">
-        <div
-          class="context-tray-header row no-wrap items-center text-overline text-weight-semibold text-muted"
-        >
-          <span>{{ panelLabel }}</span>
-          <span class="text-faint">{{ landscapeMedia.length }}</span>
-        </div>
+      <div
+        v-else
+        class="context-section cover-context"
+        :class="{ 'cover-context-populated': landscapeMedia.length }"
+      >
         <div v-if="!isCoverBack" class="cover-darkness-control">
           <div class="cover-darkness-header">
             <span>{{ t("album.coverDarkness") }}</span>
@@ -307,13 +371,50 @@ const importTargetLabel = computed<string | null>(() => {
         </q-virtual-scroll>
         <div v-else class="panel-hint">{{ t("album.noLandscapePhotos") }}</div>
       </div>
+    </q-expansion-item>
 
-      <div v-else class="context-section context-section-empty" />
-    </div>
+    <q-expansion-item
+      v-model="propertiesOpen"
+      class="panel-section"
+      header-class="panel-section-header"
+      expand-icon-class="text-muted"
+      :label="t('editor.properties')"
+    >
+      <AlbumProperties :album="album" :media="media" />
+    </q-expansion-item>
+
+    <q-expansion-item
+      class="panel-section"
+      header-class="panel-section-header"
+      expand-icon-class="text-muted"
+      :label="t('print.title')"
+    >
+      <PrintSettings :album="album" :chapter="activeChapter" />
+    </q-expansion-item>
+
+    <q-expansion-item
+      v-model="externalMediaOpen"
+      class="panel-section"
+      header-class="panel-section-header"
+      expand-icon-class="text-muted"
+      :label="t('externalMedia.section')"
+    >
+      <MediaPanel
+        :album-id="album.id"
+        :context="context"
+        :step-id="step?.id"
+        :target-label="importTargetLabel"
+        :media="media"
+        :resolution-warning-preset="resolutionWarningPreset"
+        @update:resolution-warning-preset="updateResolutionWarningPreset"
+      />
+    </q-expansion-item>
   </div>
 </template>
 
 <style lang="scss" scoped>
+@use "@/styles/editor-secondary-action" as *;
+
 .inspector-panel {
   height: 100%;
   display: flex;
@@ -327,36 +428,35 @@ const importTargetLabel = computed<string | null>(() => {
   border-top: 1px solid var(--border-color);
 }
 
-.inspector-context-tray {
-  flex: 1;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-  border-top: 1px solid var(--border-color);
-}
-
 .context-section {
-  flex: 1;
-  min-height: 0;
   display: flex;
   flex-direction: column;
-  padding: var(--gap-md);
 }
 
-.context-section-empty {
-  padding: 0;
+.step-action-row {
+  padding: var(--gap-md) var(--gap-md) 0;
 }
 
 .unused-section {
-  flex: 1;
-  min-height: 0;
+  flex: none;
+  max-height: min(40vh, 22rem);
 }
 
-.context-tray-header {
-  gap: var(--gap-xs);
-  min-height: 2rem;
-  padding-block-end: var(--gap-sm);
-  letter-spacing: var(--tracking-wide);
+.unused-section-empty {
+  max-height: none;
+}
+
+.cover-context {
+  padding: var(--gap-md);
+}
+
+.cover-context-populated {
+  height: min(50vh, 25rem);
+  min-height: 14rem;
+}
+
+.add-text-btn {
+  @include editor-secondary-action;
 }
 
 .cover-darkness-control {
@@ -403,17 +503,6 @@ const importTargetLabel = computed<string | null>(() => {
 .cover-grid {
   flex: 1;
   overflow-y: auto;
-  scrollbar-width: thin;
-  scrollbar-color: var(--border-color) transparent;
-
-  &::-webkit-scrollbar {
-    width: 0.25rem;
-  }
-
-  &::-webkit-scrollbar-thumb {
-    background: var(--border-color);
-    border-radius: var(--radius-xs);
-  }
 }
 
 .cover-row {

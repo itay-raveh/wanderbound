@@ -6,7 +6,7 @@ from typing import Literal
 import sqlalchemy as sa
 
 # Pydantic resolves this annotation while constructing the SQLModel.
-from pydantic import BaseModel, Field as PydanticField, computed_field
+from pydantic import BaseModel, Field as PydanticField, computed_field, model_validator
 from pydantic.json_schema import SkipJsonSchema  # noqa: TC002
 from sqlmodel import Field, SQLModel
 
@@ -30,6 +30,20 @@ class PanoramaConfig(BaseModel):
     perspective_fov: float = PydanticField(default=70, gt=0, lt=180)
     zoom: float = PydanticField(default=1, ge=1, le=3)
     aspect_ratio: float = PydanticField(default=2, gt=0, le=10)
+
+
+class PhotoEdit(BaseModel):
+    angle: float = PydanticField(ge=-180, le=180)
+    x: float = PydanticField(ge=0, le=1)
+    y: float = PydanticField(ge=0, le=1)
+    width: float = PydanticField(gt=0, le=1)
+    height: float = PydanticField(gt=0, le=1)
+
+    @model_validator(mode="after")
+    def within_canvas(self) -> PhotoEdit:
+        if self.x + self.width > 1.000001 or self.y + self.height > 1.000001:
+            raise ValueError("Crop exceeds the rotated image bounds")
+        return self
 
 
 class AlbumMedia(SQLModel, table=True):
@@ -58,6 +72,10 @@ class AlbumMedia(SQLModel, table=True):
         default=None,
         sa_column=sa.Column(PydanticJSON(PanoramaConfig), nullable=True),
     )
+    photo_edit: PhotoEdit | None = Field(
+        default=None,
+        sa_column=sa.Column(PydanticJSON(PhotoEdit), nullable=True),
+    )
     upgrade_candidate: bool = Field(default=True)
     created_at: datetime = Field(
         default_factory=lambda: datetime.now(UTC),
@@ -74,17 +92,12 @@ class AlbumMedia(SQLModel, table=True):
         return self.kind == "photo" and is_panorama_size(self.width, self.height)
 
 
-class StepPageMedia(SQLModel, table=True):
-    __tablename__ = "step_page_media"
+class StepPage(SQLModel, table=True):
+    __tablename__ = "step_page"
     __table_args__ = (
         sa.ForeignKeyConstraint(
             ["uid", "aid", "step_id"],
             ["step.uid", "step.aid", "step.id"],
-            ondelete="CASCADE",
-        ),
-        sa.ForeignKeyConstraint(
-            ["uid", "aid", "media_name"],
-            ["album_media.uid", "album_media.aid", "album_media.name"],
             ondelete="CASCADE",
         ),
     )
@@ -92,12 +105,52 @@ class StepPageMedia(SQLModel, table=True):
     uid: int = Field(primary_key=True)
     aid: str = Field(primary_key=True)
     step_id: int = Field(primary_key=True)
-    page_index: int = Field(primary_key=True)
-    position_index: int = Field(primary_key=True)
-    media_name: str = Field(max_length=255)
+    id: str = Field(primary_key=True, max_length=36)
+    position_index: int
     page_kind: StepPageKind = Field(
         default="grid", sa_column=sa.Column(sa.String(16), nullable=False)
     )
+
+
+class StepPageSlot(SQLModel, table=True):
+    __tablename__ = "step_page_slot"
+    __table_args__ = (
+        sa.ForeignKeyConstraint(
+            ["uid", "aid", "step_id", "page_id"],
+            ["step_page.uid", "step_page.aid", "step_page.step_id", "step_page.id"],
+            ondelete="CASCADE",
+        ),
+        sa.ForeignKeyConstraint(
+            ["uid", "aid", "media_name"],
+            ["album_media.uid", "album_media.aid", "album_media.name"],
+            ondelete="CASCADE",
+        ),
+        sa.CheckConstraint(
+            "(kind = 'photo' AND media_name IS NOT NULL AND text_content IS NULL) "
+            "OR (kind = 'text' AND media_name IS NULL AND text_content IS NOT NULL)",
+            name="step_page_slot_content",
+        ),
+        sa.CheckConstraint(
+            "frame_orientation IN ('portrait', 'landscape')",
+            name="step_page_slot_orientation",
+        ),
+    )
+
+    uid: int = Field(primary_key=True)
+    aid: str = Field(primary_key=True)
+    step_id: int = Field(primary_key=True)
+    id: str = Field(primary_key=True, max_length=36)
+    page_id: str = Field(max_length=36)
+    position_index: int
+    kind: Literal["photo", "text"] = Field(
+        sa_column=sa.Column(sa.String(16), nullable=False)
+    )
+    media_name: str | None = Field(default=None, max_length=255)
+    text_content: str | None = Field(default=None, sa_column=sa.Column(sa.Text()))
+    frame_orientation: Literal["portrait", "landscape"] = Field(
+        default="landscape", sa_column=sa.Column(sa.String(16), nullable=False)
+    )
+    continuation_priority: int
 
 
 class StepUnusedMedia(SQLModel, table=True):
@@ -144,6 +197,10 @@ class AlbumMediaUndoSnapshot(SQLModel, table=True):
     panorama: PanoramaConfig | None = Field(
         default=None,
         sa_column=sa.Column(PydanticJSON(PanoramaConfig), nullable=True),
+    )
+    photo_edit: PhotoEdit | None = Field(
+        default=None,
+        sa_column=sa.Column(PydanticJSON(PhotoEdit), nullable=True),
     )
     upgrade_candidate: bool
     created_at: datetime = Field(
