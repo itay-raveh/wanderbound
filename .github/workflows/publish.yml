@@ -55,7 +55,7 @@ jobs:
       - name: Push exact release tag
         run: docker push "$APP_IMAGE:${{ steps.version.outputs.value }}"
 
-      - uses: jdx/mise-action@v4
+      - uses: jdx/mise-action@v5
         with:
           version: 2026.9.1
           install_args: helm
