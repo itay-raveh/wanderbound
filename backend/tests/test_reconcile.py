@@ -1,38 +1,39 @@
 import json
 from collections.abc import AsyncIterator
 from pathlib import Path
-from typing import TYPE_CHECKING
 from unittest.mock import MagicMock
 from uuid import uuid4
+
+import pytest
 
 import app.logic.reconcile as reconcile_mod
 from app.core.http_clients import HttpClients
 from app.logic.layout.media import Media
+from app.logic.photo_edit import validate_photo_edit
 from app.logic.reconcile import (
     _fix_album_covers,
     _pick_cover,
     _reconcile_step,
+    _restore_media_edits,
     _scan_step_media,
     reconcile_trip,
 )
 from app.logic.trip_processing import PhaseUpdate, SegmentsFound
 from app.models.album import Album
-from app.models.album_media import AlbumMedia
+from app.models.album_media import AlbumMedia, PanoramaConfig, PhotoEdit
 from app.models.polarsteps import Location, PSStep
 from app.models.segment import Segment
 from app.models.step import StepPageLayout, StepRead, StepSlotLayout
 from app.models.user import User
 from tests.factories import (
     collect_async,
+    create_test_jpeg,
     make_album,
     make_album_media,
     make_step_read,
     make_user,
     make_weather,
 )
-
-if TYPE_CHECKING:
-    import pytest
 
 _MOCK_HTTP = MagicMock(spec=HttpClients)
 _UID = 1
@@ -401,7 +402,7 @@ class TestReconcileTripRebuildsSegments:
             "11111111-1111-4111-8111-111111111111_"
             "22222222-2222-4222-8222-222222222222.jpg"
         )
-        (trip_dir / media_name).write_bytes(b"\xff\xd8")
+        source = create_test_jpeg(trip_dir / media_name, 640, 480)
 
         existing_steps = [
             _existing_step(
@@ -417,7 +418,7 @@ class TestReconcileTripRebuildsSegments:
             kind="photo",
             width=640,
             height=480,
-            byte_size=2,
+            byte_size=source.stat().st_size,
             upgrade_candidate=False,
         )
         existing_media.perceptual_hashes = ["0123456789abcdef"]
@@ -434,8 +435,9 @@ class TestReconcileTripRebuildsSegments:
         assert row.upgrade_candidate is False
         assert row.perceptual_hashes == ["0123456789abcdef"]
 
+    @pytest.mark.parametrize("same_byte_size", [False, True])
     async def test_changed_reuploaded_media_is_left_for_background_hashing(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, *, same_byte_size: bool
     ) -> None:
         ps_steps = [_ps_step(1, slug="start")]
         trip_dir = _build_trip_dir(tmp_path, ps_steps)
@@ -443,7 +445,7 @@ class TestReconcileTripRebuildsSegments:
             "11111111-1111-4111-8111-111111111111_"
             "22222222-2222-4222-8222-222222222222.jpg"
         )
-        (trip_dir / media_name).write_bytes(b"new bytes")
+        source = create_test_jpeg(trip_dir / media_name, 800, 600)
         existing_media = make_album_media(
             _UID,
             _RECONCILE_AID,
@@ -451,7 +453,7 @@ class TestReconcileTripRebuildsSegments:
             kind="photo",
             width=640,
             height=480,
-            byte_size=123,
+            byte_size=source.stat().st_size if same_byte_size else 123,
             upgrade_candidate=False,
         )
         existing_media.perceptual_hashes = ["0123456789abcdef"]
@@ -481,6 +483,7 @@ class TestReconcileTripRebuildsSegments:
         row = next(obj for obj in media_rows if obj.name == media_name)
         assert row.perceptual_hashes is None
         assert row.upgrade_candidate is True
+        assert (row.width, row.height) == (800, 600)
 
     async def test_new_reuploaded_steps_are_added_to_existing_chapter(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
@@ -522,3 +525,80 @@ class TestReconcileTripRebuildsSegments:
 
         reconciled_album = next(obj for obj in db_out if isinstance(obj, Album))
         assert reconciled_album.chapters[0].step_ids == [1, 2]
+
+
+@pytest.mark.parametrize(
+    "name",
+    [
+        "photo.jpg",
+        "11111111-1111-4111-8111-111111111111_22222222-2222-4222-8222-222222222222.mp4",
+    ],
+)
+def test_reimport_does_not_transfer_photo_edits_without_a_stable_photo_identity(
+    name: str,
+) -> None:
+    previous = make_album_media(
+        name=name, kind="video" if name.endswith(".mp4") else "photo"
+    )
+    previous.photo_edit = PhotoEdit(angle=30, x=0.4, y=0.4, width=0.2, height=0.2)
+    previous.panorama = PanoramaConfig()
+    replacement = previous.model_copy(update={"photo_edit": None, "panorama": None})
+
+    _restore_media_edits(replacement, previous)
+
+    assert replacement.photo_edit is None
+    assert replacement.panorama is None
+
+
+def test_reimport_drops_invalid_panorama_projection() -> None:
+    name = (
+        "11111111-1111-4111-8111-111111111111_22222222-2222-4222-8222-222222222222.jpg"
+    )
+    previous = make_album_media(name=name, width=4000, height=1000)
+    previous.panorama = PanoramaConfig()
+    previous.photo_edit = PhotoEdit(angle=30, x=0.4, y=0.4, width=0.2, height=0.2)
+    replacement = previous.model_copy(
+        update={"width": 1000, "height": 667, "photo_edit": None, "panorama": None}
+    )
+
+    _restore_media_edits(replacement, previous)
+
+    assert replacement.panorama is None
+    assert replacement.photo_edit is not None
+    validate_photo_edit(replacement.photo_edit, replacement.width, replacement.height)
+
+
+@pytest.mark.parametrize("foreign_scope", ["user", "album"])
+async def test_reimport_does_not_restore_another_scope_media_state(
+    tmp_path: Path, *, foreign_scope: str
+) -> None:
+    trip_dir = _build_trip_dir(tmp_path, [_ps_step(1)])
+    name = (
+        "11111111-1111-4111-8111-111111111111_22222222-2222-4222-8222-222222222222.jpg"
+    )
+    source = create_test_jpeg(trip_dir / name, 640, 480)
+    previous = make_album_media(
+        _UID + 1 if foreign_scope == "user" else _UID,
+        "another-trip" if foreign_scope == "album" else _RECONCILE_AID,
+        name=name,
+        width=640,
+        height=480,
+        byte_size=source.stat().st_size,
+        upgrade_candidate=False,
+    )
+    previous.photo_edit = PhotoEdit(angle=30, x=0.4, y=0.4, width=0.2, height=0.2)
+    previous.perceptual_hashes = ["0123456789abcdef"]
+
+    _, objects = await _collect_reconcile(
+        trip_dir,
+        _existing_album(),
+        [_existing_step(1, pages=[_page([name])])],
+        existing_media_rows=[previous],
+    )
+
+    row = next(
+        obj for obj in objects if isinstance(obj, AlbumMedia) and obj.name == name
+    )
+    assert row.photo_edit is None
+    assert row.perceptual_hashes is None
+    assert row.upgrade_candidate is True
