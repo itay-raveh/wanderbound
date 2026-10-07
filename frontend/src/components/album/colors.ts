@@ -35,6 +35,17 @@ function parseHex(hex: string): [number, number, number] {
   ];
 }
 
+/** Use the higher WCAG contrast of black/white, including saturated midtones. */
+export function paperTextColor(hex: string): string {
+  const channels = parseHex(hex).map((value) => {
+    const srgb = value / 255;
+    return srgb <= 0.04045 ? srgb / 12.92 : ((srgb + 0.055) / 1.055) ** 2.4;
+  });
+  const luminance =
+    channels[0] * 0.2126 + channels[1] * 0.7152 + channels[2] * 0.0722;
+  return luminance > 0.179 ? "#000000" : "#ffffff";
+}
+
 function rgbToHsl(r: number, g: number, b: number): [number, number, number] {
   r /= 255;
   g /= 255;

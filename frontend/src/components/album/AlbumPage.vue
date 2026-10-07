@@ -3,6 +3,7 @@ defineOptions({ inheritAttrs: false });
 withDefaults(
   defineProps<{
     cover?: boolean;
+    preserveBackground?: boolean;
     widthMm?: number;
     numberPlacement?: "margin" | "image" | "none";
   }>(),
@@ -13,7 +14,7 @@ withDefaults(
 <template>
   <div
     class="page-container"
-    :class="{ 'cover-sheet': cover }"
+    :class="{ 'cover-sheet': cover, 'preserve-background': preserveBackground }"
     :style="widthMm ? { '--trim-width': `${widthMm}mm` } : undefined"
   >
     <div
@@ -42,10 +43,21 @@ withDefaults(
   height: calc(var(--page-height) + 2 * var(--bleed));
   padding: var(--bleed);
   box-sizing: border-box;
-  background-color: var(--page-bg, var(--bg));
+  --text: var(--album-paper-text, var(--theme-page-text));
+  --text-bright: var(--album-paper-text, var(--theme-page-text-bright));
+  --text-muted: var(--album-paper-text, var(--theme-page-text-muted));
+  --text-faint: var(--album-paper-text, var(--theme-page-text-faint));
+  --bg: var(--album-paper-bg, var(--theme-page-bg));
+  color: var(--text);
+  background-color: var(--album-paper-bg, var(--page-bg, var(--bg)));
+  print-color-adjust: exact;
   font-family: var(--font-album);
   overflow: hidden;
   page: interior;
+}
+.preserve-background {
+  --album-paper-bg: initial;
+  --album-paper-text: initial;
 }
 .cover-sheet {
   --bleed: var(--cover-bleed, 0mm);

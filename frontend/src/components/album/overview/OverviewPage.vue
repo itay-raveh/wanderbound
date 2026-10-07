@@ -181,7 +181,12 @@ const factColumns = computed(() => {
 </script>
 
 <template>
-  <AlbumPage class="overview" role="region" :aria-label="t('overview.title')">
+  <AlbumPage
+    preserve-background
+    class="overview"
+    role="region"
+    :aria-label="t('overview.title')"
+  >
     <div class="overview-content page-content">
       <template v-for="(col, ci) in factColumns" :key="ci">
         <div

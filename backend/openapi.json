@@ -3004,6 +3004,18 @@
             "type": "object",
             "title": "Colors"
           },
+          "background_color": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^#[0-9a-fA-F]{6}$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Background Color"
+          },
           "hidden_steps": {
             "items": {
               "type": "integer"
@@ -3120,6 +3132,18 @@
               }
             ],
             "title": "Colors"
+          },
+          "background_color": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^#[0-9a-fA-F]{6}$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Background Color"
           },
           "hidden_steps": {
             "anyOf": [
@@ -3293,6 +3317,18 @@
             },
             "type": "object",
             "title": "Colors"
+          },
+          "background_color": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^#[0-9a-fA-F]{6}$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Background Color"
           },
           "hidden_steps": {
             "items": {

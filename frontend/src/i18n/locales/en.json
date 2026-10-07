@@ -136,7 +136,11 @@
     "resolutionWarningsOff": "Off",
     "resolutionWarningsRelaxed": "Relaxed",
     "resolutionWarningsPrint": "Print",
-    "zoom": "Zoom"
+    "zoom": "Zoom",
+    "pageBackground": "Page background",
+    "themeDefault": "Theme default",
+    "resetBackground": "Reset",
+    "backgroundScope": "All chapters · page paper only. Photos, maps and overview keep their artwork."
   },
   "panorama": {
     "treat": "Treat as panorama",

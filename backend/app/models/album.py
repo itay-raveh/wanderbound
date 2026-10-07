@@ -41,6 +41,9 @@ class AlbumBase(SQLModel):
     colors: dict[CountryCode, HexColor] = Field(
         sa_column=Column(PydanticJSON(dict[CountryCode, HexColor]), nullable=False)
     )
+    background_color: HexColor | None = Field(
+        default=None, sa_column=Column(String(7), nullable=True)
+    )
     hidden_steps: list[int] = Field(
         sa_column=Column(PydanticJSON(list[int]), nullable=False),
         default_factory=list,
