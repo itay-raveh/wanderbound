@@ -36,5 +36,5 @@ test("rejected files leave the uploader ready for an accepted ZIP", async ({
     buffer: Buffer.alloc(1),
   });
   await started;
-  expect(uploads).toBe(1);
+  await expect.poll(() => uploads).toBe(1);
 });
