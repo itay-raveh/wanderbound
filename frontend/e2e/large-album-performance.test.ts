@@ -386,6 +386,66 @@ test.describe("Large album editor performance", () => {
     );
   });
 
+  test("keeps sidebar boundary scrolling out of the album viewer", async ({
+    page,
+  }) => {
+    await mockLargeAlbum(page);
+    await page.goto("/editor");
+    const entries = page.locator(".chapter-entries-virtual");
+    const outer = page.locator(".nav-list");
+    await expect(entries).toBeVisible({ timeout: 15_000 });
+    await expect(page.locator(".page-position")).toHaveText("Page 1 of 484");
+
+    // Start at the inner boundary; wheel input must still reach the outer
+    // sidebar so chapter headers and the last rows remain accessible.
+    await entries.evaluate((el) => {
+      el.scrollTop = el.scrollHeight;
+    });
+    await expect(page.locator('[data-nav-step="240"]')).toHaveCount(1);
+    const point = await entries.evaluate((el) => {
+      const rect = el.getBoundingClientRect();
+      const sidebar = el.closest(".nav-list")!.getBoundingClientRect();
+      return {
+        x: rect.left + rect.width / 2,
+        y: Math.min(rect.bottom, sidebar.bottom, innerHeight) - 30,
+      };
+    });
+    await page.mouse.move(point.x, point.y);
+    await page.mouse.wheel(0, 600);
+    await expect
+      .poll(() => outer.evaluate((el) => el.scrollTop))
+      .toBeGreaterThan(0);
+    await expect
+      .poll(() =>
+        outer.evaluate(
+          (el) => el.scrollHeight - el.clientHeight - el.scrollTop,
+        ),
+      )
+      .toBeLessThanOrEqual(1);
+
+    // Separate gestures after exhausting both scrollers must not chain to
+    // the document and make its active-step sync jump the sidebar backward.
+    for (let gesture = 0; gesture < 3; gesture++) {
+      await page.waitForTimeout(250);
+      await page.mouse.wheel(0, 800);
+    }
+    await page.waitForTimeout(250);
+    expect(await page.evaluate(() => window.scrollY)).toBe(0);
+    await expect(page.locator(".page-position")).toHaveText("Page 1 of 484");
+    expect(
+      await entries.evaluate(
+        (el) => el.scrollHeight - el.clientHeight - el.scrollTop,
+      ),
+    ).toBeLessThanOrEqual(1);
+
+    // The viewer remains independently scrollable outside the sidebar.
+    await page.mouse.move(800, 450);
+    await page.mouse.wheel(0, 800);
+    await expect
+      .poll(() => page.evaluate(() => window.scrollY))
+      .toBeGreaterThan(0);
+  });
+
   test("keeps the active step near the middle of the nav while scrolling", async ({
     page,
   }) => {
