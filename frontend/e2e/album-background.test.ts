@@ -93,8 +93,10 @@ for (const { rtl, width } of [
     );
     await openEditor(page);
     const showProperties = async () => {
-      if (rtl)
-        await page.getByRole("button", { name: "הצגת המאפיינים" }).click();
+      await page
+        .locator("#editor-inspector .panel-section-header")
+        .filter({ hasText: rtl ? "מאפיינים" : "Properties" })
+        .click();
     };
     await showProperties();
     const background = page.getByRole("button", {

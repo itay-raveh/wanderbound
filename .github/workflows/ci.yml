@@ -187,7 +187,7 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: playwright-report
-          path: frontend/e2e/test-results/
+          path: frontend/test-results/
           retention-days: 7
 
   test-migrations:
