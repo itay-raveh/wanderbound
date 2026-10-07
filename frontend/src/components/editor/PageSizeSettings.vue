@@ -183,7 +183,7 @@ async function apply() {
 }
 .size-dimensions {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 7rem), 1fr));
   gap: var(--gap-md);
 }
 .size-dimensions :deep(input) {

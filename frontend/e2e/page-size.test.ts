@@ -128,6 +128,13 @@ test("custom trim dimensions save atomically, survive units/reload and undo, and
   ).toBeHidden();
   await expect(page.locator(".page-size-settings")).toBeVisible();
   await page.setViewportSize({ width: 1024, height: 768 });
+  await expect
+    .poll(() =>
+      page
+        .locator(".inspector-panel")
+        .evaluate((el) => Math.round(el.getBoundingClientRect().width)),
+    )
+    .toBeLessThanOrEqual(240);
   await page.screenshot({ path: `${artifacts}/editor-custom-he.png` });
 });
 
