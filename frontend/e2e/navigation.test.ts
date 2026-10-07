@@ -77,6 +77,7 @@ test.describe("responsive editor rails", () => {
       .getByRole("button", { name: 'Expand "Photos and text"' })
       .click();
     await expect(page.locator(".album-container")).toBeInViewport();
+
     await expect(step).toBeInViewport();
     const navigationBox = await page
       .locator("#editor-navigation")
@@ -88,7 +89,6 @@ test.describe("responsive editor rails", () => {
     );
     expect(pageBox!.x + pageBox!.width).toBeLessThanOrEqual(inspectorBox!.x);
     await expect(position).toHaveText(label);
-
     await page.getByRole("button", { name: "Hide inspector" }).click();
     await expect(page.locator("#editor-inspector")).toBeHidden();
     await expect(page.locator("body")).not.toHaveClass(
@@ -96,6 +96,15 @@ test.describe("responsive editor rails", () => {
     );
     await expect(step).toBeInViewport();
     await expect(position).toHaveText(label);
+    await expect
+      .poll(() => page.evaluate(() => window.scrollY))
+      .toBeGreaterThan(2000);
+    const restoredScrollY = await page.evaluate(() => window.scrollY);
+    await page.mouse.move(512, 384);
+    await page.mouse.wheel(0, -600);
+    await expect
+      .poll(() => page.evaluate(() => window.scrollY))
+      .toBeLessThan(restoredScrollY);
     await page.getByRole("button", { name: "Show inspector" }).click();
     await expect(page.locator("#editor-inspector")).toBeVisible();
   });

@@ -18,7 +18,9 @@ test("editing and removing a text tile preserves photos and prints saved text", 
   await page.route(
     "**/api/v1/albums/aid-1/steps/1/media-layout",
     async (route) => {
-      step = { ...step, ...route.request().postDataJSON() };
+      const layout = route.request().postDataJSON();
+      expect(layout.layout_version).toBe(1);
+      step = { ...step, ...layout };
       await route.fulfill({ json: step });
     },
   );
@@ -48,6 +50,8 @@ test("editing and removing a text tile preserves photos and prints saved text", 
   await expect(page.getByRole("alert")).toContainText("does not fit");
   await expect(editor).toHaveValue("");
   await editor.fill("A day in Lima");
+  await editor.fill("Long text ".repeat(400));
+  await expect(editor).toHaveValue("A day in Lima");
   await editor.press("Tab");
 
   await expect(page.locator(".page-content .text-item")).toContainText(
@@ -69,6 +73,13 @@ test("editing and removing a text tile preserves photos and prints saved text", 
   await tile.focus();
   await tile.press("Enter");
   await expect(editor).toBeFocused();
+  await editor.fill("Accepted text ".repeat(20));
+  await expect(editor).toHaveValue("Accepted text ".repeat(20));
+  await editor.fill("x\n".repeat(80));
+  await expect(page.getByRole("alert")).toContainText("does not fit");
+  await editor.press("Tab");
+  await expect(editor).toBeVisible();
+  expect(step.pages[0].slots.at(-1)?.text).toBe("A day in Lima");
   await editor.press("Escape");
 
   await page.getByRole("button", { name: "Remove text tile" }).click();

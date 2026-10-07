@@ -7,7 +7,7 @@ import {
   mockStep,
   mockUser,
 } from "../tests/fixtures/mocks";
-import type { StepMediaLayout } from "../src/client";
+import type { StepMediaLayoutUpdate } from "../src/client";
 
 for (const rtl of [false, true]) {
   test(`reorders whole photo pages, persists them, and supports undo (${rtl ? "RTL" : "LTR"})`, async ({
@@ -25,7 +25,8 @@ for (const rtl of [false, true]) {
     await page.route("**/api/v1/auth/state", (route) =>
       route.fulfill({ json: { ...mockAuthStateAuthenticated, user } }),
     );
-    const original: StepMediaLayout = {
+    const original: StepMediaLayoutUpdate = {
+      layout_version: 1,
       cover: "cover.jpg",
       pages: [
         mockComposedPage("grid", ["a.jpg", "b.jpg"]),
@@ -42,7 +43,7 @@ for (const rtl of [false, true]) {
       uid: 1,
       name: "Rotterdam",
     };
-    const updates: StepMediaLayout[] = [];
+    const updates: StepMediaLayoutUpdate[] = [];
     await page.route("**/api/v1/albums/aid-1", (route) =>
       route.fulfill({
         json: {
@@ -67,7 +68,7 @@ for (const rtl of [false, true]) {
     await page.route(
       "**/api/v1/albums/aid-1/steps/1/media-layout",
       async (route) => {
-        const layout: StepMediaLayout = route.request().postDataJSON();
+        const layout: StepMediaLayoutUpdate = route.request().postDataJSON();
         updates.push(layout);
         step = { ...step, ...layout };
         await route.fulfill({ json: step });

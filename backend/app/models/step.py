@@ -78,6 +78,10 @@ class StepMediaLayout(SQLModel):
         return self
 
 
+class StepMediaLayoutUpdate(StepMediaLayout):
+    layout_version: Literal[1]
+
+
 class Step(StepBase, table=True):
     __table_args__ = (
         ForeignKeyConstraint(

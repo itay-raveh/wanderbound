@@ -1,11 +1,12 @@
 import { expect, openEditor, scrollToStep, test } from "./fixtures";
 import { mockComposedPage, mockStep } from "../tests/fixtures/mocks";
-import type { StepMediaLayout } from "../src/client";
+import type { StepMediaLayoutUpdate } from "../src/client";
 
 test("unused photo can be placed on a page with the keyboard", async ({
   authedPage: page,
 }) => {
-  const original: StepMediaLayout = {
+  const original: StepMediaLayoutUpdate = {
+    layout_version: 1,
     cover: null,
     pages: [mockComposedPage("grid", ["photo1.jpg"])],
     unused: ["photo2.jpg"],
@@ -15,7 +16,7 @@ test("unused photo can be placed on a page with the keyboard", async ({
     route.fulfill({ json: [step] }),
   );
   await page.route("**/api/v1/albums/aid-1/steps/1/media-layout", (route) => {
-    const layout: StepMediaLayout = route.request().postDataJSON();
+    const layout: StepMediaLayoutUpdate = route.request().postDataJSON();
     step = { ...step, ...layout };
     return route.fulfill({ json: step });
   });
@@ -53,7 +54,7 @@ test("photo can be dragged into the open inspector tray at 1024px", async ({
     route.fulfill({ json: [step] }),
   );
   await page.route("**/api/v1/albums/aid-1/steps/1/media-layout", (route) => {
-    const layout: StepMediaLayout = route.request().postDataJSON();
+    const layout: StepMediaLayoutUpdate = route.request().postDataJSON();
     step = { ...step, ...layout };
     return route.fulfill({ json: step });
   });

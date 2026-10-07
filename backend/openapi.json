@@ -1379,7 +1379,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/StepMediaLayout"
+                "$ref": "#/components/schemas/StepMediaLayoutUpdate"
               }
             }
           }
@@ -4966,7 +4966,7 @@
         ],
         "title": "SignPartResponse"
       },
-      "StepMediaLayout": {
+      "StepMediaLayoutUpdate": {
         "properties": {
           "cover": {
             "anyOf": [
@@ -4993,15 +4993,21 @@
             },
             "type": "array",
             "title": "Unused"
+          },
+          "layout_version": {
+            "type": "integer",
+            "const": 1,
+            "title": "Layout Version"
           }
         },
         "type": "object",
         "required": [
           "cover",
           "pages",
-          "unused"
+          "unused",
+          "layout_version"
         ],
-        "title": "StepMediaLayout"
+        "title": "StepMediaLayoutUpdate"
       },
       "StepPageKind": {
         "type": "string",

@@ -337,13 +337,18 @@ class TestUpdateStep:
         assert saved["pages"][1]["slots"][0]["id"] == slot_id
         assert saved["pages"][1]["slots"][0]["text"] == "A day in Lima"
         assert saved["unused"] == ["a.jpg"]
-        legacy = await album_routes.update_media_layout(
-            cover=None,
-            pages=[{"kind": "grid", "media": ["b.jpg"]}],
-            unused=[],
+        for legacy_pages in ([], [{"kind": "grid", "media": ["b.jpg"]}]):
+            legacy = await album_routes.client.put(
+                f"/api/v1/albums/{signed_album.aid}/steps/1/media-layout",
+                json={"cover": None, "pages": legacy_pages, "unused": ["a.jpg"]},
+            )
+            assert legacy.status_code == 422
+            assert (await album_routes.get_steps()).json()[0]["pages"] == saved["pages"]
+        cleared = await album_routes.update_media_layout(
+            cover=None, pages=[], unused=["a.jpg", "b.jpg"]
         )
-        assert legacy.status_code == 422
-        assert (await album_routes.get_steps()).json()[0]["pages"] == saved["pages"]
+        assert cleared.status_code == 200
+        assert (await album_routes.get_steps()).json()[0]["pages"] == []
 
     @pytest.mark.usefixtures("signed_album")
     @pytest.mark.parametrize("media", [[], ["a.jpg", "b.jpg"]])

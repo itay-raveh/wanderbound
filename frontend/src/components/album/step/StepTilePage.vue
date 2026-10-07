@@ -91,6 +91,7 @@ function syncPage() {
 
 const editingSlotId = ref<string | null>(null);
 const draft = ref("");
+const draftFits = ref(true);
 const overflowing = ref(false);
 const pendingRemovalId = ref<string | null>(null);
 const showRemoveConfirm = ref(false);
@@ -106,6 +107,7 @@ function openTextEditor(slot: StepSlotLayout) {
     );
     if (!input) return;
     overflowing.value = input.scrollHeight > input.clientHeight + 1;
+    draftFits.value = !overflowing.value;
     input.focus({ preventScroll: true });
   });
 }
@@ -119,6 +121,7 @@ function onTextInput(event: Event) {
     return;
   }
   draft.value = input.value;
+  draftFits.value = !exceedsTile;
   overflowing.value = exceedsTile;
 }
 
@@ -129,7 +132,7 @@ function cancelTextEdit() {
 
 function saveText() {
   const id = editingSlotId.value;
-  if (!id || overflowing.value) return;
+  if (!id || !draftFits.value) return;
   editingSlotId.value = null;
   const slot = pageSlots(props.page).find((current) => current.id === id);
   if (!slot) return;
