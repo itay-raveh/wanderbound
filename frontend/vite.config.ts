@@ -48,6 +48,7 @@ export default defineConfig({
       },
     },
     build: {
+      target: ["chrome107", "edge107", "firefox104", "safari16"],
       sourcemap: "hidden",
       chunkSizeWarningLimit: 1800, // mapbox-gl is ~1.7MB and cannot be tree-shaken or split
       rollupOptions: {
@@ -56,16 +57,10 @@ export default defineConfig({
           redirect: path.resolve(__dirname, "redirect.html"),
         },
         output: {
-          manualChunks: {
-            mapbox: ["mapbox-gl"],
-            sentry: ["@sentry/vue"],
-            turf: [
-              "@turf/along",
-              "@turf/distance",
-              "@turf/helpers",
-              "@turf/length",
-              "@turf/nearest-point-on-line",
-            ],
+          manualChunks(id) {
+            if (id.includes("/node_modules/mapbox-gl/")) return "mapbox";
+            if (id.includes("/node_modules/@sentry/")) return "sentry";
+            if (id.includes("/node_modules/@turf/")) return "turf";
           },
         },
       },
