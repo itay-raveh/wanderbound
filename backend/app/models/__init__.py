@@ -3,7 +3,8 @@ from app.models.album import Album as Album
 from app.models.album_media import (
     AlbumMedia as AlbumMedia,
     AlbumMediaUndoSnapshot as AlbumMediaUndoSnapshot,
-    StepPageMedia as StepPageMedia,
+    StepPage as StepPage,
+    StepPageSlot as StepPageSlot,
     StepUnusedMedia as StepUnusedMedia,
 )
 from app.models.processing import (

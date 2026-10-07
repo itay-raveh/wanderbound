@@ -5,6 +5,7 @@ from collections.abc import AsyncIterator, Iterable, Sequence
 from datetime import date, datetime
 from pathlib import Path
 from typing import Annotated, Any, Literal, NamedTuple
+from uuid import uuid4
 from zoneinfo import ZoneInfo
 
 import structlog
@@ -23,6 +24,7 @@ from app.logic.layout.media import (
 from app.logic.spatial.geo import haversine_km
 from app.logic.spatial.peaks import correct_peaks
 from app.logic.spatial.segments import build_segments
+from app.logic.step_media import step_media_rows
 from app.models.album import (
     DEFAULT_BODY_FONT,
     DEFAULT_FONT,
@@ -33,13 +35,14 @@ from app.models.album import (
 )
 from app.models.album_media import (
     AlbumMedia,
-    StepPageMedia,
+    StepPage,
+    StepPageSlot,
     StepUnusedMedia,
     is_panorama_size,
 )
 from app.models.polarsteps import Location, Point, PSLocations, PSStep, PSTrip
 from app.models.segment import Segment, SegmentKind
-from app.models.step import Step, StepRead
+from app.models.step import Step, StepPageLayout, StepRead, StepSlotLayout
 from app.models.user import User
 from app.models.weather import Weather
 from app.services.open_meteo import build_weathers, elevations
@@ -47,7 +50,9 @@ from app.services.open_meteo import build_weathers, elevations
 logger = structlog.get_logger(__name__)
 
 type ProcessingPhase = Literal["elevations", "weather", "layouts", "segments"]
-type DbRow = Album | AlbumMedia | Step | StepPageMedia | StepUnusedMedia | Segment
+type DbRow = (
+    Album | AlbumMedia | Step | StepPage | StepPageSlot | StepUnusedMedia | Segment
+)
 
 
 async def track_iter[T](
@@ -474,19 +479,19 @@ def build_step_page_media_rows(
     aid: str,
     step_id: int,
     layout: Layout,
-) -> list[StepPageMedia]:
-    return [
-        StepPageMedia(
-            uid=uid,
-            aid=aid,
-            step_id=step_id,
-            page_index=page_index,
-            position_index=position_index,
-            media_name=media_name,
+) -> list[StepPage | StepPageSlot | StepUnusedMedia]:
+    pages = [
+        StepPageLayout(
+            id=uuid4(),
+            kind="grid",
+            slots=[
+                StepSlotLayout(id=uuid4(), kind="photo", media_name=name)
+                for name in page
+            ],
         )
-        for page_index, page in enumerate(layout.pages)
-        for position_index, media_name in enumerate(page)
+        for page in layout.pages
     ]
+    return step_media_rows(uid, aid, step_id, pages, [])
 
 
 def cover_name_from_trip(trip: PSTrip) -> str:

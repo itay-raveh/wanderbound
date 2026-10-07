@@ -17,7 +17,8 @@ from app.models.album import Album, AlbumChapter
 from app.models.album_media import (
     AlbumMedia,
     AlbumMediaUndoSnapshot,
-    StepPageMedia,
+    StepPage,
+    StepPageSlot,
     StepUnusedMedia,
 )
 from app.models.polarsteps import Location, Point, PSStep
@@ -238,25 +239,6 @@ def make_album_media(
     )
 
 
-def make_step_page_media(
-    uid: int = 1,
-    aid: str = AID,
-    *,
-    step_id: int = 1,
-    media_name: str = DEFAULT_MEDIA_NAME,
-    page_index: int = 0,
-    position_index: int = 0,
-) -> StepPageMedia:
-    return StepPageMedia(
-        uid=uid,
-        aid=aid,
-        step_id=step_id,
-        media_name=media_name,
-        page_index=page_index,
-        position_index=position_index,
-    )
-
-
 def make_step_unused_media(
     uid: int = 1,
     aid: str = AID,
@@ -436,13 +418,26 @@ async def insert_step(
     await session.flush()
     if page_media_name is not None:
         session.add(
-            StepPageMedia(
+            StepPage(
                 uid=uid,
                 aid=aid,
                 step_id=step_id,
-                page_index=0,
+                id="00000000-0000-4000-8000-000000000001",
                 position_index=0,
+            )
+        )
+        await session.flush()
+        session.add(
+            StepPageSlot(
+                uid=uid,
+                aid=aid,
+                step_id=step_id,
+                id="00000000-0000-4000-8000-000000000002",
+                page_id="00000000-0000-4000-8000-000000000001",
+                position_index=0,
+                kind="photo",
                 media_name=page_media_name,
+                continuation_priority=0,
             )
         )
     if unused_media_name is not None:

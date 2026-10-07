@@ -15,6 +15,7 @@ import {
   type PhotoFit,
 } from "@/utils/photoLayout";
 import { isPortraitByName } from "@/utils/media";
+import { rotatedSize } from "@/utils/photoEdit";
 
 type QualityTier = "ok" | "caution" | "warning";
 export type MediaResolutionWarningPreset = "off" | "relaxed" | "print";
@@ -38,6 +39,11 @@ type MediaDimensions = {
   width: number;
   height: number;
   panorama?: PanoramaDimensions | null;
+  photo_edit?: {
+    angle: number;
+    width: number;
+    height: number;
+  } | null;
 };
 
 const DPI_CAUTION_DEFAULT = 100;
@@ -127,7 +133,17 @@ export function mediaQuality(
 ): PhotoQuality | null {
   const m = mediaByName.get(name);
   if (!m) return null;
-  const dimensions = effectivePanoramaDimensions(m, cell) ?? m;
+  const rendered = effectivePanoramaDimensions(m, cell) ?? m;
+  const edit = m.photo_edit;
+  const dimensions = edit
+    ? (() => {
+        const size = rotatedSize(rendered.width, rendered.height, edit.angle);
+        return {
+          width: size.width * edit.width,
+          height: size.height * edit.height,
+        };
+      })()
+    : rendered;
   const dpi = computeDpi(dimensions.width, dimensions.height, cell, fit);
   return { tier: dpiTier(dpi, preset), dpi: Math.round(dpi) };
 }

@@ -5,6 +5,7 @@ import structlog
 from fastapi import APIRouter, HTTPException, Query, status
 from fastapi.responses import FileResponse
 
+from app.core.worker_threads import run_sync
 from app.logic.layout.media import (
     THUMB_WIDTHS,
     MediaName,
@@ -14,8 +15,11 @@ from app.logic.layout.media import (
     generation_lock,
     is_video,
 )
+from app.logic.photo_edit import render_photo_edit
+from app.models.album_media import AlbumMedia
 
-from ..deps import UserDep, album_dir as _album_dir
+from ..deps import SessionDep, UserDep, album_dir as _album_dir
+from .panoramas import current_panorama_render
 
 logger = structlog.get_logger(__name__)
 
@@ -28,11 +32,34 @@ _CACHE_IMMUTABLE = "public, max-age=31536000, immutable"
 _CACHE_REVALIDATE = "public, no-cache"
 
 
+async def _edited_source(
+    source: Path, aid: str, name: str, user: UserDep, session: SessionDep
+) -> Path:
+    media = await session.get(AlbumMedia, (user.id, aid, name))
+    if media is None or media.photo_edit is None:
+        return source
+    if media.panorama is not None:
+        source = await current_panorama_render(media, _album_dir(user, aid))
+    return await render_photo_edit(
+        _album_dir(user, aid), source, media.photo_edit, name
+    )
+
+
+async def _ensure_poster(source: Path, video: Path, name: str) -> None:
+    if await run_sync(source.is_file) or not await run_sync(video.is_file):
+        return
+    async with generation_lock(source):
+        if not await run_sync(source.is_file):
+            await extract_frame(video)
+            logger.debug("asset.poster_extracted", media_name=name)
+
+
 @router.get("/{aid}/media/{name}")
 async def get_media(
     aid: str,
     name: MediaName,
     user: UserDep,
+    session: SessionDep,
     w: int | None = None,
 ) -> FileResponse:
     album_dir = _album_dir(user, aid)
@@ -44,18 +71,20 @@ async def get_media(
     cache = _CACHE_REVALIDATE if is_poster else _CACHE_IMMUTABLE
 
     # Lazy poster extraction: .jpg requested but only the .mp4 exists.
-    if not source.is_file() and is_poster:
-        async with generation_lock(source):
-            if not source.is_file():
-                await extract_frame(video)
-                logger.debug("asset.poster_extracted", media_name=name)
+    if is_poster:
+        await _ensure_poster(source, video, name)
 
     if not source.is_file():
         raise HTTPException(status.HTTP_404_NOT_FOUND)
 
+    edited = await _edited_source(source, aid, name, user, session)
+    if edited != source:
+        source = edited
+        cache = _CACHE_REVALIDATE
+
     # Lazy thumbnail generation.
     if w is not None and w in THUMB_WIDTHS:
-        thumb = album_dir / ".thumbs" / str(w) / f"{Path(name).stem}.webp"
+        thumb = source.parent / ".thumbs" / str(w) / f"{source.stem}.webp"
         if not thumb.is_file():
             async with generation_lock(thumb):
                 if not thumb.is_file():

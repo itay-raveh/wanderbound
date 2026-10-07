@@ -1,6 +1,8 @@
 import json
 import shutil
 import tempfile
+import time
+import urllib.error
 import urllib.request
 from collections.abc import Callable, Iterable
 from concurrent.futures import ThreadPoolExecutor
@@ -23,9 +25,18 @@ def download_atomic(
     ) as tmp:
         tmp_path = Path(tmp.name)
     try:
-        with urllib.request.urlopen(url, timeout=timeout) as response:
-            with tmp_path.open("wb") as f:
-                shutil.copyfileobj(response, f)
+        for attempt in range(3):
+            try:
+                with urllib.request.urlopen(url, timeout=timeout) as response:
+                    with tmp_path.open("wb") as f:
+                        shutil.copyfileobj(response, f)
+                break
+            except urllib.error.HTTPError:
+                raise
+            except urllib.error.URLError:
+                if attempt == 2:
+                    raise
+                time.sleep(2**attempt)
         if tmp_path.stat().st_size == 0:
             msg = f"Downloaded empty file: {url}"
             raise RuntimeError(msg)

@@ -199,12 +199,7 @@ export function provideTestAlbum({
 }
 
 /** Shared plugin list for mounting components under test. */
-const testPlugins = [
-  [Quasar, {}],
-  createPinia(),
-  PiniaColada,
-  i18n,
-] as const;
+const testPlugins = [[Quasar, {}], createPinia(), PiniaColada, i18n] as const;
 
 /** Mount a component with the standard test plugin stack. */
 export function mountWithPlugins<T extends Component>(
@@ -219,7 +214,7 @@ export function mountWithPlugins<T extends Component>(
 }
 
 export function makeStep(overrides: Partial<Step> = {}): Step {
-  return {
+  const step = {
     id: 1,
     name: "Test Step",
     description: "",
@@ -236,6 +231,20 @@ export function makeStep(overrides: Partial<Step> = {}): Step {
     datetime: "2024-01-01T00:00:00Z",
     ...overrides,
   };
+  let priority = 0;
+  step.pages = step.pages.map((page) => ({
+    ...page,
+    id: page.id ?? crypto.randomUUID(),
+    slots:
+      page.slots ??
+      page.media.map((name) => ({
+        id: crypto.randomUUID(),
+        kind: "photo",
+        media_name: name,
+        continuation_priority: priority++,
+      })),
+  }));
+  return step;
 }
 
 export function photoGridPage(...media: string[]): Step["pages"][number] {

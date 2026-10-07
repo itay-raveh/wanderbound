@@ -36,7 +36,7 @@ from app.logic.trip_processing import (
     run_weather,
 )
 from app.models.album import Album
-from app.models.album_media import AlbumMedia, StepPageMedia, StepUnusedMedia
+from app.models.album_media import AlbumMedia, StepPage, StepPageSlot, StepUnusedMedia
 from app.models.segment import Segment
 from app.models.step import Step, StepRead
 from app.models.user import User
@@ -216,7 +216,15 @@ async def _save_new(
 
 
 async def _add_new_objects(session: AsyncSession, objects: list[DbRow]) -> None:
-    for model in (Album, AlbumMedia, Step, StepPageMedia, StepUnusedMedia, Segment):
+    for model in (
+        Album,
+        AlbumMedia,
+        Step,
+        StepPage,
+        StepPageSlot,
+        StepUnusedMedia,
+        Segment,
+    ):
         rows = [obj for obj in objects if isinstance(obj, model)]
         if rows:
             session.add_all(rows)
@@ -251,9 +259,14 @@ async def _save_reupload(  # noqa: PLR0913
                 return False
             if reconciled_aids:
                 await session.exec(
-                    delete(StepPageMedia)
-                    .where(col(StepPageMedia.uid) == uid)
-                    .where(col(StepPageMedia.aid).in_(reconciled_aids))
+                    delete(StepPageSlot)
+                    .where(col(StepPageSlot.uid) == uid)
+                    .where(col(StepPageSlot.aid).in_(reconciled_aids))
+                )
+                await session.exec(
+                    delete(StepPage)
+                    .where(col(StepPage.uid) == uid)
+                    .where(col(StepPage.aid).in_(reconciled_aids))
                 )
                 await session.exec(
                     delete(StepUnusedMedia)
@@ -301,7 +314,15 @@ async def _save_reupload(  # noqa: PLR0913
 
 
 async def _merge_objects(session: AsyncSession, objects: list[DbRow]) -> None:
-    for model in (Album, AlbumMedia, Step, StepPageMedia, StepUnusedMedia, Segment):
+    for model in (
+        Album,
+        AlbumMedia,
+        Step,
+        StepPage,
+        StepPageSlot,
+        StepUnusedMedia,
+        Segment,
+    ):
         rows = [obj for obj in objects if isinstance(obj, model)]
         for obj in rows:
             await session.merge(obj)

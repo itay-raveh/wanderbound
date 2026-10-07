@@ -139,14 +139,14 @@
 }
 
 .quality-badge {
-  --size: min(2.25rem, 34cqmin);
+  --size: min(2.5rem, 34cqmin);
   position: absolute;
-  bottom: var(--gap-md);
-  right: var(--gap-md);
+  inset-block-end: var(--gap-md);
+  inset-inline-end: var(--gap-md);
   width: var(--size);
   height: var(--size);
   border: none;
-  border-radius: 50%;
+  border-radius: var(--radius-sm);
   pointer-events: auto;
   z-index: 2;
   cursor: pointer;
@@ -171,14 +171,12 @@
   }
 }
 
-
 @media print {
   .play-overlay,
   .frame-bar,
   .quality-badge {
     display: none !important;
   }
-
 }
 
 @media (pointer: coarse) {

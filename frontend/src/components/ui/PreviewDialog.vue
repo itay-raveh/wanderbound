@@ -88,6 +88,8 @@ const { t } = useI18n();
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  background: var(--bg-secondary);
+  color: var(--text);
 }
 .preview-header,
 .preview-actions {
@@ -160,8 +162,40 @@ const { t } = useI18n();
   outline: 2px solid var(--primary-text) !important;
   outline-offset: -2px;
 }
+.preview-dialog :deep(.preview-control-stack),
+.preview-dialog :deep(.preview-control-group) {
+  display: grid;
+  gap: var(--gap-md);
+}
+.preview-dialog :deep(.preview-control-stack) {
+  gap: var(--gap-lg);
+}
+.preview-dialog :deep(.preview-control-heading) {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: var(--gap-md);
+  color: var(--text-bright);
+  font-weight: 600;
+}
+.preview-dialog :deep(.preview-control-output) {
+  color: var(--q-primary);
+}
+.preview-dialog :deep(.preview-control-range) {
+  width: 100%;
+  accent-color: var(--q-primary);
+  direction: ltr;
+}
 @media (max-width: 56rem) {
   .preview-workspace.has-controls {
+    grid-template-columns: 1fr;
+  }
+  .preview-dialog :deep(.preview-control-stack) {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (max-width: 38rem) {
+  .preview-dialog :deep(.preview-control-stack) {
     grid-template-columns: 1fr;
   }
 }

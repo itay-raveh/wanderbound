@@ -157,6 +157,7 @@ async def create_undo_snapshot(
         snapshot_path=str(Path(UNDO_DIR) / media_name),
         perceptual_hashes=row.perceptual_hashes if row else None,
         panorama=row.panorama if row else None,
+        photo_edit=row.photo_edit if row else None,
         upgrade_candidate=row.upgrade_candidate if row else True,
         created_at=now,
         expires_at=now + UNDO_TTL,
@@ -208,6 +209,7 @@ async def restore_undo_snapshot(
     row.byte_size = target.stat().st_size
     row.perceptual_hashes = snap.perceptual_hashes
     row.panorama = snap.panorama
+    row.photo_edit = snap.photo_edit
     row.upgrade_candidate = snap.upgrade_candidate
     row.updated_at = datetime.now(UTC)
     session.add(row)

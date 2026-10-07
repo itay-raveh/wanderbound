@@ -43,7 +43,7 @@ from app.models.segment import (
     SegmentOutline,
     split_segments,
 )
-from app.models.step import Step, StepMediaLayout, StepRead, StepUpdate
+from app.models.step import Step, StepMediaLayoutUpdate, StepRead, StepUpdate
 
 from ..deps import BrowserDep, HttpClientsDep, SessionDep, UserDep, apply_update
 
@@ -204,7 +204,7 @@ async def update_step(
 async def update_step_media_layout(
     aid: str,
     sid: int,
-    layout: StepMediaLayout,
+    layout: StepMediaLayoutUpdate,
     user: UserDep,
     session: SessionDep,
 ) -> StepRead:

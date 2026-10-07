@@ -1,6 +1,10 @@
 import { useMutation, useQueryCache } from "@pinia/colada";
 import { updateStep, updateStepMediaLayout } from "@/client";
-import type { StepMediaLayout, StepRead as Step, StepUpdate } from "@/client";
+import type {
+  StepMediaLayoutUpdate,
+  StepRead as Step,
+  StepUpdate,
+} from "@/client";
 import { useUndoStack, pickSnapshot } from "@/composables/useUndoStack";
 import type { PhotoFocusSnapshot } from "@/composables/usePhotoFocus";
 import { Notify } from "quasar";
@@ -8,7 +12,9 @@ import { t } from "@/i18n";
 import { indexSteps } from "@/utils/steps";
 import { queryKeys } from "./keys";
 
-export type StepMutationUpdate = Partial<StepUpdate & StepMediaLayout>;
+export type StepMutationUpdate = Partial<
+  StepUpdate & Omit<StepMediaLayoutUpdate, "layout_version">
+>;
 
 interface StepMutationPayload {
   sid: number;
@@ -20,8 +26,12 @@ function isLayoutUpdate(update: StepMutationUpdate): boolean {
   return "cover" in update || "pages" in update || "unused" in update;
 }
 
-function mediaLayout(step: Step, update: StepMutationUpdate): StepMediaLayout {
+function mediaLayout(
+  step: Step,
+  update: StepMutationUpdate,
+): StepMediaLayoutUpdate {
   return {
+    layout_version: 1,
     cover: update.cover !== undefined ? update.cover : step.cover,
     pages: update.pages ?? step.pages,
     unused: update.unused ?? step.unused,
@@ -36,7 +46,9 @@ export function useStepMutation(aid: () => string) {
     mutation: async (payload: StepMutationPayload) => {
       if (isLayoutUpdate(payload.update)) {
         const steps = cache.getQueryData<Array<Step>>(queryKeys.steps(aid()));
-        const step = steps ? indexSteps(steps).byId.get(payload.sid) : undefined;
+        const step = steps
+          ? indexSteps(steps).byId.get(payload.sid)
+          : undefined;
         if (!step) throw new Error("Step not found in cache");
         const { data } = await updateStepMediaLayout({
           path: { aid: aid(), sid: payload.sid },

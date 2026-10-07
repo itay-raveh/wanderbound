@@ -6,6 +6,7 @@ import {
   useStepLayout,
 } from "@/composables/useStepLayout";
 import { makeStep, photoGridPage, withParentSetup } from "../helpers";
+import { photoSlot, withSlots } from "@/components/album/stepPages";
 
 vi.mock("vue-draggable-plus", () => ({
   useDraggable: vi.fn(),
@@ -117,17 +118,28 @@ describe("onPageUpdate", () => {
       { pages: [photoGridPage("a", "b")] },
     ],
   ])("updates page placement", (stepPatch, page, expected) => {
-    const { result, mutateSpy } = mountStepLayout(
+    const { result, mutateSpy, stepRef } = mountStepLayout(
       makeStep({ id: 1, ...stepPatch }),
     );
 
-    result.onPageUpdate(0, page);
+    result.onPageUpdate(
+      0,
+      withSlots(
+        stepRef.value.pages[0],
+        page.map(
+          (name) =>
+            stepRef.value.pages
+              .flatMap((p) => p.slots ?? [])
+              .find((slot) => slot.media_name === name) ?? photoSlot(name),
+        ),
+      ),
+    );
 
     expect(lastUpdate(mutateSpy)).toMatchObject(expected);
   });
 
   it("moves a panorama into a grid without leaving half a spread", () => {
-    const { result, mutateSpy } = mountStepLayout(
+    const { result, mutateSpy, stepRef } = mountStepLayout(
       makeStep({
         pages: [
           photoGridPage("grid.jpg"),
@@ -136,13 +148,23 @@ describe("onPageUpdate", () => {
       }),
     );
 
-    result.onPageUpdate(0, ["grid.jpg", "panorama.jpg"]);
+    result.onPageUpdate(
+      0,
+      withSlots(
+        stepRef.value.pages[0],
+        ["grid.jpg", "panorama.jpg"].map(
+          (name) =>
+            stepRef.value.pages
+              .flatMap((p) => p.slots ?? [])
+              .find((slot) => slot.media_name === name)!,
+        ),
+      ),
+    );
 
     expect(lastUpdate(mutateSpy)).toMatchObject({
       pages: [{ kind: "grid", media: ["grid.jpg", "panorama.jpg"] }],
     });
   });
-
 });
 
 describe("fullPageLayout", () => {
@@ -151,10 +173,12 @@ describe("fullPageLayout", () => {
       pages: [photoGridPage("panorama.jpg", "other.jpg")],
     });
 
-    expect(fullPageLayout(step, 0, "panorama.jpg")).toEqual([
-      photoGridPage("other.jpg"),
-      photoGridPage("panorama.jpg"),
-    ]);
+    expect(
+      fullPageLayout(step, 0, "panorama.jpg")?.map(({ kind, media }) => ({
+        kind,
+        media,
+      })),
+    ).toEqual([photoGridPage("other.jpg"), photoGridPage("panorama.jpg")]);
   });
 });
 
