@@ -6,7 +6,7 @@
   display: flex;
   flex-direction: row;
   overflow: hidden;
-  border: 1px solid var(--q-primary);
+  border: 1px solid var(--primary-text);
   border-radius: var(--radius-sm);
   background: color-mix(in srgb, var(--surface) 92%, transparent);
   box-shadow: 0 0.25rem 0.75rem color-mix(in srgb, black 20%, transparent);
@@ -21,9 +21,9 @@
   padding: 0;
   border: 0;
   border-inline-start: 1px solid
-    color-mix(in srgb, var(--q-primary) 35%, transparent);
+    color-mix(in srgb, var(--primary-text) 35%, transparent);
   background: transparent;
-  color: var(--q-primary);
+  color: var(--primary-text);
   cursor: pointer;
   font: inherit;
   font-size: var(--type-lg);
@@ -44,6 +44,6 @@
 
 .album-action:focus-visible {
   position: relative;
-  outline: 0.125rem solid var(--q-primary);
+  outline: 0.125rem solid var(--primary-text);
   outline-offset: -0.125rem;
 }

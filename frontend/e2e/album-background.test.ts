@@ -1,3 +1,4 @@
+import type { Locator } from "@playwright/test";
 import { readFileSync } from "node:fs";
 import { expect, openEditor, test } from "./fixtures";
 import {
@@ -14,6 +15,48 @@ const photo = readFileSync(
     import.meta.url,
   ),
 );
+
+// Composite the translucent toolbar and hover fill over both extremes of
+// photo/paper artwork; every intermediate backdrop must also stay readable.
+async function expectActionContrast(action: Locator, focus = false) {
+  const contrast = await action.evaluate((element, focus) => {
+    const canvas = document.createElement("canvas");
+    canvas.width = canvas.height = 1;
+    const context = canvas.getContext("2d", { willReadFrequently: true })!;
+    const style = getComputedStyle(element);
+    const toolbar = getComputedStyle(element.closest(".album-actions")!);
+    context.fillStyle = focus ? style.outlineColor : style.color;
+    context.fillRect(0, 0, 1, 1);
+    const foreground = Array.from(context.getImageData(0, 0, 1, 1).data);
+    const luminance = (rgb: number[]) =>
+      rgb.slice(0, 3).reduce((sum, value, index) => {
+        const channel = value / 255;
+        return (
+          sum +
+          [0.2126, 0.7152, 0.0722][index] *
+            (channel <= 0.04045
+              ? channel / 12.92
+              : ((channel + 0.055) / 1.055) ** 2.4)
+        );
+      }, 0);
+    return Math.min(
+      ...["black", "white"].map((backdrop) => {
+        for (const color of [
+          backdrop,
+          toolbar.backgroundColor,
+          style.backgroundColor,
+        ]) {
+          context.fillStyle = color;
+          context.fillRect(0, 0, 1, 1);
+        }
+        const background = Array.from(context.getImageData(0, 0, 1, 1).data);
+        const values = [luminance(foreground), luminance(background)];
+        return (Math.max(...values) + 0.05) / (Math.min(...values) + 0.05);
+      }),
+    );
+  }, focus);
+  expect(contrast).toBeGreaterThanOrEqual(3);
+}
 
 for (const { rtl, width } of [
   { rtl: false, width: 1600 },
@@ -61,6 +104,15 @@ for (const { rtl, width } of [
     await page.route("**/api/v1/albums/aid-1/steps", (route) =>
       route.fulfill({ json: steps }),
     );
+    const photoMedia = mockMedia.map((media) => ({
+      ...media,
+      aid: "aid-1",
+      uid: 1,
+      kind: "photo",
+    }));
+    await page.route("**/api/v1/albums/aid-1/media", (route) =>
+      route.fulfill({ json: photoMedia }),
+    );
     const textTile = page.locator(".page-content .text-item").first();
     const expectTextTile = async (background: string, color: string) => {
       await expect(textTile).toHaveCSS("background-color", background);
@@ -69,6 +121,22 @@ for (const { rtl, width } of [
         "direction",
         rtl ? "rtl" : "ltr",
       );
+    };
+    const expectActions = async () => {
+      for (const action of [
+        textTile.locator(".album-action"),
+        page.locator(".page-content .photo-item .album-action").first(),
+      ]) {
+        await expect(action).toBeVisible();
+        await page.mouse.move(0, 0);
+        await expectActionContrast(action);
+        await action.hover();
+        await expectActionContrast(action);
+        await page.keyboard.press("Tab");
+        await action.focus();
+        await expect(action).toHaveCSS("outline-style", "solid");
+        await expectActionContrast(action, true);
+      }
     };
     const updates: unknown[] = [];
     await page.route("**/api/v1/albums/aid-1", async (route) => {
@@ -129,6 +197,7 @@ for (const { rtl, width } of [
       "rgb(0, 0, 0)",
     );
     await expectTextTile("rgb(255, 238, 170)", "rgb(0, 0, 0)");
+    await expectActions();
     const lightMuted = await paper
       .locator(".coords")
       .evaluate((element) => getComputedStyle(element).color);
@@ -150,6 +219,7 @@ for (const { rtl, width } of [
     await reset.click();
     await expect(paper).toHaveCSS("background-color", defaultColor);
     await expect(paper.locator(".coords")).toHaveCSS("color", defaultMuted);
+    await expectActions();
     await page.keyboard.press("Control+z");
     await expect(paper).toHaveCSS("background-color", "rgb(255, 238, 170)");
     await background.click();
@@ -173,6 +243,16 @@ for (const { rtl, width } of [
       "rgb(240, 240, 245)",
     );
     await expectTextTile("rgb(32, 32, 64)", "rgb(255, 255, 255)");
+    await expectActions();
+    await background.click();
+    await hex.fill("#172033");
+    await hex.press("Tab");
+    await page.keyboard.press("Escape");
+    await expectActions();
+    await background.click();
+    await hex.fill("#202040");
+    await hex.press("Tab");
+    await page.keyboard.press("Escape");
     const darkMuted = await paper
       .locator(".coords")
       .evaluate((element) => getComputedStyle(element).color);
@@ -189,7 +269,7 @@ for (const { rtl, width } of [
     await page.route("**/api/v1/albums/*/print-bundle*", (route) =>
       route.fulfill({
         json: {
-          album: { ...album, media: mockMedia },
+          album: { ...album, media: photoMedia },
           steps,
           segments: [],
           total_distance_km: 0,
