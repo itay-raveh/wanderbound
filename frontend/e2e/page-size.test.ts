@@ -201,6 +201,53 @@ for (const file of readdirSync(localeDirectory).filter((name) =>
       await page.goto("/editor");
       await expect(page.locator("html")).toHaveAttribute("lang", language);
       const inspector = page.locator(".inspector-panel");
+      if (language === "de") {
+        await inspector.locator(".context-panel .q-item").first().click();
+        await expect(
+          inspector.locator(".context-panel .q-expansion-item__content"),
+        ).toBeHidden();
+        const properties = inspector
+          .locator(".panel-section-header")
+          .filter({ hasText: messages.editor.properties });
+        await properties.click();
+        const background = page.getByRole("button", {
+          name: messages.editor.pageBackground,
+          exact: true,
+        });
+        const reset = page.getByRole("button", {
+          name: messages.editor.resetBackground,
+          exact: true,
+        });
+        await expect(background).toBeVisible();
+        await expect(reset).toBeDisabled();
+        await background.click();
+        const hex = page.locator(".q-color-picker__header input");
+        await hex.fill("#ffeeaa");
+        await hex.press("Tab");
+        await expect.poll(() => album.background_color).toBe("#ffeeaa");
+        await page.keyboard.press("Escape");
+        await expect(page.locator(".q-color-picker")).toBeHidden();
+        await expect
+          .poll(() =>
+            background.evaluate((el) => el.scrollWidth <= el.clientWidth),
+          )
+          .toBe(true);
+        await expect
+          .poll(() =>
+            inspector
+              .locator(".background-row")
+              .evaluate((el) => el.scrollWidth <= el.clientWidth),
+          )
+          .toBe(true);
+        await mkdir(artifacts, { recursive: true });
+        await page.screenshot({
+          path: `${artifacts}/editor-background-de.png`,
+        });
+        await reset.click();
+        await expect.poll(() => album.background_color).toBe(null);
+        await expect(reset).toBeDisabled();
+        await properties.click();
+      }
       await inspector
         .locator(".q-expansion-item")
         .filter({ hasText: messages.print.title })
