@@ -3,11 +3,13 @@ import os
 from collections.abc import AsyncIterator
 from pathlib import Path
 from unittest.mock import AsyncMock, patch
+from uuid import uuid4
 
 import httpx
 import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine
 from sqlalchemy.pool import StaticPool
 from sqlmodel import SQLModel
@@ -31,6 +33,38 @@ pytest_plugins = (
     "tests.helpers.google_photos_fixtures",
     "tests.helpers.user_fixtures",
 )
+
+
+def pytest_addoption(parser: pytest.Parser) -> None:
+    parser.addoption(
+        "--postgres-url",
+        help="Disposable PostgreSQL URL; tests create and drop an isolated schema",
+    )
+
+
+@pytest_asyncio.fixture(loop_scope="function")
+async def postgres_engine(request: pytest.FixtureRequest) -> AsyncIterator[AsyncEngine]:
+    url = request.config.getoption("--postgres-url")
+    if not url:
+        pytest.skip("Run mise run test:postgres against disposable PostgreSQL")
+    schema = "test_" + uuid4().hex
+    admin = create_async_engine(url, isolation_level="AUTOCOMMIT")
+    engine = create_async_engine(
+        admin.url.update_query_dict(
+            {"options": f"-csearch_path={schema}", "application_name": schema}
+        )
+    )
+    try:
+        async with admin.connect() as conn:
+            await conn.execute(text(f'CREATE SCHEMA "{schema}"'))
+        async with engine.begin() as conn:
+            await conn.run_sync(SQLModel.metadata.create_all)
+        yield engine
+    finally:
+        await engine.dispose()
+        async with admin.connect() as conn:
+            await conn.execute(text(f'DROP SCHEMA IF EXISTS "{schema}" CASCADE'))
+        await admin.dispose()
 
 
 def _mock_http_clients() -> HttpClients:

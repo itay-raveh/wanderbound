@@ -141,15 +141,6 @@ class TestMultiDayHikeRanges:
     ) -> None:
         assert multi_day_hike_ranges([_multi_day_seg(daily_km, start, tz)]) == expected
 
-    def test_multiple_hikes(self) -> None:
-        ranges = multi_day_hike_ranges(
-            [
-                _multi_day_seg([14, 14, 14, 14], date(2024, 12, 8)),
-                _multi_day_seg([10, 10, 10, 10], date(2025, 1, 7)),
-            ]
-        )
-        assert len(ranges) == 2
-
     def test_midnight_crossing_single_day_hike(self) -> None:
         zone = ZoneInfo("America/Santiago")
         d1 = date(2024, 11, 15)

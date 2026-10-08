@@ -1,161 +1,314 @@
 import asyncio
-from collections.abc import Iterator
+from collections.abc import AsyncIterator, Iterator
+from datetime import UTC, datetime
+from io import BytesIO
 from pathlib import Path
-from unittest.mock import AsyncMock
+from typing import TYPE_CHECKING
 
+import httpx
 import pytest
+from PIL import Image
+from sqlmodel import select
+from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.logic.media_upgrade.phash_matching import (
-    MatchResult,
+from app.api.v1.routes import google_photos_upgrade as routes
+from app.core.config import get_settings
+from app.core.http_clients import HttpClients
+from app.logic.media_upgrade import pipeline, upgrade
+from app.logic.media_upgrade.phash_matching import MatchResult
+from app.logic.media_upgrade.pipeline import UpgradeCompleted, run_upgrade
+from app.models.album_media import AlbumMedia, PhotoEdit
+from app.services.google_photos import GooglePhotosOAuth2, _clear_media_items_cache
+from tests.factories import (
+    AID,
+    DEFAULT_MEDIA_NAME,
+    MISSING_MEDIA_NAME,
+    create_test_jpeg,
+    insert_album,
+    insert_album_media,
+    make_user,
 )
-from app.logic.media_upgrade.pipeline import (
-    UpgradeCompleted,
-    _clear_caches,
-    run_upgrade,
-)
-
-from .media_upgrade_helpers import (
-    make_item as _make_item,
-    match_datetime as _match_dt,
+from tests.media_upgrade_helpers import (
+    make_item,
+    match_datetime,
     test_token as _test_token,
 )
 
+if TYPE_CHECKING:
+    from sqlalchemy.ext.asyncio import AsyncEngine
+
+    from app.models.user import User
+
+VIDEO = MISSING_MEDIA_NAME.replace(".jpg", ".mp4")
+EDIT = PhotoEdit(angle=0, x=0.2, y=0.2, width=0.4, height=0.4)
+HASH = ["0123456789abcdef"]
+
 
 @pytest.fixture(autouse=True)
-def _clear_upgrade_caches_between_tests() -> Iterator[None]:
+def clear_upgrade_caches() -> Iterator[None]:
+    pipeline._clear_caches()
+    _clear_media_items_cache()
     yield
-    _clear_caches()
+    pipeline._clear_caches()
+    _clear_media_items_cache()
 
 
-class TestRunUpgrade:
-    @pytest.mark.parametrize(
-        ("google_width", "google_height", "downloads"),
-        [
-            (1200, 800, False),
-            (800, 600, False),
-            (1600, 900, True),
-            (None, None, True),
-        ],
+async def _seed_upgrade(
+    engine: AsyncEngine,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    names: list[str],
+) -> tuple[User, Path, dict[str, bytes]]:
+    monkeypatch.setattr(get_settings(), "DATA_FOLDER", tmp_path)
+    monkeypatch.setattr(routes, "get_engine", lambda: engine)
+    monkeypatch.setattr(upgrade, "get_engine", lambda: engine)
+    monkeypatch.setattr("app.core.locks.get_engine", lambda: engine)
+    user = make_user(1, google_sub="upgrade-test")
+    user.google_photos_refresh_token = "test-refresh"  # noqa: S105 - fake provider credential
+    user.google_photos_connected_at = datetime.now(UTC)
+    album_dir = user.trips_folder / AID
+    originals = {}
+    async with AsyncSession(engine, expire_on_commit=False) as session:
+        session.add(user)
+        await session.flush()
+        await insert_album(session, user.id)
+        for name in names:
+            target = create_test_jpeg(album_dir / name, 1200, 800)
+            originals[name] = target.read_bytes()
+            row = await insert_album_media(
+                session, user.id, name=name, width=1200, height=800
+            )
+            row.byte_size = len(originals[name])
+            row.perceptual_hashes = HASH.copy()
+            row.photo_edit = EDIT
+            session.add(row)
+        await session.commit()
+    return user, album_dir, originals
+
+
+def _photo_bytes(size: tuple[int, int]) -> bytes:
+    buffer = BytesIO()
+    Image.new("RGB", size, color="blue").save(buffer, "JPEG")
+    return buffer.getvalue()
+
+
+def _clients(http: httpx.AsyncClient) -> HttpClients:
+    return HttpClients(
+        mapbox_matching=http,
+        mapbox_directions=http,
+        open_meteo=http,
+        overpass=http,
+        gphotos_picker=http,
+        gphotos_download=http,
+        gphotos_token=http,
+        gphotos_oauth=GooglePhotosOAuth2("test", "test", http),
     )
-    async def test_downloads_only_when_picker_metadata_may_be_larger(
-        self,
-        tmp_path: Path,
-        monkeypatch: pytest.MonkeyPatch,
-        google_width: int | None,
-        google_height: int | None,
-        *,
-        downloads: bool,
-    ) -> None:
-        download_and_replace = AsyncMock(return_value=True)
-        monkeypatch.setattr(
-            "app.logic.media_upgrade.pipeline._download_and_replace",
-            download_and_replace,
-        )
-        persist_upgrade = AsyncMock()
-        cleanup_picker_sessions = AsyncMock()
-        monkeypatch.setattr(
-            "app.logic.media_upgrade.pipeline._persist_upgrade", persist_upgrade
-        )
-        monkeypatch.setattr(
-            "app.logic.media_upgrade.pipeline._cleanup_picker_sessions",
-            cleanup_picker_sessions,
-        )
-        match = MatchResult(
-            local_name="photo.jpg", google_id="google-photo", distance=0
+
+
+class _InterruptedDownload(httpx.AsyncByteStream):
+    async def __aiter__(self) -> AsyncIterator[bytes]:
+        yield b"incomplete original"
+        raise httpx.ReadError("interrupted provider stream")
+
+
+@pytest.mark.parametrize(
+    ("case", "picker_size", "candidate_size", "result"),
+    [
+        (
+            "equal",
+            (1200, 800),
+            (1600, 1000),
+            UpgradeCompleted(replaced=0, skipped=1, failed=0),
+        ),
+        (
+            "metadata-smaller",
+            (800, 600),
+            (1600, 1000),
+            UpgradeCompleted(replaced=0, skipped=1, failed=0),
+        ),
+        (
+            "larger",
+            (1600, 1000),
+            (1600, 1000),
+            UpgradeCompleted(replaced=1, skipped=0, failed=0),
+        ),
+        (
+            "unknown",
+            None,
+            (1600, 1000),
+            UpgradeCompleted(replaced=1, skipped=0, failed=0),
+        ),
+        (
+            "actual-smaller",
+            None,
+            (800, 600),
+            UpgradeCompleted(replaced=0, skipped=1, failed=0),
+        ),
+        ("invalid", None, None, UpgradeCompleted(replaced=0, skipped=0, failed=1)),
+        ("interrupted", None, None, UpgradeCompleted(replaced=0, skipped=0, failed=1)),
+    ],
+)
+async def test_upgrade_preserves_originals_or_persists_valid_replacements(
+    postgres_engine: AsyncEngine,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    case: str,
+    picker_size: tuple[int, int] | None,
+    candidate_size: tuple[int, int] | None,
+    result: UpgradeCompleted,
+) -> None:
+    user, album_dir, originals = await _seed_upgrade(
+        postgres_engine, tmp_path, monkeypatch, [DEFAULT_MEDIA_NAME]
+    )
+    (album_dir / VIDEO).write_bytes(b"video-original")
+    deleted_sessions = set()
+
+    def provider(request: httpx.Request) -> httpx.Response:
+        if request.url.host == "oauth2.googleapis.com":
+            return httpx.Response(
+                200, json={"access_token": "test-token", "expires_in": 3600}
+            )
+        if request.url.path == "/v1/mediaItems":
+            metadata = (
+                {"width": picker_size[0], "height": picker_size[1]}
+                if picker_size
+                else None
+            )
+            return httpx.Response(
+                200,
+                json={
+                    "mediaItems": [
+                        {
+                            "id": "google-photo",
+                            "type": "PHOTO",
+                            "mediaFile": {
+                                "baseUrl": "https://lh3.googleusercontent.com/original",
+                                "mediaFileMetadata": metadata,
+                            },
+                        }
+                    ]
+                },
+            )
+        if request.method == "DELETE":
+            deleted_sessions.add(request.url.path)
+            return httpx.Response(204)
+        if request.url.host == "lh3.googleusercontent.com":
+            assert case not in {"equal", "metadata-smaller"}, (
+                "known smaller candidate was downloaded"
+            )
+            assert request.url.path == "/original=d", "video must not be upgraded"
+            if case == "interrupted":
+                return httpx.Response(200, stream=_InterruptedDownload())
+            return httpx.Response(
+                200,
+                content=_photo_bytes(candidate_size)
+                if candidate_size
+                else b"invalid image",
+            )
+        raise AssertionError(
+            f"unexpected provider request: {request.method} {request.url}"
         )
 
+    async with httpx.AsyncClient(transport=httpx.MockTransport(provider)) as http:
         events = [
             event
-            async for event in run_upgrade(
-                clients=AsyncMock(),
-                uid=1,
-                aid="album",
-                album_dir=tmp_path,
-                matches=[match],
-                google_items_by_id={
-                    "google-photo": _make_item(
-                        "google-photo",
-                        _match_dt(10).isoformat(),
-                        width=google_width,
-                        height=google_height,
-                    )
-                },
-                upgrade_candidates={"photo.jpg"},
-                local_dimensions={"photo.jpg": (1200, 800)},
-                tokens=_test_token,
-                session_ids=[],
+            async for event in routes.upgrade_media(
+                AID,
+                routes.UpgradeRequest(
+                    session_ids=["picker-1"],
+                    matches=[
+                        MatchResult(
+                            local_name=DEFAULT_MEDIA_NAME,
+                            google_id="google-photo",
+                            distance=0,
+                        ),
+                        MatchResult(
+                            local_name=VIDEO, google_id="google-video", distance=0
+                        ),
+                    ],
+                ),
+                user,
+                _clients(http),
             )
         ]
-
-        if downloads:
-            download_and_replace.assert_awaited_once()
+    assert events[-1] == result
+    target = album_dir / DEFAULT_MEDIA_NAME
+    async with AsyncSession(postgres_engine) as persisted:
+        row = await persisted.get_one(AlbumMedia, (user.id, AID, DEFAULT_MEDIA_NAME))
+        assert row.photo_edit == EDIT
+        assert row.byte_size == target.stat().st_size
+        if result.replaced:
+            assert target.read_bytes() != originals[DEFAULT_MEDIA_NAME]
+            with Image.open(target) as image:
+                assert image.size == candidate_size
+                pixel = image.getpixel((0, 0))
+                assert isinstance(pixel, tuple)
+                red, _, blue = pixel
+                assert blue > red
+            assert (row.width, row.height) == candidate_size
+            assert row.perceptual_hashes is None
+            assert row.upgrade_candidate is False
         else:
-            download_and_replace.assert_not_awaited()
-        persist_upgrade.assert_awaited_once()
-        cleanup_picker_sessions.assert_awaited_once()
-        assert not (tmp_path / ".upgrade-tmp").exists()
-        assert events[-1] == UpgradeCompleted(
-            replaced=int(downloads),
-            skipped=int(not downloads),
-            failed=0,
-        )
+            assert target.read_bytes() == originals[DEFAULT_MEDIA_NAME]
+            assert (row.width, row.height) == (1200, 800)
+            assert row.perceptual_hashes == HASH
+            assert row.upgrade_candidate is True
+    assert (album_dir / VIDEO).read_bytes() == b"video-original"
+    assert {path.name for path in album_dir.iterdir()} == {DEFAULT_MEDIA_NAME, VIDEO}
+    assert deleted_sessions == {"/v1/sessions/picker-1"}
 
-    async def test_serializes_upgrade_file_lifecycles_with_two_gib_limit(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        monkeypatch.setattr(
-            "app.logic.media_upgrade.pipeline.detect_memory_mb", lambda: 2048
-        )
-        _clear_caches()
-        first_started = asyncio.Event()
-        release_first = asyncio.Event()
-        second_started = asyncio.Event()
-        calls = 0
 
-        async def fake_replace(*_args: object, **_kwargs: object) -> bool:
-            nonlocal calls
-            calls += 1
-            if calls == 1:
+async def test_upgrade_bounds_concurrent_downloads_without_losing_photo_state(
+    postgres_engine: AsyncEngine,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(pipeline, "detect_memory_mb", lambda: 2048)
+    names = [DEFAULT_MEDIA_NAME, MISSING_MEDIA_NAME]
+    user, album_dir, originals = await _seed_upgrade(
+        postgres_engine, tmp_path, monkeypatch, names
+    )
+    first_started = asyncio.Event()
+    release_first = asyncio.Event()
+    active = peak = 0
+    received = set()
+    body = _photo_bytes((1600, 1000))
+
+    async def provider(request: httpx.Request) -> httpx.Response:
+        nonlocal active, peak
+        active += 1
+        peak = max(peak, active)
+        received.add(request.url.path)
+        try:
+            if request.url.path == "/photo-0=d":
                 first_started.set()
                 await release_first.wait()
-            else:
-                second_started.set()
-            return True
+            return httpx.Response(200, content=body)
+        finally:
+            active -= 1
 
-        monkeypatch.setattr(
-            "app.logic.media_upgrade.pipeline._download_and_replace", fake_replace
-        )
-        monkeypatch.setattr(
-            "app.logic.media_upgrade.pipeline._persist_upgrade", AsyncMock()
-        )
-        monkeypatch.setattr(
-            "app.logic.media_upgrade.pipeline._cleanup_picker_sessions", AsyncMock()
-        )
-
-        names = [
-            f"00000000-0000-4000-8000-{i:012d}_"
-            f"00000000-0000-4000-8000-{i + 10:012d}.jpg"
-            for i in range(2)
-        ]
-        matches = [
-            MatchResult(local_name=name, google_id=f"gp-{i}", distance=0)
-            for i, name in enumerate(names)
-        ]
-        items = {
-            f"gp-{i}": _make_item(f"gp-{i}", _match_dt(10).isoformat())
-            for i in range(2)
-        }
+    async with httpx.AsyncClient(transport=httpx.MockTransport(provider)) as http:
 
         async def collect() -> list[object]:
             return [
                 event
                 async for event in run_upgrade(
-                    clients=AsyncMock(),
-                    uid=1,
-                    aid="album",
-                    album_dir=tmp_path,
-                    matches=matches,
-                    google_items_by_id=items,
+                    clients=_clients(http),
+                    uid=user.id,
+                    aid=AID,
+                    album_dir=album_dir,
+                    matches=[
+                        MatchResult(local_name=name, google_id=f"gp-{i}", distance=0)
+                        for i, name in enumerate(names)
+                    ],
+                    google_items_by_id={
+                        f"gp-{i}": make_item(
+                            f"gp-{i}",
+                            match_datetime(10).isoformat(),
+                            base_url=f"https://lh3.googleusercontent.com/photo-{i}",
+                        )
+                        for i in range(2)
+                    },
                     upgrade_candidates=set(names),
                     local_dimensions={},
                     tokens=_test_token,
@@ -165,12 +318,25 @@ class TestRunUpgrade:
 
         task = asyncio.create_task(collect())
         try:
-            await asyncio.wait_for(first_started.wait(), timeout=1)
+            await asyncio.wait_for(first_started.wait(), timeout=5)
             await asyncio.sleep(0)
-            assert not second_started.is_set()
         finally:
             release_first.set()
         events = await task
-
-        assert second_started.is_set()
-        assert isinstance(events[-1], UpgradeCompleted)
+    assert peak == 1
+    assert received == {"/photo-0=d", "/photo-1=d"}
+    assert events[-1] == UpgradeCompleted(replaced=2, skipped=0, failed=0)
+    async with AsyncSession(postgres_engine) as persisted:
+        rows = (await persisted.exec(select(AlbumMedia))).all()
+        assert {row.name for row in rows} == set(names)
+        assert all(
+            not row.upgrade_candidate
+            and row.perceptual_hashes is None
+            and row.photo_edit == EDIT
+            for row in rows
+        )
+    assert all(
+        (album_dir / name).read_bytes() != original
+        for name, original in originals.items()
+    )
+    assert {path.name for path in album_dir.iterdir()} == set(names)

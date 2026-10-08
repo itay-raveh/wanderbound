@@ -24,7 +24,6 @@ from app.api.v1.routes.google_photos_upgrade import (
 )
 from app.logic.media_upgrade.phash_matching import MatchResult
 from app.logic.media_upgrade.pipeline import (
-    UpgradeCompleted,
     UpgradeFailed,
     _clear_caches,
 )
@@ -41,7 +40,6 @@ from .helpers.google_photos import (
     assert_error_redirect,
     connected_google_photos_http,
     oauth_callback,
-    picked_item,
     pin_http_clients,
 )
 from .helpers.users import UserRoutes
@@ -233,63 +231,6 @@ class TestUpgradeMedia:
             ]
 
         assert events == [UpgradeFailed(detail="Upgrade failed unexpectedly.")]
-
-    async def test_passes_snapshot_dimensions_to_upgrade_pipeline(self) -> None:
-        user = make_user(1, google_sub="sub")
-        user.google_photos_refresh_token = "refresh-token"  # noqa: S105
-        user.google_photos_connected_at = datetime.now(UTC)
-        http = pin_http_clients()
-        http.gphotos_oauth.refresh_token.return_value = OAuth2Token(
-            {"access_token": "fresh-token", "expires_in": 3600}
-        )
-        match = MatchResult(
-            local_name="photo.jpg", google_id="google-photo", distance=0
-        )
-        video_match = MatchResult(
-            local_name="video.mp4", google_id="google-video", distance=0
-        )
-        captured: dict[str, object] = {}
-
-        async def fake_run_upgrade(**kwargs: object) -> AsyncIterator[UpgradeCompleted]:
-            captured.update(kwargs)
-            yield UpgradeCompleted(replaced=0, skipped=1, failed=0)
-
-        with (
-            patch(
-                "app.api.v1.routes.google_photos_upgrade._snapshot_upgrade_state",
-                AsyncMock(
-                    return_value=(
-                        {"photo.jpg": (1200, 800)},
-                        {"photo.jpg"},
-                    )
-                ),
-            ),
-            patch(
-                "app.api.v1.routes.google_photos_upgrade.get_media_items_cached",
-                AsyncMock(return_value=[picked_item("google-photo")]),
-            ),
-            patch(
-                "app.api.v1.routes.google_photos_upgrade.run_upgrade",
-                fake_run_upgrade,
-            ),
-            patch(
-                "app.api.v1.routes.google_photos_upgrade.try_advisory_lock",
-                return_value=_acquired_lock(),
-            ),
-        ):
-            events = [
-                event
-                async for event in upgrade_media(
-                    "trip-1",
-                    UpgradeRequest(session_ids=["s1"], matches=[match, video_match]),
-                    user,
-                    http,
-                )
-            ]
-
-        assert events[-1] == UpgradeCompleted(replaced=0, skipped=1, failed=0)
-        assert captured["local_dimensions"] == {"photo.jpg": (1200, 800)}
-        assert captured["matches"] == [match]
 
 
 class TestOAuthCallback:

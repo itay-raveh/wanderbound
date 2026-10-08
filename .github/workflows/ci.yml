@@ -231,6 +231,12 @@ jobs:
       - name: Verify DBOS native restart recovery
         run: uv run python ../scripts/dbos_recovery_check.py run "$SQLALCHEMY_DATABASE_URI"
         working-directory: backend
+      - name: Verify PostgreSQL lock contention and recovery
+        run: |
+          cp .env.example .env
+          mise run test:postgres
+        env:
+          POSTGRES_TEST_URL: ${{ env.SQLALCHEMY_DATABASE_URI }}
       - run: uv run alembic downgrade base
         working-directory: backend
       - run: uv run alembic upgrade head

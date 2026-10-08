@@ -49,6 +49,11 @@ description = "Run backend tests"
 dir = "backend"
 run = "uv run pytest"
 
+[tasks."test:postgres"]
+description = "Run real database boundary tests against disposable PostgreSQL"
+dir = "backend"
+run = 'uv run pytest tests/test_locks.py tests/test_route_workflow_postgres.py tests/test_segment_routes.py tests/test_media_upgrade_pipeline.py tests/test_reconcile.py::TestReconcileTripRebuildsSegments::test_new_reuploaded_steps_are_added_to_existing_chapter --postgres-url "${POSTGRES_TEST_URL:?Set POSTGRES_TEST_URL to a disposable database}"'
+
 [tasks."test:frontend"]
 description = "Run frontend unit tests"
 dir = "frontend"
