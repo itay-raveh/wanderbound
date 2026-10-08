@@ -5,6 +5,7 @@ import type { AlbumMeta } from "@/client";
 import openapi from "../../../backend/openapi.json";
 import en from "@/i18n/locales/en.json";
 import he from "@/i18n/locales/he.json";
+import de from "@/i18n/locales/de.json";
 
 vi.mock("@/queries/useAlbumMutation", () => ({
   useAlbumMutation: () => ({ mutateAsync: vi.fn() }),
@@ -71,13 +72,13 @@ it("propagates changed schema bounds and defaults to validation, inputs and loca
   const i18n = createI18n({
     legacy: false,
     locale: "en",
-    messages: { en, he },
+    messages: { en, he, de },
   });
   const wrapper = mount(PageSizeSettings, {
     props: { album: { id: "schema-fixture" } as AlbumMeta },
     global: { plugins: [i18n] },
   });
-  const [width, height] = wrapper.findAll("input[type=number]");
+  const [width, height] = wrapper.findAll("input[inputmode=decimal]");
   expect(width.element.value).toBe("300");
   expect(height.element.value).toBe("220");
   expect([
@@ -95,6 +96,15 @@ it("propagates changed schema bounds and defaults to validation, inputs and loca
   await wrapper.vm.$nextTick();
   expect(wrapper.get('[role="alert"]').text()).toContain("רוחב 260–400 mm");
   expect(wrapper.get('[role="alert"]').text()).toContain("1.3–1.7");
+  i18n.global.locale.value = "de";
+  await wrapper.vm.$nextTick();
+  expect(wrapper.get('[role="alert"]').text()).toContain("Breite 260–400 mm");
+  expect(wrapper.get('[role="alert"]').text()).toContain("1,3–1,7");
+  await width.setValue("300,125");
+  expect(wrapper.find('[role="alert"]').exists()).toBe(false);
+  i18n.global.locale.value = "en";
+  await wrapper.vm.$nextTick();
+  await width.setValue("255");
   await wrapper
     .findAll("button")
     .find((button) => button.text() === "in")!

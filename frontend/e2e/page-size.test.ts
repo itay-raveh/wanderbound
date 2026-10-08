@@ -8,6 +8,7 @@ import {
 } from "../tests/fixtures/mocks";
 import { mkdir } from "node:fs/promises";
 import { resolve } from "node:path";
+import { readFileSync, readdirSync } from "node:fs";
 
 const artifacts = resolve("../output/playwright/page-size");
 
@@ -172,6 +173,104 @@ test("custom trim dimensions save atomically, survive units/reload and undo, and
   await expect(range).toContainText(`${ratio.minimum}–${ratio.maximum}`);
   await page.screenshot({ path: `${artifacts}/editor-schema-bounds-he.png` });
 });
+
+// Derive the language matrix from the actual application message inventory.
+const localeDirectory = resolve(import.meta.dirname, "../src/i18n/locales");
+for (const file of readdirSync(localeDirectory).filter((name) =>
+  name.endsWith(".json"),
+)) {
+  const language = file.replace(".json", "");
+  const messages = JSON.parse(
+    readFileSync(resolve(localeDirectory, file), "utf8"),
+  );
+  test.describe(`page size locale ${language}`, () => {
+    test.use({ locale: language });
+    test("decimal entry, units and bounds fit the narrow inspector", async ({
+      authedPage: page,
+    }) => {
+      const album = { ...mockAlbum, page_width_mm: 297, page_height_mm: 210 };
+      await page.route("**/api/v1/users", (route) =>
+        route.fulfill({ json: { ...mockUser, locale: language } }),
+      );
+      await page.route("**/api/v1/albums/aid-1", async (route) => {
+        if (route.request().method() === "PATCH")
+          Object.assign(album, route.request().postDataJSON());
+        await route.fulfill({ json: album });
+      });
+      await page.setViewportSize({ width: 1024, height: 768 });
+      await page.goto("/editor");
+      await expect(page.locator("html")).toHaveAttribute("lang", language);
+      const inspector = page.locator(".inspector-panel");
+      await inspector
+        .locator(".q-expansion-item")
+        .filter({ hasText: messages.print.title })
+        .first()
+        .locator(".q-expansion-item__container > .q-item")
+        .click();
+      const settings = page.locator(".page-size-settings");
+      await expect(settings).toBeVisible();
+      await expect(settings).toContainText(messages.print.pageSize);
+      await expect(settings).toContainText(messages.print.lockRatio);
+      const width = settings.getByLabel(messages.print.pageWidth, {
+        exact: true,
+      });
+      const height = settings.getByLabel(messages.print.pageHeight, {
+        exact: true,
+      });
+      await settings.locator(".q-select").click();
+      await expect(
+        page.getByRole("option", { name: "US Letter", exact: true }),
+      ).toBeVisible();
+      await page.getByRole("option", { name: "US Legal", exact: true }).click();
+      await expect(width).toHaveValue(
+        new Intl.NumberFormat(language, { useGrouping: false }).format(355.6),
+      );
+      const fraction = new Intl.NumberFormat(language, {
+        useGrouping: false,
+      }).format(300.125);
+      await width.fill("");
+      await width.pressSequentially(fraction);
+      await height.fill(
+        new Intl.NumberFormat(language, { useGrouping: false }).format(220.25),
+      );
+      await settings.getByRole("button", { name: "in", exact: true }).click();
+      await expect(width).toHaveValue(
+        new Intl.NumberFormat(language, {
+          useGrouping: false,
+          maximumFractionDigits: 6,
+        }).format(300.125 / 25.4),
+      );
+      await settings.getByRole("button", { name: "mm", exact: true }).click();
+      await expect(width).toHaveValue(fraction);
+      await settings
+        .getByRole("button", { name: messages.print.applySize, exact: true })
+        .click();
+      await expect.poll(() => album.page_width_mm).toBe(300.125);
+      await expect.poll(() => album.page_height_mm).toBe(220.25);
+      await width.fill("240");
+      const range = settings.locator('[role="alert"]');
+      const ratio = AlbumMetaSchema["x-page-aspect-ratio"];
+      const formatter = new Intl.NumberFormat(language, { useGrouping: false });
+      await expect(range).toContainText(
+        `${formatter.format(ratio.minimum)}–${formatter.format(ratio.maximum)}`,
+      );
+      await expect(
+        settings.getByRole("button", {
+          name: messages.print.applySize,
+          exact: true,
+        }),
+      ).toBeDisabled();
+      await expect(settings).toContainText(messages.print.customSize);
+      await expect
+        .poll(() => settings.evaluate((el) => el.scrollWidth <= el.clientWidth))
+        .toBe(true);
+      await mkdir(artifacts, { recursive: true });
+      await page.screenshot({
+        path: `${artifacts}/editor-locale-${language}.png`,
+      });
+    });
+  });
+}
 
 test("PDF sheets use each trim size, bleed and physical cover spine with no blank sheets", async ({
   authedPage: page,

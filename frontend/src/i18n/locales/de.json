@@ -498,6 +498,16 @@
     }
   },
   "print": {
+    "pageSize": "Seitengröße",
+    "dimensionUnits": "Maßeinheiten",
+    "sizePreset": "Format",
+    "customSize": "Benutzerdefiniert",
+    "pageWidth": "Breite",
+    "pageHeight": "Höhe",
+    "lockRatio": "Seitenverhältnis sperren",
+    "pageSizeBounds": "Breite {widthRange}, Höhe {heightRange}; Querformat-Verhältnis {ratioRange}.",
+    "pageSizeNote": "Nach dem Anwenden Textfluss und Bildausschnitte prüfen.",
+    "applySize": "Anwenden",
     "mapLoading": "Karte wird geladen…",
     "mapFailed": "Diese Karte konnte nicht geladen werden.",
     "retryMap": "Karte erneut versuchen",

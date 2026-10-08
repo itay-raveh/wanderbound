@@ -13,7 +13,7 @@ import {
 import SegmentedControl from "@/components/ui/SegmentedControl.vue";
 
 const props = defineProps<{ album: AlbumMeta }>();
-const { t } = useI18n();
+const { t, locale } = useI18n();
 const mutation = useAlbumMutation(() => props.album.id);
 const unit = ref<"mm" | "in">("mm");
 const unitOptions: { label: string; value: "mm" | "in" }[] = [
@@ -39,13 +39,30 @@ const options = computed(() => [
   { label: t("print.customSize"), value: "custom" },
 ]);
 const factor = computed(() => (unit.value === "in" ? MM_PER_INCH : 1));
-function display(mm: number) {
-  return Number.isFinite(mm) ? Number((mm / factor.value).toFixed(6)) : "";
+const numberFormat = computed(
+  () =>
+    new Intl.NumberFormat(locale.value, {
+      useGrouping: false,
+      maximumFractionDigits: 6,
+    }),
+);
+function rangeNumber(value: number) {
+  return numberFormat.value.format(value);
 }
+function display(mm: number) {
+  return Number.isFinite(mm) ? rangeNumber(mm / factor.value) : "";
+}
+const widthInput = ref("");
+const heightInput = ref("");
+function syncInputs() {
+  widthInput.value = display(widthMm.value);
+  heightInput.value = display(heightMm.value);
+}
+watch([unit, locale], syncInputs);
 const ranges = computed(() => ({
-  width: `${display(pageSizeSchema.width.minimum)}–${display(pageSizeSchema.width.maximum)} ${unit.value}`,
-  height: `${display(pageSizeSchema.height.minimum)}–${display(pageSizeSchema.height.maximum)} ${unit.value}`,
-  ratio: `${pageSizeSchema.ratio.minimum}–${pageSizeSchema.ratio.maximum}`,
+  width: `${rangeNumber(pageSizeSchema.width.minimum / factor.value)}–${rangeNumber(pageSizeSchema.width.maximum / factor.value)} ${unit.value}`,
+  height: `${rangeNumber(pageSizeSchema.height.minimum / factor.value)}–${rangeNumber(pageSizeSchema.height.maximum / factor.value)} ${unit.value}`,
+  ratio: `${rangeNumber(pageSizeSchema.ratio.minimum)}–${rangeNumber(pageSizeSchema.ratio.maximum)}`,
 }));
 function reset() {
   const size = albumPageSize(props.album);
@@ -56,6 +73,7 @@ function reset() {
       (preset) =>
         preset.widthMm === widthMm.value && preset.heightMm === heightMm.value,
     )?.id ?? "custom";
+  syncInputs();
 }
 watch(
   () => [props.album.id, props.album.page_width_mm, props.album.page_height_mm],
@@ -68,20 +86,29 @@ function selectPreset(id: string) {
   if (preset) {
     widthMm.value = preset.widthMm;
     heightMm.value = preset.heightMm;
+    syncInputs();
   }
 }
 function edit(field: "width" | "height", raw: string | number | null) {
   const value =
     raw === null || String(raw).trim() === ""
       ? NaN
-      : Number(raw) * factor.value;
+      : Number(String(raw).replace(",", ".")) * factor.value;
   const ratio = widthMm.value / heightMm.value;
   if (field === "width") {
+    widthInput.value = raw == null ? "" : String(raw);
     widthMm.value = value;
-    if (locked.value && Number.isFinite(ratio)) heightMm.value = value / ratio;
+    if (locked.value && Number.isFinite(ratio)) {
+      heightMm.value = value / ratio;
+      heightInput.value = display(heightMm.value);
+    }
   } else {
+    heightInput.value = raw == null ? "" : String(raw);
     heightMm.value = value;
-    if (locked.value && Number.isFinite(ratio)) widthMm.value = value * ratio;
+    if (locked.value && Number.isFinite(ratio)) {
+      widthMm.value = value * ratio;
+      widthInput.value = display(widthMm.value);
+    }
   }
   presetId.value = "custom";
 }
@@ -127,12 +154,12 @@ async function apply() {
     />
     <div class="size-dimensions">
       <q-input
-        :model-value="display(widthMm)"
+        :model-value="widthInput"
         :label="t('print.pageWidth')"
         :min="pageSizeSchema.width.minimum / factor"
         :max="pageSizeSchema.width.maximum / factor"
-        type="number"
-        step="any"
+        type="text"
+        inputmode="decimal"
         outlined
         dense
         hide-bottom-space
@@ -140,12 +167,12 @@ async function apply() {
         @update:model-value="edit('width', $event)"
       />
       <q-input
-        :model-value="display(heightMm)"
+        :model-value="heightInput"
         :label="t('print.pageHeight')"
         :min="pageSizeSchema.height.minimum / factor"
         :max="pageSizeSchema.height.maximum / factor"
-        type="number"
-        step="any"
+        type="text"
+        inputmode="decimal"
         outlined
         dense
         hide-bottom-space
