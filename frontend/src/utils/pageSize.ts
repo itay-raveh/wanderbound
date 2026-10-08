@@ -31,24 +31,18 @@ export function albumPageSize(album?: AlbumGeometrySettings): PageSize {
   };
 }
 
-export const pageSizeSchema = {
-  width: AlbumMetaSchema.properties.page_width_mm,
-  height: AlbumMetaSchema.properties.page_height_mm,
-  ratio: AlbumMetaSchema["x-page-aspect-ratio"],
-};
-
 /** Validate against the backend schema emitted by the existing client generator. */
 export function validatePageSize({ widthMm, heightMm }: PageSize): boolean {
   const ratio = widthMm / heightMm;
   return (
     Number.isFinite(widthMm) &&
     Number.isFinite(heightMm) &&
-    widthMm >= pageSizeSchema.width.minimum &&
-    widthMm <= pageSizeSchema.width.maximum &&
-    heightMm >= pageSizeSchema.height.minimum &&
-    heightMm <= pageSizeSchema.height.maximum &&
-    ratio >= pageSizeSchema.ratio.minimum &&
-    ratio <= pageSizeSchema.ratio.maximum
+    widthMm >= AlbumMetaSchema.properties.page_width_mm.minimum &&
+    widthMm <= AlbumMetaSchema.properties.page_width_mm.maximum &&
+    heightMm >= AlbumMetaSchema.properties.page_height_mm.minimum &&
+    heightMm <= AlbumMetaSchema.properties.page_height_mm.maximum &&
+    ratio >= AlbumMetaSchema["x-page-aspect-ratio"].minimum &&
+    ratio <= AlbumMetaSchema["x-page-aspect-ratio"].maximum
   );
 }
 

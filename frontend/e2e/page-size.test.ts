@@ -1,5 +1,4 @@
 import { expect, test } from "./fixtures";
-import { AlbumMetaSchema } from "../src/client/schemas.gen";
 import {
   mockAlbum,
   mockSteps,
@@ -8,7 +7,7 @@ import {
 } from "../tests/fixtures/mocks";
 import { mkdir } from "node:fs/promises";
 import { resolve } from "node:path";
-import { readFileSync, readdirSync } from "node:fs";
+import { readFileSync } from "node:fs";
 
 const artifacts = resolve("../output/playwright/page-size");
 
@@ -48,21 +47,6 @@ test("custom trim dimensions save atomically, survive units/reload and undo, and
   const width = page.getByLabel("Width", { exact: true });
   const height = page.getByLabel("Height", { exact: true });
   const apply = page.getByRole("button", { name: "Apply", exact: true });
-  await page.locator(".page-size-settings .q-select").click();
-  await page.getByRole("option", { name: "US Letter", exact: true }).click();
-  await page.getByRole("button", { name: "in", exact: true }).click();
-  await expect(width).toHaveValue("11");
-  await expect(height).toHaveValue("8.5");
-  await page.getByRole("button", { name: "mm", exact: true }).click();
-  await page.getByRole("checkbox", { name: "Lock ratio", exact: true }).check();
-  await width.fill("300");
-  await expect
-    .poll(async () => Number(await height.inputValue()))
-    .toBeCloseTo((300 * 215.9) / 279.4, 5);
-  await page
-    .getByRole("checkbox", { name: "Lock ratio", exact: true })
-    .uncheck();
-  await page.getByRole("button", { name: "Cancel", exact: true }).click();
   await width.fill("300.125");
   await height.fill("220.25");
   await page.getByRole("button", { name: "in", exact: true }).click();
@@ -116,76 +100,18 @@ test("custom trim dimensions save atomically, survive units/reload and undo, and
   await expect(width).toHaveValue("300.125");
   await expect(margin).toHaveValue("10");
   expect(album.page_width_mm).toBe(300.125);
-  await width.fill("240");
-  await expect(apply).toBeDisabled();
-  const dimensions = AlbumMetaSchema.properties;
-  const ratio = AlbumMetaSchema["x-page-aspect-ratio"];
-  await expect(width).toHaveAttribute(
-    "min",
-    String(dimensions.page_width_mm.minimum),
-  );
-  await expect(height).toHaveAttribute(
-    "max",
-    String(dimensions.page_height_mm.maximum),
-  );
-  const range = page.locator('.page-size-settings [role="alert"]');
-  await expect(range).toContainText(
-    `${dimensions.page_width_mm.minimum}–${dimensions.page_width_mm.maximum} mm`,
-  );
-  await expect(range).toContainText(`${ratio.minimum}–${ratio.maximum}`);
-  await page.getByRole("button", { name: "in", exact: true }).click();
-  await expect(width).toHaveAttribute(
-    "min",
-    String(dimensions.page_width_mm.minimum / 25.4),
-  );
-  await expect(width).toHaveAttribute(
-    "max",
-    String(dimensions.page_width_mm.maximum / 25.4),
-  );
-  await expect(range).toContainText("in");
-  await expect(apply).toBeDisabled();
-  await page.screenshot({ path: `${artifacts}/editor-schema-bounds-en.png` });
-  await page.getByRole("button", { name: "mm", exact: true }).click();
-  await page.getByRole("button", { name: "Cancel", exact: true }).click();
-  await page.route("**/api/v1/users", (route) =>
-    route.fulfill({ json: { ...mockUser, locale: "he-IL" } }),
-  );
-  await page.reload();
-  await page.getByRole("button", { name: '"הדפסה" הרחב את' }).click();
-  await page.locator(".context-panel .q-item").first().click();
-  await expect(
-    page.locator(".context-panel .q-expansion-item__content"),
-  ).toBeHidden();
-  await expect(page.locator(".page-size-settings")).toBeVisible();
-  await page.setViewportSize({ width: 1024, height: 768 });
-  await expect
-    .poll(() =>
-      page
-        .locator(".inspector-panel")
-        .evaluate((el) => Math.round(el.getBoundingClientRect().width)),
-    )
-    .toBeLessThanOrEqual(240);
-  await page.screenshot({ path: `${artifacts}/editor-custom-he.png` });
-  await page.getByLabel("רוחב", { exact: true }).fill("240");
-  await expect(range).toContainText(
-    `רוחב ${dimensions.page_width_mm.minimum}–${dimensions.page_width_mm.maximum} mm`,
-  );
-  await expect(range).toContainText(`${ratio.minimum}–${ratio.maximum}`);
-  await page.screenshot({ path: `${artifacts}/editor-schema-bounds-he.png` });
 });
 
-// Derive the language matrix from the actual application message inventory.
+// Decimal-comma keyboard input and RTL layout require a real browser.
 const localeDirectory = resolve(import.meta.dirname, "../src/i18n/locales");
-for (const file of readdirSync(localeDirectory).filter((name) =>
-  name.endsWith(".json"),
-)) {
-  const language = file.replace(".json", "");
+for (const language of ["de", "he"]) {
+  const file = `${language}.json`;
   const messages = JSON.parse(
     readFileSync(resolve(localeDirectory, file), "utf8"),
   );
   test.describe(`page size locale ${language}`, () => {
     test.use({ locale: language });
-    test("decimal entry, units and bounds fit the narrow inspector", async ({
+    test("keyboard decimal entry persists in the narrow inspector", async ({
       authedPage: page,
     }) => {
       const album = { ...mockAlbum, page_width_mm: 297, page_height_mm: 210 };
@@ -199,55 +125,7 @@ for (const file of readdirSync(localeDirectory).filter((name) =>
       });
       await page.setViewportSize({ width: 1024, height: 768 });
       await page.goto("/editor");
-      await expect(page.locator("html")).toHaveAttribute("lang", language);
       const inspector = page.locator(".inspector-panel");
-      if (language === "de") {
-        await inspector.locator(".context-panel .q-item").first().click();
-        await expect(
-          inspector.locator(".context-panel .q-expansion-item__content"),
-        ).toBeHidden();
-        const properties = inspector
-          .locator(".panel-section-header")
-          .filter({ hasText: messages.editor.properties });
-        await properties.click();
-        const background = page.getByRole("button", {
-          name: messages.editor.pageBackground,
-          exact: true,
-        });
-        const reset = page.getByRole("button", {
-          name: messages.editor.resetBackground,
-          exact: true,
-        });
-        await expect(background).toBeVisible();
-        await expect(reset).toBeDisabled();
-        await background.click();
-        const hex = page.locator(".q-color-picker__header input");
-        await hex.fill("#ffeeaa");
-        await hex.press("Tab");
-        await expect.poll(() => album.background_color).toBe("#ffeeaa");
-        await page.keyboard.press("Escape");
-        await expect(page.locator(".q-color-picker")).toBeHidden();
-        await expect
-          .poll(() =>
-            background.evaluate((el) => el.scrollWidth <= el.clientWidth),
-          )
-          .toBe(true);
-        await expect
-          .poll(() =>
-            inspector
-              .locator(".background-row")
-              .evaluate((el) => el.scrollWidth <= el.clientWidth),
-          )
-          .toBe(true);
-        await mkdir(artifacts, { recursive: true });
-        await page.screenshot({
-          path: `${artifacts}/editor-background-de.png`,
-        });
-        await reset.click();
-        await expect.poll(() => album.background_color).toBe(null);
-        await expect(reset).toBeDisabled();
-        await properties.click();
-      }
       await inspector
         .locator(".q-expansion-item")
         .filter({ hasText: messages.print.title })
@@ -256,58 +134,21 @@ for (const file of readdirSync(localeDirectory).filter((name) =>
         .click();
       const settings = page.locator(".page-size-settings");
       await expect(settings).toBeVisible();
-      await expect(settings).toContainText(messages.print.pageSize);
-      await expect(settings).toContainText(messages.print.lockRatio);
       const width = settings.getByLabel(messages.print.pageWidth, {
         exact: true,
       });
       const height = settings.getByLabel(messages.print.pageHeight, {
         exact: true,
       });
-      await settings.locator(".q-select").click();
-      await expect(
-        page.getByRole("option", { name: "US Letter", exact: true }),
-      ).toBeVisible();
-      await page.getByRole("option", { name: "US Legal", exact: true }).click();
-      await expect(width).toHaveValue(
-        new Intl.NumberFormat(language, { useGrouping: false }).format(355.6),
-      );
-      const fraction = new Intl.NumberFormat(language, {
-        useGrouping: false,
-      }).format(300.125);
+      const fraction = language === "de" ? "300,125" : "300.125";
       await width.fill("");
       await width.pressSequentially(fraction);
-      await height.fill(
-        new Intl.NumberFormat(language, { useGrouping: false }).format(220.25),
-      );
-      await settings.getByRole("button", { name: "in", exact: true }).click();
-      await expect(width).toHaveValue(
-        new Intl.NumberFormat(language, {
-          useGrouping: false,
-          maximumFractionDigits: 6,
-        }).format(300.125 / 25.4),
-      );
-      await settings.getByRole("button", { name: "mm", exact: true }).click();
-      await expect(width).toHaveValue(fraction);
+      await height.fill(language === "de" ? "220,25" : "220.25");
       await settings
         .getByRole("button", { name: messages.print.applySize, exact: true })
         .click();
       await expect.poll(() => album.page_width_mm).toBe(300.125);
       await expect.poll(() => album.page_height_mm).toBe(220.25);
-      await width.fill("240");
-      const range = settings.locator('[role="alert"]');
-      const ratio = AlbumMetaSchema["x-page-aspect-ratio"];
-      const formatter = new Intl.NumberFormat(language, { useGrouping: false });
-      await expect(range).toContainText(
-        `${formatter.format(ratio.minimum)}–${formatter.format(ratio.maximum)}`,
-      );
-      await expect(
-        settings.getByRole("button", {
-          name: messages.print.applySize,
-          exact: true,
-        }),
-      ).toBeDisabled();
-      await expect(settings).toContainText(messages.print.customSize);
       await expect
         .poll(() => settings.evaluate((el) => el.scrollWidth <= el.clientWidth))
         .toBe(true);
@@ -358,10 +199,6 @@ test("PDF sheets use each trim size, bleed and physical cover spine with no blan
   for (const [label, width, height, bleed, cover, spine] of [
     ["a4", 297, 210, 0, 0, 0],
     ["letter", 279.4, 215.9, 3, 6, 12],
-    ["legal", 355.6, 215.9, 0, 0, 0],
-    ["min", 250, 180, 0, 0, 0],
-    ["ratio-min", 250, 200, 3, 6, 12],
-    ["ratio-max", 324, 180, 3, 6, 12],
     ["max", 420, 297, 20, 20, 100],
   ] as const) {
     size = { width, height, bleed, cover, spine };

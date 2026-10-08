@@ -2,12 +2,12 @@
 import { computed, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import type { AlbumMeta } from "@/client";
+import { AlbumMetaSchema } from "@/client/schemas.gen";
 import { useAlbumMutation } from "@/queries/useAlbumMutation";
 import {
   MM_PER_INCH,
   PAGE_PRESETS,
   albumPageSize,
-  pageSizeSchema,
   validatePageSize,
 } from "@/utils/pageSize";
 import SegmentedControl from "@/components/ui/SegmentedControl.vue";
@@ -60,9 +60,9 @@ function syncInputs() {
 }
 watch([unit, locale], syncInputs);
 const ranges = computed(() => ({
-  width: `${rangeNumber(pageSizeSchema.width.minimum / factor.value)}–${rangeNumber(pageSizeSchema.width.maximum / factor.value)} ${unit.value}`,
-  height: `${rangeNumber(pageSizeSchema.height.minimum / factor.value)}–${rangeNumber(pageSizeSchema.height.maximum / factor.value)} ${unit.value}`,
-  ratio: `${rangeNumber(pageSizeSchema.ratio.minimum)}–${rangeNumber(pageSizeSchema.ratio.maximum)}`,
+  width: `${rangeNumber(AlbumMetaSchema.properties.page_width_mm.minimum / factor.value)}–${rangeNumber(AlbumMetaSchema.properties.page_width_mm.maximum / factor.value)} ${unit.value}`,
+  height: `${rangeNumber(AlbumMetaSchema.properties.page_height_mm.minimum / factor.value)}–${rangeNumber(AlbumMetaSchema.properties.page_height_mm.maximum / factor.value)} ${unit.value}`,
+  ratio: `${rangeNumber(AlbumMetaSchema["x-page-aspect-ratio"].minimum)}–${rangeNumber(AlbumMetaSchema["x-page-aspect-ratio"].maximum)}`,
 }));
 function reset() {
   const size = albumPageSize(props.album);
@@ -156,8 +156,8 @@ async function apply() {
       <q-input
         :model-value="widthInput"
         :label="t('print.pageWidth')"
-        :min="pageSizeSchema.width.minimum / factor"
-        :max="pageSizeSchema.width.maximum / factor"
+        :min="AlbumMetaSchema.properties.page_width_mm.minimum / factor"
+        :max="AlbumMetaSchema.properties.page_width_mm.maximum / factor"
         type="text"
         inputmode="decimal"
         outlined
@@ -169,8 +169,8 @@ async function apply() {
       <q-input
         :model-value="heightInput"
         :label="t('print.pageHeight')"
-        :min="pageSizeSchema.height.minimum / factor"
-        :max="pageSizeSchema.height.maximum / factor"
+        :min="AlbumMetaSchema.properties.page_height_mm.minimum / factor"
+        :max="AlbumMetaSchema.properties.page_height_mm.maximum / factor"
         type="text"
         inputmode="decimal"
         outlined
