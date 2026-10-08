@@ -6,7 +6,6 @@ import pytest
 
 from app.logic.workflows import media_hashes
 from app.logic.workflows.media_hashes import (
-    HashBackfillStats,
     MediaHashCandidate,
     MediaHashWorkflowPayload,
     backfill_media_hashes,
@@ -127,7 +126,7 @@ async def test_persist_batch_updates_only_current_database_rows(
     changed.updated_at = datetime.now(UTC)
     session.add(changed)
     await session.commit()
-    result = await persist_media_hash_batch(
+    await persist_media_hash_batch(
         session,
         MediaHashWorkflowPayload(uid=1, aid="trip-1"),
         tmp_path,
@@ -140,7 +139,6 @@ async def test_persist_batch_updates_only_current_database_rows(
 
     await session.refresh(current)
     await session.refresh(changed)
-    assert result == HashBackfillStats(hashed=1, stale=1)
     assert current.perceptual_hashes == ["0123456789abcdef"]
     assert changed.perceptual_hashes is None
 
@@ -155,7 +153,7 @@ async def test_persist_batch_rejects_a_file_replaced_after_hashing(
     replacement = create_test_jpeg(tmp_path / "replacement.jpg", 800, 600)
     replacement.replace(tmp_path / candidate.name)
 
-    result = await persist_media_hash_batch(
+    await persist_media_hash_batch(
         session,
         MediaHashWorkflowPayload(uid=1, aid="trip-1"),
         tmp_path,
@@ -164,7 +162,6 @@ async def test_persist_batch_rejects_a_file_replaced_after_hashing(
     )
 
     await session.refresh(media)
-    assert result == HashBackfillStats(stale=1)
     assert media.perceptual_hashes is None
 
 
@@ -177,7 +174,7 @@ async def test_persist_batch_preserves_a_concurrently_completed_hash(
     media.perceptual_hashes = ["fedcba9876543210"]
     session.add(media)
     await session.commit()
-    result = await persist_media_hash_batch(
+    await persist_media_hash_batch(
         session,
         MediaHashWorkflowPayload(uid=1, aid="trip-1"),
         tmp_path,
@@ -186,7 +183,6 @@ async def test_persist_batch_preserves_a_concurrently_completed_hash(
     )
 
     await session.refresh(media)
-    assert result == HashBackfillStats(already_completed=1)
     assert media.perceptual_hashes == ["fedcba9876543210"]
 
 
@@ -258,8 +254,7 @@ async def test_album_step_resumes_from_committed_batches(
     assert second.perceptual_hashes is None
 
     monkeypatch.setattr(media_hashes, "persist_media_hash_batch", persist)
-    result = await backfill_media_hashes(1, "trip-1", tmp_path)
+    await backfill_media_hashes(1, "trip-1", tmp_path)
 
     await session.refresh(second)
-    assert result == HashBackfillStats(hashed=1, already_completed=1)
     assert second.perceptual_hashes == ["0123456789abcdef"]

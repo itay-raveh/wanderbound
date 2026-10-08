@@ -156,10 +156,13 @@ async def test_route_workflow_persists_batches_and_scopes_failures(
                 )
 
 
+@pytest.mark.parametrize("retry_succeeds", [True, False])
 async def test_terminal_hash_backfill_retries_once_and_persists_hashes(
     route_runtime: AsyncEngine,
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
+    *,
+    retry_succeeds: bool,
 ) -> None:
     monkeypatch.setattr(media_hashes, "get_engine", lambda: route_runtime)
     monkeypatch.setattr(get_settings(), "DATA_FOLDER", tmp_path)
@@ -202,15 +205,33 @@ async def test_terminal_hash_backfill_retries_once_and_persists_hashes(
         assert (
             await session.get_one(AlbumMedia, (1, AID, DEFAULT_MEDIA_NAME))
         ).perceptual_hashes is None
-    retry = await media_hashes.enqueue_media_hash_backfill(1, AID, 1, "test-revision")
-    await retry.get_result()
+    if not retry_succeeds:
+        event.listen(
+            route_runtime.sync_engine, "before_cursor_execute", interrupted_write
+        )
+    try:
+        retry = await media_hashes.enqueue_media_hash_backfill(
+            1, AID, 1, "test-revision"
+        )
+        if retry_succeeds:
+            await retry.get_result()
+        else:
+            with pytest.raises(Exception, match=r"maximum.*retries"):
+                await retry.get_result()
+    finally:
+        if not retry_succeeds:
+            event.remove(
+                route_runtime.sync_engine, "before_cursor_execute", interrupted_write
+            )
     async with AsyncSession(route_runtime) as session:
-        assert (
-            await session.get_one(AlbumMedia, (1, AID, DEFAULT_MEDIA_NAME))
-        ).perceptual_hashes is not None
+        row = await session.get_one(AlbumMedia, (1, AID, DEFAULT_MEDIA_NAME))
+        assert (row.perceptual_hashes is not None) == retry_succeeds
     await media_hashes.enqueue_media_hash_backfill(1, AID, 1, "test-revision")
     runs = await DBOS.list_workflows_async(name="media_hash.backfill")
-    assert sorted(run.status for run in runs) == ["ERROR", "SUCCESS"]
+    assert sorted(run.status for run in runs) == [
+        "ERROR",
+        "SUCCESS" if retry_succeeds else "ERROR",
+    ]
 
 
 async def test_route_enrichment_persists_after_subscriber_disconnect(
