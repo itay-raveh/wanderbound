@@ -285,6 +285,19 @@ test.describe("Large album editor performance", () => {
       await expect
         .poll(() => root.evaluate((el) => el.scrollTop))
         .toBeGreaterThan(beforeWheel);
+      // Continue user gestures while the first expansion settles, too.
+      await expect
+        .poll(async () => {
+          await page.mouse.wheel(0, 300);
+          const row = await lastRow.boundingBox();
+          const sidebar = await root.boundingBox();
+          return (
+            !!row &&
+            !!sidebar &&
+            row.y + row.height <= sidebar.y + sidebar.height
+          );
+        })
+        .toBe(true);
       await expect(lastRow).toBeInViewport();
       await finalHeader.scrollIntoViewIfNeeded();
       await finalHeader.focus();
