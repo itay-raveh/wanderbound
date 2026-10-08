@@ -3298,7 +3298,11 @@
           "id"
         ],
         "title": "AlbumMeta",
-        "description": "GET/PATCH response - everything except media."
+        "description": "GET/PATCH response - everything except media.",
+        "x-page-aspect-ratio": {
+          "maximum": 1.8,
+          "minimum": 1.25
+        }
       },
       "AlbumUpdate": {
         "properties": {
@@ -3518,7 +3522,11 @@
           }
         },
         "type": "object",
-        "title": "AlbumUpdate"
+        "title": "AlbumUpdate",
+        "x-page-aspect-ratio": {
+          "maximum": 1.8,
+          "minimum": 1.25
+        }
       },
       "AlbumWithMedia": {
         "properties": {
@@ -3660,7 +3668,11 @@
           "uid",
           "id"
         ],
-        "title": "AlbumWithMedia"
+        "title": "AlbumWithMedia",
+        "x-page-aspect-ratio": {
+          "maximum": 1.8,
+          "minimum": 1.25
+        }
       },
       "AuthState": {
         "properties": {

@@ -1,6 +1,8 @@
+import { AlbumMetaSchema } from "@/client/schemas.gen";
+
 /** Legacy trim dimensions remain the default for existing albums. */
-export const PAGE_WIDTH_MM = 297;
-export const PAGE_HEIGHT_MM = 210;
+export const PAGE_WIDTH_MM = AlbumMetaSchema.properties.page_width_mm.default;
+export const PAGE_HEIGHT_MM = AlbumMetaSchema.properties.page_height_mm.default;
 export const MM_PER_INCH = 25.4;
 export const MM_PX = 96 / MM_PER_INCH;
 export const META_RATIO = 0.45;
@@ -29,18 +31,24 @@ export function albumPageSize(album?: AlbumGeometrySettings): PageSize {
   };
 }
 
-/** Match the API contract; bounds protect fixed-height chrome and render budgets. */
+export const pageSizeSchema = {
+  width: AlbumMetaSchema.properties.page_width_mm,
+  height: AlbumMetaSchema.properties.page_height_mm,
+  ratio: AlbumMetaSchema["x-page-aspect-ratio"],
+};
+
+/** Validate against the backend schema emitted by the existing client generator. */
 export function validatePageSize({ widthMm, heightMm }: PageSize): boolean {
   const ratio = widthMm / heightMm;
   return (
     Number.isFinite(widthMm) &&
     Number.isFinite(heightMm) &&
-    widthMm >= 250 &&
-    widthMm <= 420 &&
-    heightMm >= 180 &&
-    heightMm <= 297 &&
-    ratio >= 1.25 &&
-    ratio <= 1.8
+    widthMm >= pageSizeSchema.width.minimum &&
+    widthMm <= pageSizeSchema.width.maximum &&
+    heightMm >= pageSizeSchema.height.minimum &&
+    heightMm <= pageSizeSchema.height.maximum &&
+    ratio >= pageSizeSchema.ratio.minimum &&
+    ratio <= pageSizeSchema.ratio.maximum
   );
 }
 

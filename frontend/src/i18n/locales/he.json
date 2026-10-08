@@ -508,7 +508,7 @@
     "pageWidth": "רוחב",
     "pageHeight": "גובה",
     "lockRatio": "נעילת יחס",
-    "pageSizeBounds": "רוחב 250–420 מ״מ, גובה 180–297 מ״מ; יחס רוחבי 1.25–1.8.",
+    "pageSizeBounds": "רוחב {widthRange}, גובה {heightRange}; יחס רוחבי {ratioRange}.",
     "pageSizeNote": "לאחר ההחלה, בדקו את זרימת הטקסט ומסגור התמונות.",
     "applySize": "החלה",
     "mapLoading": "המפה בטעינה…",

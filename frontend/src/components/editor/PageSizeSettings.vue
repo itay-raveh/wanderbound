@@ -3,7 +3,13 @@ import { computed, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import type { AlbumMeta } from "@/client";
 import { useAlbumMutation } from "@/queries/useAlbumMutation";
-import { MM_PER_INCH, PAGE_PRESETS, validatePageSize } from "@/utils/pageSize";
+import {
+  MM_PER_INCH,
+  PAGE_PRESETS,
+  albumPageSize,
+  pageSizeSchema,
+  validatePageSize,
+} from "@/utils/pageSize";
 import SegmentedControl from "@/components/ui/SegmentedControl.vue";
 
 const props = defineProps<{ album: AlbumMeta }>();
@@ -16,16 +22,17 @@ const unitOptions: { label: string; value: "mm" | "in" }[] = [
 ];
 const locked = ref(false);
 const saving = ref(false);
-const widthMm = ref(297);
-const heightMm = ref(210);
-const presetId = ref("a4");
+const initialSize = albumPageSize(props.album);
+const widthMm = ref(initialSize.widthMm);
+const heightMm = ref(initialSize.heightMm);
+const presetId = ref("custom");
 const valid = computed(() =>
   validatePageSize({ widthMm: widthMm.value, heightMm: heightMm.value }),
 );
 const changed = computed(
   () =>
-    widthMm.value !== (props.album.page_width_mm ?? 297) ||
-    heightMm.value !== (props.album.page_height_mm ?? 210),
+    widthMm.value !== albumPageSize(props.album).widthMm ||
+    heightMm.value !== albumPageSize(props.album).heightMm,
 );
 const options = computed(() => [
   ...PAGE_PRESETS.map((preset) => ({ label: preset.label, value: preset.id })),
@@ -35,9 +42,15 @@ const factor = computed(() => (unit.value === "in" ? MM_PER_INCH : 1));
 function display(mm: number) {
   return Number.isFinite(mm) ? Number((mm / factor.value).toFixed(6)) : "";
 }
+const ranges = computed(() => ({
+  width: `${display(pageSizeSchema.width.minimum)}–${display(pageSizeSchema.width.maximum)} ${unit.value}`,
+  height: `${display(pageSizeSchema.height.minimum)}–${display(pageSizeSchema.height.maximum)} ${unit.value}`,
+  ratio: `${pageSizeSchema.ratio.minimum}–${pageSizeSchema.ratio.maximum}`,
+}));
 function reset() {
-  widthMm.value = props.album.page_width_mm ?? 297;
-  heightMm.value = props.album.page_height_mm ?? 210;
+  const size = albumPageSize(props.album);
+  widthMm.value = size.widthMm;
+  heightMm.value = size.heightMm;
   presetId.value =
     PAGE_PRESETS.find(
       (preset) =>
@@ -116,6 +129,8 @@ async function apply() {
       <q-input
         :model-value="display(widthMm)"
         :label="t('print.pageWidth')"
+        :min="pageSizeSchema.width.minimum / factor"
+        :max="pageSizeSchema.width.maximum / factor"
         type="number"
         step="any"
         outlined
@@ -127,6 +142,8 @@ async function apply() {
       <q-input
         :model-value="display(heightMm)"
         :label="t('print.pageHeight')"
+        :min="pageSizeSchema.height.minimum / factor"
+        :max="pageSizeSchema.height.maximum / factor"
         type="number"
         step="any"
         outlined
@@ -142,9 +159,24 @@ async function apply() {
       dense
       :disable="saving"
     />
-    <p v-if="!valid" class="size-error" role="alert">
-      {{ t("print.pageSizeBounds") }}
-    </p>
+    <i18n-t
+      v-if="!valid"
+      keypath="print.pageSizeBounds"
+      scope="global"
+      tag="p"
+      class="size-error"
+      role="alert"
+    >
+      <template #widthRange
+        ><bdi dir="ltr">{{ ranges.width }}</bdi></template
+      >
+      <template #heightRange
+        ><bdi dir="ltr">{{ ranges.height }}</bdi></template
+      >
+      <template #ratioRange
+        ><bdi dir="ltr">{{ ranges.ratio }}</bdi></template
+      >
+    </i18n-t>
     <p v-else class="size-note">{{ t("print.pageSizeNote") }}</p>
     <div v-if="changed" class="size-actions">
       <q-btn

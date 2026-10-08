@@ -1,4 +1,5 @@
 import { expect, test } from "./fixtures";
+import { AlbumMetaSchema } from "../src/client/schemas.gen";
 import {
   mockAlbum,
   mockSteps,
@@ -116,6 +117,34 @@ test("custom trim dimensions save atomically, survive units/reload and undo, and
   expect(album.page_width_mm).toBe(300.125);
   await width.fill("240");
   await expect(apply).toBeDisabled();
+  const dimensions = AlbumMetaSchema.properties;
+  const ratio = AlbumMetaSchema["x-page-aspect-ratio"];
+  await expect(width).toHaveAttribute(
+    "min",
+    String(dimensions.page_width_mm.minimum),
+  );
+  await expect(height).toHaveAttribute(
+    "max",
+    String(dimensions.page_height_mm.maximum),
+  );
+  const range = page.locator('.page-size-settings [role="alert"]');
+  await expect(range).toContainText(
+    `${dimensions.page_width_mm.minimum}–${dimensions.page_width_mm.maximum} mm`,
+  );
+  await expect(range).toContainText(`${ratio.minimum}–${ratio.maximum}`);
+  await page.getByRole("button", { name: "in", exact: true }).click();
+  await expect(width).toHaveAttribute(
+    "min",
+    String(dimensions.page_width_mm.minimum / 25.4),
+  );
+  await expect(width).toHaveAttribute(
+    "max",
+    String(dimensions.page_width_mm.maximum / 25.4),
+  );
+  await expect(range).toContainText("in");
+  await expect(apply).toBeDisabled();
+  await page.screenshot({ path: `${artifacts}/editor-schema-bounds-en.png` });
+  await page.getByRole("button", { name: "mm", exact: true }).click();
   await page.getByRole("button", { name: "Cancel", exact: true }).click();
   await page.route("**/api/v1/users", (route) =>
     route.fulfill({ json: { ...mockUser, locale: "he-IL" } }),
@@ -136,6 +165,12 @@ test("custom trim dimensions save atomically, survive units/reload and undo, and
     )
     .toBeLessThanOrEqual(240);
   await page.screenshot({ path: `${artifacts}/editor-custom-he.png` });
+  await page.getByLabel("רוחב", { exact: true }).fill("240");
+  await expect(range).toContainText(
+    `רוחב ${dimensions.page_width_mm.minimum}–${dimensions.page_width_mm.maximum} mm`,
+  );
+  await expect(range).toContainText(`${ratio.minimum}–${ratio.maximum}`);
+  await page.screenshot({ path: `${artifacts}/editor-schema-bounds-he.png` });
 });
 
 test("PDF sheets use each trim size, bleed and physical cover spine with no blank sheets", async ({

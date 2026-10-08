@@ -7,7 +7,7 @@ from alembic.migration import MigrationContext
 from alembic.operations import Operations
 from pydantic import ValidationError
 
-from app.models.album import AlbumUpdate
+from app.models.album import PAGE_ASPECT_RATIO, AlbumUpdate
 
 if TYPE_CHECKING:
     from tests.helpers.albums import AlbumRoutes
@@ -75,3 +75,18 @@ def test_dimension_migration_preserves_legacy_album_content(
         assert conn.execute(
             sa.text("SELECT id, chapters, background_color FROM album")
         ).one() == ("old", '[{"id":"chapter-1"}]', "#112233")
+
+
+def test_ratio_policy_changes_update_schema_and_api_validation(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setitem(PAGE_ASPECT_RATIO, "minimum", 1.35)
+    monkeypatch.setitem(PAGE_ASPECT_RATIO, "maximum", 1.5)
+    assert AlbumUpdate.model_json_schema()["x-page-aspect-ratio"] == {
+        "minimum": 1.35,
+        "maximum": 1.5,
+    }
+    AlbumUpdate.model_validate({"page_width_mm": 280, "page_height_mm": 200})
+    for width in (260, 320):
+        with pytest.raises(ValidationError, match=r"between 1\.35 and 1\.5"):
+            AlbumUpdate.model_validate({"page_width_mm": width, "page_height_mm": 200})

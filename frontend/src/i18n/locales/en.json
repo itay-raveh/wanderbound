@@ -508,7 +508,7 @@
     "pageWidth": "Width",
     "pageHeight": "Height",
     "lockRatio": "Lock ratio",
-    "pageSizeBounds": "Width 250–420 mm, height 180–297 mm; landscape ratio 1.25–1.8.",
+    "pageSizeBounds": "Width {widthRange}, height {heightRange}; landscape ratio {ratioRange}.",
     "pageSizeNote": "Check text flow and photo framing after applying.",
     "applySize": "Apply",
     "mapLoading": "Loading map…",

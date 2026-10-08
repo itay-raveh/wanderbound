@@ -3,7 +3,13 @@ from __future__ import annotations
 from datetime import UTC, date, datetime
 from typing import Literal
 
-from pydantic import BaseModel, FiniteFloat, field_validator, model_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    FiniteFloat,
+    field_validator,
+    model_validator,
+)
 from sqlalchemy import DateTime, String
 from sqlmodel import Column, Field, SQLModel
 
@@ -17,6 +23,8 @@ type DateRange = tuple[date, date]
 
 HeaderKey = Literal["cover-front", "cover-back", "overview", "full-map"]
 MediaResolutionWarningPreset = Literal["off", "relaxed", "print"]
+
+PAGE_ASPECT_RATIO = {"minimum": 1.25, "maximum": 1.8}
 
 DEFAULT_FONT = "Assistant"
 DEFAULT_BODY_FONT = "Frank Ruhl Libre"
@@ -37,6 +45,11 @@ class AlbumChapter(SQLModel):
 
 class AlbumBase(SQLModel):
     """User-editable settings."""
+
+    # JSON Schema has no standard constraint for a ratio of two properties.
+    model_config = ConfigDict(
+        json_schema_extra={"x-page-aspect-ratio": PAGE_ASPECT_RATIO}
+    )
 
     colors: dict[CountryCode, HexColor] = Field(
         sa_column=Column(PydanticJSON(dict[CountryCode, HexColor]), nullable=False)
@@ -88,8 +101,11 @@ class AlbumBase(SQLModel):
         width, height = self.page_width_mm, self.page_height_mm
         if width is None or height is None:
             raise ValueError("Page dimensions must not be null")
-        if not 1.25 <= width / height <= 1.8:
-            raise ValueError("Page width / height must be between 1.25 and 1.8")
+        minimum, maximum = PAGE_ASPECT_RATIO["minimum"], PAGE_ASPECT_RATIO["maximum"]
+        if not minimum <= width / height <= maximum:
+            raise ValueError(
+                f"Page width / height must be between {minimum} and {maximum}"
+            )
         return self
 
 
