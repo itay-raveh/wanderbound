@@ -84,8 +84,12 @@ function makeLargeSegmentOutlines(steps: ReturnType<typeof makeLargeSteps>) {
   });
 }
 
-async function mockLargeAlbum(page: Page, chaptered = false) {
-  const photosPerStep = chaptered ? 16 : PHOTOS_PER_STEP;
+async function mockLargeAlbum(
+  page: Page,
+  chaptered: boolean | number = false,
+  locale = "en-US",
+) {
+  const photosPerStep = chaptered === true ? 16 : PHOTOS_PER_STEP;
   const steps = makeLargeSteps(photosPerStep);
   const media = makeLargeMedia(photosPerStep);
   const segmentOutlines = chaptered ? makeLargeSegmentOutlines(steps) : [];
@@ -103,7 +107,7 @@ async function mockLargeAlbum(page: Page, chaptered = false) {
           last_name: "User",
           google_sub: "g-1",
           profile_image_url: null,
-          locale: "en-US",
+          locale,
           unit_is_km: true,
           temperature_is_celsius: true,
           album_ids: ["large-album"],
@@ -124,7 +128,7 @@ async function mockLargeAlbum(page: Page, chaptered = false) {
         last_name: "User",
         google_sub: "g-1",
         profile_image_url: null,
-        locale: "en-US",
+        locale,
         unit_is_km: true,
         temperature_is_celsius: true,
         album_ids: ["large-album"],
@@ -143,43 +147,58 @@ async function mockLargeAlbum(page: Page, chaptered = false) {
         hidden_headers: [],
         maps_ranges: [],
         safe_margin_mm: 0,
-        chapters: chaptered
-          ? [
-              {
-                id: "chapter-1",
-                title: "Large Album",
-                subtitle: "Performance fixture",
-                step_ids: steps.slice(0, 120).map((step) => step.id),
-                front_cover_photo: "cover.jpg",
-                back_cover_photo: "back.jpg",
-              },
-              {
-                id: "chapter-2",
-                title: "Chapter 2",
+        chapters:
+          typeof chaptered === "number"
+            ? Array.from({ length: chaptered }, (_, index) => ({
+                id: `chapter-${index + 1}`,
+                title: `Chapter ${index + 1}`,
                 subtitle: "",
-                step_ids: steps.slice(120, 180).map((step) => step.id),
+                step_ids: steps
+                  .slice(
+                    (index * STEP_COUNT) / chaptered,
+                    ((index + 1) * STEP_COUNT) / chaptered,
+                  )
+                  .map((step) => step.id),
                 front_cover_photo: "",
                 back_cover_photo: "",
-              },
-              {
-                id: "chapter-3",
-                title: "Chapter 3",
-                subtitle: "",
-                step_ids: steps.slice(180).map((step) => step.id),
-                front_cover_photo: "",
-                back_cover_photo: "",
-              },
-            ]
-          : [
-              {
-                id: "chapter-1",
-                title: "Large Album",
-                subtitle: "Performance fixture",
-                step_ids: steps.map((step) => step.id),
-                front_cover_photo: "cover.jpg",
-                back_cover_photo: "back.jpg",
-              },
-            ],
+              }))
+            : chaptered
+              ? [
+                  {
+                    id: "chapter-1",
+                    title: "Large Album",
+                    subtitle: "Performance fixture",
+                    step_ids: steps.slice(0, 120).map((step) => step.id),
+                    front_cover_photo: "cover.jpg",
+                    back_cover_photo: "back.jpg",
+                  },
+                  {
+                    id: "chapter-2",
+                    title: "Chapter 2",
+                    subtitle: "",
+                    step_ids: steps.slice(120, 180).map((step) => step.id),
+                    front_cover_photo: "",
+                    back_cover_photo: "",
+                  },
+                  {
+                    id: "chapter-3",
+                    title: "Chapter 3",
+                    subtitle: "",
+                    step_ids: steps.slice(180).map((step) => step.id),
+                    front_cover_photo: "",
+                    back_cover_photo: "",
+                  },
+                ]
+              : [
+                  {
+                    id: "chapter-1",
+                    title: "Large Album",
+                    subtitle: "Performance fixture",
+                    step_ids: steps.map((step) => step.id),
+                    front_cover_photo: "cover.jpg",
+                    back_cover_photo: "back.jpg",
+                  },
+                ],
         colors: { nl: "#e77c31", be: "#3d7a5f", de: "#496b94" },
       },
     }),
@@ -204,7 +223,7 @@ async function mockLargeAlbum(page: Page, chaptered = false) {
 }
 
 async function scrollNavStepIntoView(page: Page, step: number) {
-  const navList = page.locator(".chapter-entries-virtual");
+  const navList = page.locator(".nav-list");
   const target = page.locator(`[data-nav-step="${step}"]`);
   for (let scrollTop = 0; scrollTop <= 14_000; scrollTop += 700) {
     await navList.evaluate((el, top) => {
@@ -222,9 +241,7 @@ async function scrollNavStepIntoView(page: Page, step: number) {
 
 async function activeNavStepCenterOffset(page: Page, step: number) {
   return page.evaluate((targetStep) => {
-    const navList = document.querySelector<HTMLElement>(
-      ".chapter-entries-virtual",
-    );
+    const navList = document.querySelector<HTMLElement>(".nav-list");
     const target = document.querySelector<HTMLElement>(
       `[data-nav-step="${targetStep}"]`,
     );
@@ -240,6 +257,50 @@ async function activeNavStepCenterOffset(page: Page, step: number) {
 }
 
 test.describe("Large album editor performance", () => {
+  for (const { width, height, locale } of [
+    { width: 1600, height: 480, locale: "en-US" },
+    { width: 1024, height: 540, locale: "he-IL" },
+  ]) {
+    test(`one scroller reaches later chapters and final rows at ${width}px in ${locale}`, async ({
+      page,
+    }) => {
+      await page.setViewportSize({ width, height });
+      await mockLargeAlbum(page, 40, locale);
+      await page.goto("/editor");
+      const nav = page.getByRole("navigation");
+      const root = nav.locator(".nav-list");
+      const finalHeader = nav
+        .locator(".chapter-group-header")
+        .filter({ hasText: "Chapter 40" });
+      await finalHeader.scrollIntoViewIfNeeded();
+      await expect(finalHeader).toBeInViewport();
+      await finalHeader.focus();
+      await page.keyboard.press("Enter");
+      const lastRow = nav.locator('[data-nav-step="240"]');
+      await lastRow.scrollIntoViewIfNeeded();
+      await expect(lastRow).toBeInViewport();
+      await expect(nav.locator("[data-nav-step]")).toHaveCount(6);
+      const scrollers = await root.evaluate((el) =>
+        [el, ...el.querySelectorAll<HTMLElement>("*")]
+          .filter((node) =>
+            /auto|scroll/.test(getComputedStyle(node).overflowY),
+          )
+          .map((node) => node.className),
+      );
+      expect(scrollers).toEqual(["nav-list"]);
+      await finalHeader.scrollIntoViewIfNeeded();
+      await finalHeader.focus();
+      await page.keyboard.press("Enter");
+      await expect(lastRow).toHaveCount(0);
+      await expect(finalHeader).toBeFocused();
+      await expect(finalHeader).toBeInViewport();
+      await page.keyboard.press("Enter");
+      await lastRow.scrollIntoViewIfNeeded();
+      await expect(lastRow).toBeInViewport();
+      expect(await page.evaluate(() => window.scrollY)).toBe(0);
+    });
+  }
+
   test("opens a 240-step album while keeping rendered media bounded", async ({
     page,
   }) => {
@@ -301,12 +362,10 @@ test.describe("Large album editor performance", () => {
     // measuring user scrolling, including one-frame focus/anchoring jumps.
     await page.waitForTimeout(200);
 
-    const navList = page.locator(".chapter-entries-virtual");
+    const navList = page.locator(".nav-list");
     const trace = await navList.evaluateHandle((el) => {
-      const outer = el.closest<HTMLElement>(".nav-list")!;
       const sample = () => ({
-        inner: el.scrollTop,
-        outer: outer.scrollTop,
+        scroll: el.scrollTop,
         top: el.getBoundingClientRect().top,
         viewer: window.scrollY,
         activePage: document.querySelector(".page-position")?.textContent,
@@ -354,7 +413,6 @@ test.describe("Large album editor performance", () => {
     await trace.dispose();
 
     for (const sample of samples) {
-      expect(Math.abs(sample.outer - samples[0].outer)).toBeLessThanOrEqual(1);
       expect(Math.abs(sample.top - samples[0].top)).toBeLessThanOrEqual(1);
       expect(Math.abs(sample.viewer - samples[0].viewer)).toBeLessThanOrEqual(
         1,
@@ -362,8 +420,8 @@ test.describe("Large album editor performance", () => {
       expect(sample.activePage).toBe("Page 63 of 484");
     }
     for (let index = 1; index < samples.length; index++) {
-      expect(samples[index].inner).toBeGreaterThanOrEqual(
-        samples[index - 1].inner - 1,
+      expect(samples[index].scroll).toBeGreaterThanOrEqual(
+        samples[index - 1].scroll - 1,
       );
     }
 
@@ -392,13 +450,12 @@ test.describe("Large album editor performance", () => {
   }) => {
     await mockLargeAlbum(page);
     await page.goto("/editor");
-    const entries = page.locator(".chapter-entries-virtual");
+    const entries = page.locator(".nav-list");
     const outer = page.locator(".nav-list");
     await expect(entries).toBeVisible({ timeout: 15_000 });
     await expect(page.locator(".page-position")).toHaveText("Page 1 of 484");
 
-    // Start at the inner boundary; wheel input must still reach the outer
-    // sidebar so chapter headers and the last rows remain accessible.
+    // The only scroller must reach the last row and contain boundary gestures.
     await entries.evaluate((el) => {
       el.scrollTop = el.scrollHeight;
     });
@@ -424,7 +481,7 @@ test.describe("Large album editor performance", () => {
       )
       .toBeLessThanOrEqual(1);
 
-    // Separate gestures after exhausting both scrollers must not chain to
+    // Separate gestures after exhausting the sidebar must not chain to
     // the document and make its active-step sync jump the sidebar backward.
     for (let gesture = 0; gesture < 3; gesture++) {
       await page.waitForTimeout(250);
@@ -489,7 +546,8 @@ test.describe("Large album editor performance", () => {
     });
 
     const nav = page.getByRole("navigation");
-    await expect(nav.getByText("Chapter 3")).toBeVisible();
+    await nav.getByText("Chapter 3").scrollIntoViewIfNeeded();
+    await expect(nav.getByText("Chapter 3")).toBeInViewport();
     await nav.getByText("Chapter 3").click();
 
     const chapterCover = nav.locator(

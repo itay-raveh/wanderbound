@@ -3,7 +3,7 @@ import type { DateRange } from "@/client";
 import type { ChapterVisit, GroupEntry } from "./types";
 import { SHORT_DATE } from "@/utils/date";
 import { useUserQuery } from "@/queries/useUserQuery";
-import { nextTick, ref, watch } from "vue";
+import { nextTick, onMounted, ref, watch } from "vue";
 import NavStepItem from "./NavStepItem.vue";
 import NavMapItem from "./NavMapItem.vue";
 
@@ -23,7 +23,7 @@ const props = defineProps<{
 const NAV_ENTRY_ROW_SIZE = 54;
 const NAV_ENTRY_SLICE_SIZE = 24;
 type VirtualScrollExpose = {
-  scrollTo: (index: number) => void;
+  scrollTo: (index: number, edge?: string) => void;
   $el?: HTMLElement;
 };
 const virtualScrollRef = ref<VirtualScrollExpose | null>(null);
@@ -33,15 +33,23 @@ function entryKey(entry: GroupEntry) {
 }
 
 function scrollActiveIntoVirtualView() {
-  if (!props.open || props.activeStepId == null) return;
-  const index = props.group.entryIndexByStepId.get(props.activeStepId);
-  if (index == null) return;
-  virtualScrollRef.value?.scrollTo(index);
+  if (!props.open || !props.lazyRoot) return;
+  const index =
+    props.activeStepId != null
+      ? props.group.entryIndexByStepId.get(props.activeStepId)
+      : props.group.entries.findIndex(
+          (entry) =>
+            entry.type === "map" && entry.key === props.activeSectionKey,
+        );
+  if (index == null || index < 0) return;
+  virtualScrollRef.value?.scrollTo(index, "center-force");
   void nextTick(() => {
     requestAnimationFrame(() => {
-      const scrollEl = virtualScrollRef.value?.$el;
-      const row = scrollEl?.querySelector(
-        `[data-nav-step="${props.activeStepId}"]`,
+      const scrollEl = props.lazyRoot;
+      const row = virtualScrollRef.value?.$el?.querySelector(
+        props.activeStepId != null
+          ? `[data-nav-step="${props.activeStepId}"]`
+          : `[data-nav-section="${props.activeSectionKey}"]`,
       );
       if (!scrollEl || !row) return;
       scrollEl.scrollTop +=
@@ -53,10 +61,18 @@ function scrollActiveIntoVirtualView() {
 }
 
 watch(
-  () => [props.open, props.activeStepId, props.group.entries] as const,
+  () =>
+    [
+      props.open,
+      props.activeStepId,
+      props.activeSectionKey,
+      props.lazyRoot,
+      props.group.entries,
+    ] as const,
   scrollActiveIntoVirtualView,
   { flush: "post" },
 );
+onMounted(() => void nextTick(scrollActiveIntoVirtualView));
 
 defineEmits<{
   scrollToStep: [id: number];
@@ -71,6 +87,7 @@ defineEmits<{
   <q-virtual-scroll
     ref="virtualScrollRef"
     :items="group.entries"
+    :scroll-target="lazyRoot ?? undefined"
     class="chapter-entries-virtual"
     :virtual-scroll-item-size="NAV_ENTRY_ROW_SIZE"
     :virtual-scroll-slice-size="NAV_ENTRY_SLICE_SIZE"
@@ -119,8 +136,8 @@ defineEmits<{
 
 <style lang="scss" scoped>
 .chapter-entries-virtual {
-  max-height: calc(100vh - 13rem);
-  overflow-y: auto;
+  // The sidebar owns scrolling; this list only supplies virtual padding.
+  overflow: visible;
   // Quasar maintains the scroll offset as virtual rows are replaced.
   overflow-anchor: none;
 }

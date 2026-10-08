@@ -133,7 +133,7 @@ async function saveMap(range: DateRange) {
       <NavMapRanges @add-map="openAddMap" />
     </div>
 
-    <div ref="listRef" class="nav-list">
+    <div ref="listRef" class="nav-list" tabindex="0">
       <template v-for="(row, index) in chapterRows" :key="row.group.key">
         <NavChapterGroup
           :group="row.group"
@@ -222,9 +222,11 @@ async function saveMap(range: DateRange) {
 
 .nav-list {
   flex: 1;
+  min-height: 0;
   overflow-y: auto;
-  // Let chapter lists chain here, but never scroll the album behind the nav.
+  // Never scroll the album behind the nav, including at either boundary.
   overscroll-behavior-y: contain;
+  overflow-anchor: none;
   scrollbar-width: thin;
   scrollbar-color: var(--border-color) transparent;
 
