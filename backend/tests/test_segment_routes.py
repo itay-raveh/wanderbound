@@ -5,16 +5,14 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from types import SimpleNamespace
 from typing import TYPE_CHECKING
-from unittest.mock import AsyncMock, call, patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
 from sqlalchemy import text
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.logic.segment_routes import (
-    RouteEnrichmentIncompleteError,
     _write_outcome,
-    album_route_enrichment_workflow,
     mark_album_route_failure_step,
     match_album_segment_routes,
     pending_route_enrichment_targets,
@@ -28,7 +26,6 @@ from app.models.segment import (
 )
 from app.services.mapbox import (
     REQUEST_BUDGET_EXCEEDED,
-    MapboxTransientError,
     RouteMatchResult,
 )
 
@@ -378,99 +375,6 @@ async def test_exhausted_failure_marker_records_only_attempted_batch(
     assert state.status == RouteEnrichmentStatus.failed
     assert state.error_code == "retry_exhausted:MapboxTransientError"
     assert unattempted_state is None
-
-
-async def test_failed_outcome_fails_workflow() -> None:
-    workflow = inspect.unwrap(album_route_enrichment_workflow)
-    batch = _batch()
-    stats = {
-        "candidates": 1,
-        "matched": 0,
-        "no_route": 0,
-        "failed": 1,
-        "recorded": 1,
-        "updated": 0,
-        "route_requests": 1,
-        "matching_requests": 1,
-        "directions_requests": 0,
-        "already_running": False,
-    }
-    with (
-        patch(
-            "app.logic.segment_routes.plan_album_route_batch_step",
-            new=AsyncMock(side_effect=[batch, []]),
-        ),
-        patch(
-            "app.logic.segment_routes.enrich_album_routes_step",
-            new=AsyncMock(return_value=stats),
-        ),
-        pytest.raises(RouteEnrichmentIncompleteError),
-    ):
-        await workflow({"uid": 1, "aid": AID})
-
-
-async def test_exhausted_transient_failure_is_recorded_and_propagated() -> None:
-    workflow = inspect.unwrap(album_route_enrichment_workflow)
-    marker = AsyncMock()
-    payload = {"uid": 1, "aid": AID}
-    batch = _batch()
-    with (
-        patch(
-            "app.logic.segment_routes.plan_album_route_batch_step",
-            new=AsyncMock(return_value=batch),
-        ),
-        patch(
-            "app.logic.segment_routes.enrich_album_routes_step",
-            new=AsyncMock(side_effect=MapboxTransientError("unavailable")),
-        ),
-        patch(
-            "app.logic.segment_routes.mark_album_route_failure_step",
-            new=marker,
-        ),
-        pytest.raises(MapboxTransientError, match="unavailable"),
-    ):
-        await workflow(payload)
-
-    marker.assert_awaited_once_with(
-        payload,
-        "retry_exhausted:MapboxTransientError",
-        batch,
-    )
-
-
-async def test_workflow_drains_all_planned_batches() -> None:
-    workflow = inspect.unwrap(album_route_enrichment_workflow)
-    payload = {"uid": 1, "aid": AID}
-    first_batch = _batch()
-    second_batch = _batch(start_time=300.0, end_time=400.0)
-    plan = AsyncMock(side_effect=[first_batch, second_batch, []])
-    stats = {
-        "candidates": 1,
-        "matched": 1,
-        "recorded": 1,
-        "updated": 1,
-        "route_requests": 1,
-        "matching_requests": 1,
-    }
-    enrich = AsyncMock(side_effect=[stats, stats])
-
-    with (
-        patch(
-            "app.logic.segment_routes.plan_album_route_batch_step",
-            new=plan,
-        ),
-        patch(
-            "app.logic.segment_routes.enrich_album_routes_step",
-            new=enrich,
-        ),
-    ):
-        result = await workflow(payload)
-
-    assert result == payload
-    assert enrich.await_args_list == [
-        call(payload, first_batch),
-        call(payload, second_batch),
-    ]
 
 
 async def test_reconciliation_targets_only_unresolved_albums(

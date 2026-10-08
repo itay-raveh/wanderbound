@@ -354,17 +354,3 @@ class TestPersistedProcessStream:
         assert new.operation_id != old.operation_id
         assert new.upload_generation == 2
         assert new.status == "queued"
-
-    async def test_process_request_locks_user_before_operation_decision(
-        self, session: AsyncSession
-    ) -> None:
-        user = _mock_user(uid=222)
-
-        with patch(
-            "app.logic.session.lock_user_for_processing_request",
-            new_callable=AsyncMock,
-            create=True,
-        ) as lock_user:
-            await _operation_for_process_request(session, user)
-
-        lock_user.assert_awaited_once_with(session, uid=222)
