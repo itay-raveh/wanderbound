@@ -338,8 +338,11 @@ function drawSegmentsAndMarkersInner(
       case "walking":
       case "driving": {
         const kind = seg.kind;
-        // Use backend-computed route if available, fall back to raw GPS
-        const routeCoords: [number, number][] = seg.route ?? coords;
+        // Empty/single-point saved geometry cannot draw a line. Nonempty legacy
+        // geometry may legitimately omit tidied outliers; retain it unchanged.
+        const route = seg.route;
+        const routeCoords: [number, number][] =
+          route && route.length >= 2 ? route : coords;
         routeBuckets[kind].push(routeCoords);
         allCoords.push(...coords);
         break;

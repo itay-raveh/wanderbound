@@ -80,7 +80,10 @@ watch(
 
 watch(stream.state, async (state) => {
   if (state !== "done") return;
-  await cache.invalidateQueries({ key: queryKeys.user(), exact: true });
+  await Promise.all([
+    cache.invalidateQueries({ key: queryKeys.user(), exact: true }),
+    cache.invalidateQueries({ key: queryKeys.albums() }),
+  ]);
 });
 
 function onUploaded(data: UploadResult) {

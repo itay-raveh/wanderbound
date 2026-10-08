@@ -104,7 +104,12 @@ class _Matching(BaseModel):
     geometry: _GeoJSONLineString
 
 
+class _Tracepoint(BaseModel):
+    matchings_index: int
+
+
 class _MatchingResponse(BaseModel):
+    tracepoints: list[_Tracepoint | None] | None = None
     code: str = "Ok"
     matchings: list[_Matching] = []
 
@@ -187,21 +192,33 @@ def _matching_request_points(points: TimedCoords) -> list[tuple[int, float]]:
     return request_points
 
 
-def _parse_matching_response(response: httpx.Response) -> RouteMatchResult:
+def _parse_matching_response(
+    response: httpx.Response, request_coords: Coords
+) -> RouteMatchResult:
     data = _MatchingResponse.model_validate_json(response.content)
-    if data.code in _NO_ROUTE_CODES:
-        return _no_route(data.code)
     if data.code != "Ok":
-        return _failed(data.code)
+        return (_no_route if data.code in _NO_ROUTE_CODES else _failed)(data.code)
     if not data.matchings:
         return _no_route("NoMatch")
-    all_coords: Coords = []
-    for matching in data.matchings:
-        points: Coords = [
-            (coord[0], coord[1]) for coord in matching.geometry.coordinates
-        ]
-        all_coords.extend(points[1:] if all_coords else points)
-    return _matched(all_coords) if len(all_coords) >= 2 else _failed("invalid_geometry")
+    # Sub-matches omit connecting roads; joining them invents a straight bridge.
+    # A single match can also omit the beginning/end while still returning Ok.
+    tracepoints = data.tracepoints
+    if (
+        len(data.matchings) != 1
+        or tracepoints is None
+        or len(tracepoints) != len(request_coords)
+        or any(
+            point is not None and point.matchings_index != 0 for point in tracepoints
+        )
+    ):
+        return _no_route("incomplete_match")
+    points: Coords = [
+        (coord[0], coord[1]) for coord in data.matchings[0].geometry.coordinates
+    ]
+    if len(points) < 2:
+        return _failed("invalid_geometry")
+    # Null endpoint tracepoints may be legitimate tidied outliers.
+    return _matched(points)
 
 
 def _record_cache_result(
@@ -264,7 +281,7 @@ async def _fetch_matching(
             raise MapboxTransientError("matching:request_failed") from exc
     if not response.is_success:
         return _http_failure(response, operation="matching")
-    return _parse_matching_response(response)
+    return _parse_matching_response(response, reduced)
 
 
 async def _fetch_directions(

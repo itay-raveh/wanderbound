@@ -136,6 +136,8 @@ async def test_chunked_matching_rejects_partial_success() -> None:
             200,
             json={
                 "code": "Ok",
+                "tracepoints": [{"matchings_index": 0}]
+                * len(request.url.path.rsplit("/", 1)[-1].split(";")),
                 "matchings": [
                     {
                         "geometry": {
@@ -215,6 +217,8 @@ async def test_chunked_matching_stitches_at_the_shared_point() -> None:
             200,
             json={
                 "code": "Ok",
+                "tracepoints": [{"matchings_index": 0}]
+                * len(request.url.path.rsplit("/", 1)[-1].split(";")),
                 "matchings": [
                     {
                         "geometry": {
@@ -308,6 +312,8 @@ async def test_single_route_exceeds_target_with_bounded_execution() -> None:
             200,
             json={
                 "code": "Ok",
+                "tracepoints": [{"matchings_index": 0}]
+                * len(request.url.path.rsplit("/", 1)[-1].split(";")),
                 "matchings": [
                     {"geometry": {"type": "LineString", "coordinates": coords}}
                 ],
@@ -329,3 +335,94 @@ async def test_single_route_exceeds_target_with_bounded_execution() -> None:
     assert calls > ROUTE_REQUEST_BATCH_TARGET
     assert peak_active <= ROUTE_REQUEST_BATCH_TARGET
     assert result.status == RouteEnrichmentStatus.matched
+
+
+def _matching_shape(
+    shape: str,
+) -> tuple[list[tuple[float, float]], list[list[float]], dict[str, object]]:
+    coords = [(4.0, 52.0), (4.1, 52.05), (4.2, 52.1)]
+    if shape == "loop":
+        coords[-1] = coords[0]
+    route = [list(p) for p in coords]
+    tracepoints: list[dict[str, int] | None] = [{"matchings_index": 0}] * 3
+    if shape in {"prefix", "geometry_prefix"}:
+        tracepoints[0] = None if shape == "prefix" else tracepoints[0]
+        route = route[1:]
+    elif shape == "suffix":
+        tracepoints[-1] = None
+        route = route[:-1]
+    elif shape == "interior_outlier":
+        tracepoints[1] = None
+        route = [route[0], route[-1]]
+    elif shape == "cluster_endpoint":
+        tracepoints[0] = None
+        route[0][0] += 0.0001
+    elif shape == "snapped":
+        route[0][0] += 0.0004
+        route[-1][0] += 0.0004
+    matchings = [{"geometry": {"type": "LineString", "coordinates": route}}]
+    if shape == "split":
+        matchings.append(matchings[0])
+        tracepoints[-1] = {"matchings_index": 1}
+
+    return (
+        coords,
+        route,
+        {"code": "Ok", "matchings": matchings, "tracepoints": tracepoints},
+    )
+
+
+@pytest.mark.parametrize(
+    "shape",
+    [
+        "prefix",
+        "geometry_prefix",
+        "suffix",
+        "split",
+        "interior_outlier",
+        "cluster_endpoint",
+        "snapped",
+        "loop",
+    ],
+)
+async def test_matching_keeps_coverage_without_guessing_another_road(
+    shape: str,
+) -> None:
+    coords, route, response = _matching_shape(shape)
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert "/matching/" in request.url.path, "must not infer a road with Directions"
+        return httpx.Response(
+            200,
+            json=response,
+            request=request,
+        )
+
+    async with _client(handler) as client:
+        result = await _match_one(
+            MapboxRouteClients(client, client), _timed(coords), "driving", "token"
+        )
+    if shape == "split":
+        assert result.status == RouteEnrichmentStatus.no_route
+        assert result.route is None
+        assert result.error_code == "incomplete_match"
+    else:
+        assert result.status == RouteEnrichmentStatus.matched
+        assert result.route is not None
+        assert result.route[0] == tuple(route[0])
+        assert result.route[-1] == tuple(route[-1])
+
+
+async def test_discontinuous_trace_never_requests_matching_or_directions() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        raise AssertionError("discontinuous traces must not be routed")
+
+    async with _client(handler) as client:
+        result = await _match_one(
+            MapboxRouteClients(client, client),
+            [(4.0, 52.0, 0.0), (4.1, 52.1, 4 * 3600.0), (4.2, 52.2, 4 * 3600.0 + 60)],
+            "driving",
+            "token",
+        )
+    assert result.status == RouteEnrichmentStatus.no_route
+    assert result.error_code == "discontinuous_trace"

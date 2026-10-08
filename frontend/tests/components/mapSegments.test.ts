@@ -18,27 +18,71 @@ function makeMap() {
   };
 }
 
-const segment = makeSegment({
-  start_time: 0,
-  end_time: 1,
-  points: [
-    { lat: 1, lon: 2, time: 0 },
-    { lat: 3, lon: 4, time: 1 },
-  ],
-});
-
 describe("drawSegmentsAndMarkers", () => {
-  it("temporarily detaches terrain while replacing segment sources", () => {
-    const map = makeMap();
+  it.each([{ route: [] }, { route: [[5.12, 52.09]] }])(
+    "keeps the complete driving trace visible with saved route $route",
+    ({ route }) => {
+      const map = makeMap();
+      const points = [
+        { lon: 4.89, lat: 52.37, time: 0 },
+        { lon: 5.0, lat: 52.24, time: 1 },
+        { lon: 5.12, lat: 52.09, time: 2 },
+      ];
+      drawSegmentsAndMarkers(map as never, {
+        segments: [
+          makeSegment({ kind: "driving", points, route: route as never }),
+        ],
+        steps: [],
+        albumId: "a1",
+      });
+      const source = map.addSource.mock.calls.find(
+        ([id]) => id === "seg-drive",
+      )?.[1];
+      expect(source.data.geometry.coordinates).toEqual([
+        points.map((p) => [p.lon, p.lat]),
+      ]);
+    },
+  );
 
-    drawSegmentsAndMarkers(map as never, {
-      segments: [segment],
-      steps: [],
-      albumId: "a1",
-    });
-
-    expect(map.setTerrain).toHaveBeenNthCalledWith(1, null);
-    expect(map.removeSource).toHaveBeenCalledWith("seg-old");
-    expect(map.setTerrain).toHaveBeenLastCalledWith({ source: "mapbox-dem" });
-  });
+  it.each(["snapped", "outlier", "loop", "directions", "tidied_endpoint"])(
+    "retains a valid $0 road route",
+    (shape) => {
+      const map = makeMap();
+      const route: [number, number][] = [
+        [4.0001, 52.0],
+        [4.06, 52.15],
+        [4.1001, 52.1],
+      ];
+      const points = [
+        { lon: 4.0, lat: 52.0, time: 0 },
+        { lon: 4.06, lat: 52.15, time: 1 },
+        { lon: 4.1, lat: 52.1, time: 2 },
+      ];
+      if (shape === "tidied_endpoint") points[0].lon = -74;
+      if (shape === "outlier") points[1].lat = 53;
+      if (shape === "loop") {
+        points[2] = { ...points[0], time: 2 };
+        route[2] = [...route[0]];
+      }
+      if (shape === "directions") {
+        points.splice(1, 1);
+        route[0][0] += 0.01;
+      }
+      drawSegmentsAndMarkers(map as never, {
+        segments: [
+          makeSegment({
+            kind: "driving",
+            route,
+            points,
+          }),
+        ],
+        steps: [],
+        albumId: "a1",
+      });
+      const source = map.addSource.mock.calls.find(
+        ([id]) => id === "seg-drive",
+      )?.[1];
+      expect(source.data.geometry.coordinates).toEqual([route]);
+    },
+  );
 });
