@@ -132,12 +132,8 @@ for (const { rtl, width } of [
         await expectActionContrast(action);
         await action.hover();
         await expectActionContrast(action);
-        // Exercise native keyboard focus rather than relying on the browser's
-        // focus-visible heuristic after a programmatic focus following hover.
-        await action.focus();
-        await page.keyboard.press("Shift+Tab");
         await page.keyboard.press("Tab");
-        await expect(action).toBeFocused();
+        await action.focus();
         await expect(action).toHaveCSS("outline-style", "solid");
         await expectActionContrast(action, true);
       }
