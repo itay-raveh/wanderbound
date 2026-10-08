@@ -277,7 +277,36 @@ test.describe("PDF map snapshots", () => {
         kind: "driving",
         route: route.map((c) => [...c]) as [number, number][],
       };
-      await installPdfMapFixture(page, 0, { ...bundle, segments: [driving] });
+      // Distant incoming/outgoing flights must not change destination-pin framing.
+      const flights: Segment[] =
+        name === "empty"
+          ? [
+              {
+                ...hike,
+                kind: "flight",
+                start_time: mockStep.timestamp - 3600,
+                end_time: mockStep.timestamp,
+                points: [
+                  { lat: 40.7, lon: -74, time: mockStep.timestamp - 3600 },
+                  hike.points[0],
+                ],
+              },
+              {
+                ...hike,
+                kind: "flight",
+                start_time: secondStep.timestamp,
+                end_time: secondStep.timestamp + 3600,
+                points: [
+                  hike.points.at(-1)!,
+                  { lat: 40.7, lon: -74, time: secondStep.timestamp + 3600 },
+                ],
+              },
+            ]
+          : [];
+      await installPdfMapFixture(page, 0, {
+        ...bundle,
+        segments: [driving, ...flights],
+      });
       for (let attempt = 0; attempt < 2; attempt++) {
         if (attempt === 0) await page.goto("/print/aid-1");
         else await page.reload();

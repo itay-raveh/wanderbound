@@ -1,7 +1,44 @@
 import { test, expect } from "./fixtures";
-import { mockUser } from "../tests/fixtures/mocks";
+import { mockAlbum, mockFocusSteps, mockUser } from "../tests/fixtures/mocks";
 
 test.describe("Editor", () => {
+  test("recovers one missing map without replacing a customized map", async ({
+    focusPage: page,
+  }) => {
+    let album = {
+      ...mockAlbum,
+      chapters: [
+        { ...mockAlbum.chapters[0], step_ids: mockFocusSteps.map((s) => s.id) },
+      ],
+      maps_ranges: [["2024-01-03", "2024-01-03"]],
+    };
+    await page.route("**/api/v1/albums/aid-1", (route) => {
+      if (route.request().method() === "PATCH") {
+        album = { ...album, ...route.request().postDataJSON() };
+      }
+      return route.fulfill({ json: album });
+    });
+    await page.goto("/editor");
+    const nav = page.getByRole("navigation");
+    await expect(nav.getByRole("button", { name: /^Map:/ })).toHaveCount(1, {
+      timeout: 15000,
+    });
+    await nav.getByRole("button", { name: "Add map", exact: true }).click();
+    const dialog = page.getByRole("dialog");
+    await dialog.getByLabel("Ending step").click();
+    await page.getByRole("option").filter({ hasText: "Buenos Aires" }).click();
+    await dialog.getByRole("button", { name: "Add map", exact: true }).click();
+    await expect
+      .poll(() => album.maps_ranges)
+      .toEqual([
+        ["2024-01-03", "2024-01-03"],
+        ["2024-01-01", "2024-01-01"],
+      ]);
+    await page.reload();
+    await expect(nav.getByRole("button", { name: /^Map:/ })).toHaveCount(2, {
+      timeout: 15000,
+    });
+  });
   test("replaces an unavailable saved album before loading it", async ({
     authedPage: page,
   }) => {

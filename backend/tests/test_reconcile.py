@@ -1,5 +1,6 @@
 import json
 from collections.abc import AsyncIterator
+from datetime import date
 from pathlib import Path
 from unittest.mock import MagicMock
 from uuid import uuid4
@@ -22,8 +23,8 @@ from app.logic.trip_processing import PhaseUpdate, SegmentsFound
 from app.models.album import Album
 from app.models.album_media import AlbumMedia, PanoramaConfig, PhotoEdit
 from app.models.polarsteps import Location, PSStep
-from app.models.segment import Segment
-from app.models.step import StepPageLayout, StepRead, StepSlotLayout
+from app.models.segment import Segment, SegmentKind
+from app.models.step import Step, StepPageLayout, StepRead, StepSlotLayout
 from app.models.user import User
 from tests.factories import (
     collect_async,
@@ -351,6 +352,47 @@ async def _collect_reconcile(
 
 
 class TestReconcileTripRebuildsSegments:
+    @pytest.mark.parametrize(
+        ("saved_ranges", "expected_ranges"),
+        [
+            ([], []),
+            (
+                [(date(2023, 11, 14), date(2023, 11, 14))],
+                [(date(2023, 11, 14), date(2023, 11, 14))],
+            ),
+            ([(date(2022, 1, 1), date(2022, 1, 2))], []),
+        ],
+    )
+    async def test_map_edits_survive_changed_step_ids_and_order(
+        self, tmp_path: Path, saved_ranges: list, expected_ranges: list
+    ) -> None:
+        # Existing step 2 is removed, and step 3 moves before step 1.
+        first = _ps_step(3, slug="replacement")
+        first.timestamp = _ps_step(1).timestamp - 3600
+        trip_dir = _build_trip_dir(tmp_path, [first, _ps_step(1)])
+        album = _existing_album()
+        album.maps_ranges = saved_ranges
+        _, db_out = await _collect_reconcile(
+            trip_dir, album, [_existing_step(1), _existing_step(2), _existing_step(3)]
+        )
+        assert album.maps_ranges == expected_ranges
+        assert {obj.id for obj in db_out if isinstance(obj, Step)} == {1, 3}
+
+    async def test_keeps_map_range_when_its_hike_becomes_driving(
+        self, tmp_path: Path
+    ) -> None:
+        ps_steps = [_ps_step(1, slug="start"), _ps_step(2, slug="end", location=_LOC_B)]
+        trip_dir = _build_trip_dir(tmp_path, ps_steps)
+        album = _existing_album()
+        saved_range = (date(2023, 11, 14), date(2023, 11, 15))
+        album.maps_ranges = [saved_range]
+        _, db_out = await _collect_reconcile(
+            trip_dir, album, [_existing_step(1), _existing_step(2)]
+        )
+        segments = [obj for obj in db_out if isinstance(obj, Segment)]
+        assert any(seg.kind == SegmentKind.driving for seg in segments)
+        assert album.maps_ranges == [saved_range]
+
     async def test_segments_included_in_db_out(self, tmp_path: Path) -> None:
         ps_steps = [
             _ps_step(1, slug="start"),
