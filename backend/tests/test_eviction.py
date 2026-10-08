@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING
 
 import pytest
 import pytest_asyncio
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import create_async_engine
 from sqlmodel import SQLModel
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -25,6 +26,7 @@ async def storage_db(
 ) -> AsyncIterator[AsyncEngine]:
     engine = create_async_engine(f"sqlite+aiosqlite:///{tmp_path / 'storage.sqlite'}")
     async with engine.begin() as conn:
+        await conn.execute(text("PRAGMA foreign_keys=ON"))
         await conn.run_sync(SQLModel.metadata.create_all)
     monkeypatch.setattr(eviction, "get_engine", lambda: engine)
     monkeypatch.setattr(get_settings(), "DATA_FOLDER", tmp_path)
@@ -112,6 +114,9 @@ async def test_demo_eviction_recovers_without_deleting_other_sessions(
         assert (pending / "trip/old/step/data.bin").read_bytes() == b"original" * 10
         async with AsyncSession(storage_db) as session:
             assert (await session.get(User, 1) is None) == (failure == "cleanup")
+            assert (await session.get(Album, (1, "old")) is None) == (
+                failure == "cleanup"
+            )
         await eviction.run_eviction(skip_uid=1)
         assert pending.exists()
         if failure == "new-session":
@@ -122,12 +127,20 @@ async def test_demo_eviction_recovers_without_deleting_other_sessions(
                 user = await session.get_one(User, 1)
                 user.album_ids = ["new"]
                 session.add(user)
+                await insert_album(session, 1, "new")
                 await session.commit()
         await eviction.run_eviction(skip_uid=2)
     assert not pending.exists()
     async with AsyncSession(storage_db) as session:
         assert (await session.get(User, 1) is not None) == (failure == "new-session")
         assert await session.get(User, 2) is not None
+        assert await session.get(Album, (2, "real")) is not None
+        if failure == "new-session":
+            assert await session.get(Album, (1, "new")) is not None
+            assert (await session.get_one(User, 1)).album_ids == ["new"]
+        else:
+            assert await session.get(Album, (1, "old")) is None
+            assert await session.get(Album, (1, "recent")) is None
     if failure == "new-session":
         assert (users / "1/trip/new/data.bin").read_bytes() == b"new session"
     else:
