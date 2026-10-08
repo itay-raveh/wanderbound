@@ -4,6 +4,7 @@ import { mediaThumbUrl } from "@/utils/media";
 import "./map-segments.css";
 import mapboxgl from "mapbox-gl";
 import bezierSpline from "@turf/bezier-spline";
+import distance from "@turf/distance";
 import { lineString } from "@turf/helpers";
 
 const LAYER_PREFIX = "seg-";
@@ -338,8 +339,16 @@ function drawSegmentsAndMarkersInner(
       case "walking":
       case "driving": {
         const kind = seg.kind;
-        // Use backend-computed route if available, fall back to raw GPS
-        const routeCoords: [number, number][] = seg.route ?? coords;
+        // Older albums may contain an empty or truncated successful match.
+        // Allow road snapping/simplification, but never hide a missing endpoint.
+        const route = seg.route;
+        const complete =
+          route &&
+          route.length >= 2 &&
+          coords.length >= 2 &&
+          distance(coords[0], route[0]) <= 0.2 &&
+          distance(coords[coords.length - 1], route[route.length - 1]) <= 0.2;
+        const routeCoords: [number, number][] = complete ? route : coords;
         routeBuckets[kind].push(routeCoords);
         allCoords.push(...coords);
         break;
