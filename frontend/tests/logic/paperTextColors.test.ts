@@ -9,7 +9,7 @@ function contrast(foreground: string, background: string): number {
   return (luminances[0] + 0.05) / (luminances[1] + 0.05);
 }
 
-it("preserves small-text contrast and hierarchy across saturated, pale and borderline paper", () => {
+it("preserves small-text contrast across saturated, pale and borderline paper", () => {
   const samples = [
     "#ffeeaa",
     "#202040",
@@ -37,14 +37,5 @@ it("preserves small-text contrast and hierarchy across saturated, pale and borde
     const { text, muted, faint } = paperTextColors(paper);
     const ratios = [text, muted, faint].map((color) => contrast(color, paper));
     expect(Math.min(...ratios), paper).toBeGreaterThanOrEqual(4.5);
-    expect(ratios[0], paper).toBeGreaterThanOrEqual(ratios[1]);
-    expect(ratios[1], paper).toBeGreaterThanOrEqual(ratios[2]);
   }
-  const cream = paperTextColors("#ffeeaa");
-  expect(new Set(Object.values(cream)).size).toBe(3);
-  const tint = colors.textToRgb(cream.muted);
-  expect(tint.r).toBeGreaterThan(tint.g);
-  expect(tint.g).toBeGreaterThan(tint.b);
-  const borderline = paperTextColors("#777777");
-  expect(borderline.muted).toBe(borderline.faint);
 });

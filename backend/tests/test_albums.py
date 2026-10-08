@@ -513,5 +513,3 @@ class TestGenerateChapterPdf:
 
         assert resp.status_code == 404
         assert resp.json()["detail"] == "Chapter not found"
-
-        assert resp.json()["detail"] == "Chapter not found"

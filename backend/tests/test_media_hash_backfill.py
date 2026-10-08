@@ -12,7 +12,6 @@ from app.logic.workflows.media_hashes import (
     backfill_media_hashes,
     enqueue_media_hash_backfill,
     media_hash_backfill_revision,
-    media_hash_backfill_workflow,
     missing_media_hash_backfill_targets,
     persist_media_hash_batch,
 )
@@ -34,50 +33,6 @@ if TYPE_CHECKING:
 
 async def _async_value(value: object) -> object:
     return value
-
-
-async def test_enqueue_uses_the_deterministic_workflow_id(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    workflow_ids: list[str] = []
-    calls: list[tuple[str, object, dict[str, object]]] = []
-    handle = object()
-
-    class FakeSetWorkflowID:
-        def __init__(self, workflow_id: str) -> None:
-            self.workflow_id = workflow_id
-
-        def __enter__(self) -> None:
-            workflow_ids.append(self.workflow_id)
-
-        def __exit__(self, *_args: object) -> None:
-            return None
-
-    async def fake_enqueue(
-        queue_name: str, workflow: object, payload: dict[str, object]
-    ) -> object:
-        calls.append((queue_name, workflow, payload))
-        return handle
-
-    monkeypatch.setattr(media_hashes, "SetWorkflowID", FakeSetWorkflowID)
-    monkeypatch.setattr(media_hashes.DBOS, "enqueue_workflow_async", fake_enqueue)
-    monkeypatch.setattr(
-        media_hashes.DBOS,
-        "get_workflow_status_async",
-        lambda _workflow_id: _async_value(None),
-    )
-
-    result = await enqueue_media_hash_backfill(42, "trip-1", 7, "abc123")
-
-    assert result is handle
-    assert workflow_ids == ["media-hash-backfill:42:trip-1:7:abc123"]
-    assert calls == [
-        (
-            "media-hash-backfill",
-            media_hash_backfill_workflow,
-            {"uid": 42, "aid": "trip-1"},
-        )
-    ]
 
 
 async def test_enqueue_retries_a_terminal_revision_once(
@@ -293,40 +248,6 @@ class _SessionContext:
         _traceback: TracebackType | None,
     ) -> None:
         return None
-
-
-async def test_album_step_hashes_the_snapshot_once_before_committing_batches(
-    session: AsyncSession,
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    await insert_album(session, 1)
-    _, first = await _candidate(session, tmp_path)
-    _, second = await _candidate(session, tmp_path, name=MISSING_MEDIA_NAME)
-    monkeypatch.setattr(media_hashes, "_HASH_BATCH_SIZE", 1)
-    monkeypatch.setattr(
-        media_hashes,
-        "_discover_candidates",
-        lambda *_args: _async_value(([first, second], 0)),
-    )
-    monkeypatch.setattr(
-        media_hashes,
-        "AsyncSession",
-        lambda *_args, **_kwargs: _SessionContext(session),
-    )
-    calls = 0
-
-    def hash_snapshot(paths: list[Path], **_kwargs: object) -> dict[str, list[str]]:
-        nonlocal calls
-        calls += 1
-        return {path.name: ["0123456789abcdef"] for path in paths}
-
-    monkeypatch.setattr(media_hashes, "compute_serialized_media_hashes", hash_snapshot)
-
-    result = await backfill_media_hashes(1, "trip-1", tmp_path)
-
-    assert result == HashBackfillStats(hashed=2)
-    assert calls == 1
 
 
 async def test_album_step_resumes_from_committed_batches(

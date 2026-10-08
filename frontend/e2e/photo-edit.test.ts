@@ -57,9 +57,12 @@ test("edits a photo globally with full rotation and keyboard crop controls", asy
   await expect(range).toHaveAttribute("max", "180");
   await expect(dialog.locator(".crop-box")).toBeVisible();
 
-  await dialog
-    .getByRole("spinbutton", { name: "Rotation angle in degrees" })
-    .fill("90");
+  const angle = dialog.getByRole("spinbutton", {
+    name: "Rotation angle in degrees",
+  });
+  // fill() does not wait for stability; finish opening before editing the draft.
+  await angle.click();
+  await angle.fill("90");
   await dialog
     .getByRole("spinbutton", { name: "Rotation angle in degrees" })
     .blur();

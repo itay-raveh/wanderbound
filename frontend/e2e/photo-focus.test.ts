@@ -45,9 +45,12 @@ test.describe("Photo focus & arrow navigation", () => {
   }) => {
     const first = await selectFirstPhoto(page);
     await expect(first).toHaveAttribute("aria-pressed", "true");
+    const nextPhoto = await photos(page).nth(1).getAttribute("data-media");
 
     await page.keyboard.press("ArrowRight");
     await expectOneSelected(page);
+    await expect(selected(page)).toHaveAttribute("data-media", nextPhoto!);
+    await expect(first).not.toHaveAttribute("aria-pressed", "true");
 
     await expect
       .poll(async () =>
@@ -83,11 +86,21 @@ test.describe("Send to unused & set as cover", () => {
   test("sendToUnused removes photo and advances focus", async ({
     focusPage: page,
   }) => {
-    await selectFirstPhoto(page);
+    const first = await selectFirstPhoto(page);
+    const movedPhoto = await first.getAttribute("data-media");
+    const nextPhoto = await photos(page).nth(1).getAttribute("data-media");
 
     await page.keyboard.press(PHOTO_SHORTCUTS.sendToUnused);
 
+    await expect(
+      page.locator(`.page-content [data-media="${movedPhoto}"]`),
+    ).toHaveCount(0);
+    await expect(
+      page.locator(`.unused-drawer [data-media="${movedPhoto}"]`),
+    ).toBeVisible();
     await expectOneSelected(page);
+    await expect(selected(page)).toHaveAttribute("data-media", nextPhoto!);
+    await expect(selected(page)).toBeFocused();
     await expect(selected(page)).toBeInViewport();
   });
 
