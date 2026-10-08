@@ -13,7 +13,6 @@ from pydantic import TypeAdapter, ValidationError
 
 from app.core.http_clients import HttpClients
 from app.core.worker_threads import run_sync
-from app.logic.chapters import map_ranges_for_steps
 from app.logic.layout import Layout
 from app.logic.layout.media import (
     Media,
@@ -38,6 +37,7 @@ from app.logic.trip_processing import (
     drain_queue,
     fetch_layouts,
     load_trip_data,
+    multi_day_hike_ranges,
     prepare_media,
     run_elevations,
     run_weather,
@@ -461,9 +461,7 @@ async def reconcile_trip(  # noqa: PLR0913
     )
     yield PhaseUpdate(phase="segments", done=1, total=1)
     yield count_segments(segments)
-    # Keep edited maps and intentional deletions. Ranges use dates, not step IDs
-    # or positions; discard only those with no remaining steps on their dates.
-    album.maps_ranges = map_ranges_for_steps(album.maps_ranges, all_steps)
+    album.maps_ranges = multi_day_hike_ranges(segments)
 
     db_out.append(album)
     db_out.extend(album_media)

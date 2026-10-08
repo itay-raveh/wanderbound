@@ -17,6 +17,7 @@ from app.logic.segment_routes import (
     match_album_segment_routes,
     pending_route_enrichment_targets,
 )
+from app.models.polarsteps import Point
 from app.models.segment import (
     RouteEnrichmentStatus,
     Segment,
@@ -508,3 +509,52 @@ async def test_advisory_lock_already_held_skips_run(engine: AsyncEngine) -> None
     result.match_segments.assert_not_awaited()
     assert result.stats.already_running
     assert await _route_for(engine, uid) is None
+
+
+@pytest.mark.parametrize("saved_route", [[], [(4.1, 52.1), (4.2, 52.2)]])
+@pytest.mark.parametrize("repaired", [False, True])
+async def test_stale_success_is_repaired_once_without_retrying_terminal_failure(
+    engine: AsyncEngine, saved_route: Route, *, repaired: bool
+) -> None:
+    uid = 3991 + int(repaired) * 4 + int(bool(saved_route)) * 2
+    terminal_uid = uid + 1
+    coords = [(4.0, 52.0), (4.1, 52.1), (4.2, 52.2)]
+    points = [Point(lon=x, lat=y, time=100 + i * 50) for i, (x, y) in enumerate(coords)]
+    async with AsyncSession(engine) as session:
+        for owner in (uid, terminal_uid):
+            await insert_album(session, owner)
+            segment = await insert_segment(
+                session, owner, start_time=100, end_time=200, points=points
+            )
+            segment.route = saved_route if owner == uid else None
+            session.add(segment)
+            session.add(
+                SegmentRouteEnrichment(
+                    uid=owner,
+                    aid=AID,
+                    start_time=100,
+                    end_time=200,
+                    status=RouteEnrichmentStatus.matched
+                    if owner == uid
+                    else RouteEnrichmentStatus.no_route,
+                    error_code=None if owner == uid else "NoSegment",
+                )
+            )
+        await session.commit()
+        targets = await pending_route_enrichment_targets(session)
+    assert (uid, AID) in targets
+    assert (terminal_uid, AID) not in targets
+
+    outcome = _matched(coords) if repaired else _no_route("incomplete_match")
+    await _run_route_enrichment(engine, uid, route_result=([outcome], _stats()))
+    assert await _route_for(engine, uid) == (coords if repaired else None)
+    state = await _state_for(engine, uid)
+    assert state is not None
+    assert state.status == outcome.status
+    assert state.error_code == outcome.error_code
+    async with AsyncSession(engine) as session:
+        assert (uid, AID) not in await pending_route_enrichment_targets(session)
+    terminal = await _state_for(engine, terminal_uid)
+    assert terminal is not None
+    assert terminal.error_code == "NoSegment"
+    assert await _route_for(engine, terminal_uid) is None

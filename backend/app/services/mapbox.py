@@ -15,6 +15,7 @@ from app.core.observability import set_span_data, start_span
 from app.logic.route_matching import (
     Coords,
     reduce_coord_indices,
+    route_covers_trace_endpoints,
     simplify_route,
 )
 from app.logic.spatial.geo import total_length_km
@@ -29,7 +30,6 @@ type TimedCoords = list[TimedCoord]
 
 MATCH_MAX_COORDS = 100
 MATCH_CHUNK_COORDS = 90
-DIRECTIONS_MAX_COORDS = 25
 ROUTE_REQUEST_BATCH_TARGET = 100
 MAX_TRACE_GAP_S = 4 * 60 * 60
 REQUEST_BUDGET_EXCEEDED = "request_budget_exceeded"
@@ -194,13 +194,11 @@ def _matching_request_points(points: TimedCoords) -> list[tuple[int, float]]:
 
 
 def _parse_matching_response(
-    response: httpx.Response, expected_points: int
+    response: httpx.Response, request_coords: Coords
 ) -> RouteMatchResult:
     data = _MatchingResponse.model_validate_json(response.content)
-    if data.code in _NO_ROUTE_CODES:
-        return _no_route(data.code)
     if data.code != "Ok":
-        return _failed(data.code)
+        return (_no_route if data.code in _NO_ROUTE_CODES else _failed)(data.code)
     if not data.matchings:
         return _no_route("NoMatch")
     # Sub-matches omit connecting roads; joining them invents a straight bridge.
@@ -209,17 +207,23 @@ def _parse_matching_response(
     if (
         len(data.matchings) != 1
         or tracepoints is None
-        or len(tracepoints) != expected_points
-        or tracepoints[0] is None
-        or tracepoints[-1] is None
-        or tracepoints[0].matchings_index != 0
-        or tracepoints[-1].matchings_index != 0
+        or len(tracepoints) != len(request_coords)
+        or any(
+            point is not None and point.matchings_index != 0 for point in tracepoints
+        )
     ):
         return _no_route("incomplete_match")
     points: Coords = [
         (coord[0], coord[1]) for coord in data.matchings[0].geometry.coordinates
     ]
-    return _matched(points) if len(points) >= 2 else _failed("invalid_geometry")
+    if len(points) < 2:
+        return _failed("invalid_geometry")
+    # Tidy can omit clustered/outlier endpoints while retaining the whole line.
+    if (
+        tracepoints[0] is None or tracepoints[-1] is None
+    ) and not route_covers_trace_endpoints(request_coords, points):
+        return _no_route("incomplete_match")
+    return _matched(points)
 
 
 def _record_cache_result(
@@ -282,7 +286,7 @@ async def _fetch_matching(
             raise MapboxTransientError("matching:request_failed") from exc
     if not response.is_success:
         return _http_failure(response, operation="matching")
-    return _parse_matching_response(response, len(reduced))
+    return _parse_matching_response(response, reduced)
 
 
 async def _fetch_directions(
@@ -372,15 +376,10 @@ def route_request_batch_indices(
     selected: list[int] = []
     for index, (points, profile) in enumerate(pairs):
         plan, planning_error = _plan_route(points, profile)
-        requests = _planned_requests(plan) if planning_error is None else 0
+        requests = len(plan) if planning_error is None else 0
         if budget.reserve(requests):
             selected.append(index)
     return selected
-
-
-def _planned_requests(plan: list[_RoutePart]) -> int:
-    # Reserve a Directions fallback for each matching request before batching.
-    return sum(2 if part.operation == "matching" else 1 for part in plan)
 
 
 async def _fetch_route_part(
@@ -391,17 +390,8 @@ async def _fetch_route_part(
     stats: RouteMatchStats | None,
 ) -> RouteMatchResult:
     if part.operation == "matching":
-        result = await _fetch_matching(
+        return await _fetch_matching(
             clients.matching, part.points, profile, token, stats
-        )
-        if result.error_code not in {"NoMatch", "incomplete_match"}:
-            return result
-        coords = _coords(part.points)
-        if total_length_km(coords) > _DIRECTIONS_MAX_DISTANCE_KM[profile]:
-            return _no_route("directions_distance_limit")
-        indices = reduce_coord_indices(coords, DIRECTIONS_MAX_COORDS)
-        return await _fetch_directions(
-            clients.directions, [part.points[i] for i in indices], profile, token, stats
         )
     return await _fetch_directions(
         clients.directions, part.points, profile, token, stats
@@ -492,7 +482,7 @@ async def _match_one(  # noqa: PLR0913
             else _no_route
         )
         return status(planning_error)
-    if budget is not None and not budget.reserve(_planned_requests(plan)):
+    if budget is not None and not budget.reserve(len(plan)):
         if stats is not None:
             stats.budget_fallbacks += 1
         return _no_route(REQUEST_BUDGET_EXCEEDED)

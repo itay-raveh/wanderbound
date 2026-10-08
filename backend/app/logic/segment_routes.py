@@ -2,12 +2,13 @@ from __future__ import annotations
 
 import time
 from dataclasses import asdict, dataclass
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 from uuid import uuid4
 
 import structlog
 from dbos import DBOS, SetWorkflowID
-from sqlalchemy import String, and_, cast, or_
+from sqlalchemy import and_, or_
 from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -15,7 +16,7 @@ from app.core.db import get_engine
 from app.core.http_clients import HttpClients
 from app.core.locks import try_advisory_lock
 from app.core.observability import set_span_data, start_span
-from app.logic.route_matching import MATCHABLE_KINDS
+from app.logic.route_matching import MATCHABLE_KINDS, route_covers_trace_endpoints
 from app.models.segment import (
     RouteEnrichmentStatus,
     Segment,
@@ -97,10 +98,6 @@ def _snapshots_for_keys(
         return snapshots
     by_key = {snapshot[0]: snapshot for snapshot in snapshots}
     return [by_key[key] for key in keys if key in by_key]
-
-
-def _route_missing() -> ColumnElement[bool]:
-    return or_(col(Segment.route).is_(None), cast(col(Segment.route), String) == "null")
 
 
 def _without_enrichment_state() -> ColumnElement[bool]:
@@ -257,18 +254,8 @@ def start_album_route_enrichment(uid: int, aid: str) -> object:
 async def pending_route_enrichment_targets(
     session: AsyncSession,
 ) -> list[tuple[int, str]]:
-    rows = await session.exec(
-        select(Segment.uid, Segment.aid)
-        .outerjoin(SegmentRouteEnrichment, _enrichment_join())
-        .where(
-            col(Segment.kind).in_(MATCHABLE_KINDS),
-            _route_missing(),
-            _without_enrichment_state(),
-        )
-        .distinct()
-        .order_by(col(Segment.uid), col(Segment.aid))
-    )
-    return list(rows.all())
+    rows = await _route_candidates(session)
+    return sorted({(seg.uid, seg.aid) for seg, _ in rows})
 
 
 async def reconcile_missing_route_enrichments() -> None:
@@ -454,26 +441,46 @@ def _log_complete(
 async def _unmatched_snapshots(
     session: AsyncSession, uid: int, aid: str
 ) -> list[SegmentSnapshot]:
-    result = await session.exec(
-        select(Segment)
-        .outerjoin(SegmentRouteEnrichment, _enrichment_join())
-        .where(
-            Segment.uid == uid,
-            Segment.aid == aid,
-            col(Segment.kind).in_(MATCHABLE_KINDS),
-            _route_missing(),
-            _without_enrichment_state(),
-        )
-        .order_by(col(Segment.start_time))
-    )
+    rows = await _route_candidates(session, uid, aid)
     return [
         (
             (seg.uid, seg.aid, seg.start_time, seg.end_time),
             [(p.lon, p.lat, p.time) for p in seg.points],
             str(seg.kind),
         )
-        for seg in result.all()
+        for seg, _ in rows
     ]
+
+
+def _needs_route_enrichment(seg: Segment, state: SegmentRouteEnrichment | None) -> bool:
+    # Never retry terminal no_route/failed outcomes. Only stale successful
+    # geometry (or untouched segments) can enter this bounded repair path.
+    return (
+        state is None or state.status == RouteEnrichmentStatus.matched
+    ) and not route_covers_trace_endpoints(
+        [(p.lon, p.lat) for p in seg.points], seg.route
+    )
+
+
+async def _route_candidates(
+    session: AsyncSession, uid: int | None = None, aid: str | None = None
+) -> list[tuple[Segment, SegmentRouteEnrichment | None]]:
+    query = (
+        select(Segment, SegmentRouteEnrichment)
+        .outerjoin(SegmentRouteEnrichment, _enrichment_join())
+        .where(
+            col(Segment.kind).in_(MATCHABLE_KINDS),
+            or_(
+                _without_enrichment_state(),
+                col(SegmentRouteEnrichment.status) == RouteEnrichmentStatus.matched,
+            ),
+        )
+        .order_by(col(Segment.start_time))
+    )
+    if uid is not None:
+        query = query.where(Segment.uid == uid, Segment.aid == aid)
+    rows = await session.exec(query)
+    return [(seg, state) for seg, state in rows if _needs_route_enrichment(seg, state)]
 
 
 async def _write_outcome(
@@ -483,25 +490,29 @@ async def _write_outcome(
 ) -> tuple[int, int]:
     segment = await session.get(Segment, key)
     state = await session.get(SegmentRouteEnrichment, key)
-    if segment is None or segment.route is not None or state is not None:
+    if segment is None or not _needs_route_enrichment(segment, state):
         return 0, 0
 
+    segment.route = None
+    session.add(segment)
     updated = 0
     if result.status == RouteEnrichmentStatus.matched and result.route:
         segment.route = list(result.route)
         session.add(segment)
         updated = 1
 
-    session.add(
-        SegmentRouteEnrichment(
+    if state is None:
+        state = SegmentRouteEnrichment(
             uid=segment.uid,
             aid=segment.aid,
             start_time=segment.start_time,
             end_time=segment.end_time,
             status=result.status,
-            error_code=result.error_code,
         )
-    )
+    state.status = result.status
+    state.error_code = result.error_code
+    state.attempted_at = datetime.now(UTC)
+    session.add(state)
     return 1, updated
 
 

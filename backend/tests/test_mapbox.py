@@ -337,114 +337,79 @@ async def test_single_route_exceeds_target_with_bounded_execution() -> None:
     assert result.status == RouteEnrichmentStatus.matched
 
 
-@pytest.mark.parametrize("shape", ["prefix", "suffix", "split", "no_match", "outlier"])
-async def test_sparse_trace_keeps_complete_route_coverage(
+def _matching_shape(
+    shape: str,
+) -> tuple[list[tuple[float, float]], list[list[float]], dict[str, object]]:
+    coords = [(4.0, 52.0), (4.1, 52.05), (4.2, 52.1)]
+    if shape == "loop":
+        coords[-1] = coords[0]
+    route = [list(p) for p in coords]
+    tracepoints: list[dict[str, int] | None] = [{"matchings_index": 0}] * 3
+    if shape == "prefix":
+        tracepoints[0] = None
+        route = route[1:]
+    elif shape == "suffix":
+        tracepoints[-1] = None
+        route = route[:-1]
+    elif shape == "interior_outlier":
+        tracepoints[1] = None
+        route = [route[0], route[-1]]
+    elif shape == "cluster_endpoint":
+        tracepoints[0] = None
+        route[0][0] += 0.0001
+    elif shape == "snapped":
+        route[0][0] += 0.0004
+        route[-1][0] += 0.0004
+    matchings = [{"geometry": {"type": "LineString", "coordinates": route}}]
+    if shape == "split":
+        matchings.append(matchings[0])
+        tracepoints[-1] = {"matchings_index": 1}
+
+    return (
+        coords,
+        route,
+        {"code": "Ok", "matchings": matchings, "tracepoints": tracepoints},
+    )
+
+
+@pytest.mark.parametrize(
+    "shape",
+    [
+        "prefix",
+        "suffix",
+        "split",
+        "interior_outlier",
+        "cluster_endpoint",
+        "snapped",
+        "loop",
+    ],
+)
+async def test_matching_keeps_coverage_without_guessing_another_road(
     shape: str,
 ) -> None:
-    points = [(4.0, 52.0, 0.0), (4.1, 52.05, 3 * 3600.0), (4.2, 52.1, 3 * 3600.0 + 60)]
-    route = [[4.0, 52.0], [4.08, 52.08], [4.1, 52.05], [4.2, 52.1]]
+    coords, route, response = _matching_shape(shape)
 
     def handler(request: httpx.Request) -> httpx.Response:
-        if "/directions/" in request.url.path:
-            assert shape != "outlier", "complete matching must not incur paid fallback"
-            assert request.url.path.endswith("/4.0,52.0;4.1,52.05;4.2,52.1")
-            return httpx.Response(
-                200,
-                json={
-                    "code": "Ok",
-                    "routes": [
-                        {"geometry": {"type": "LineString", "coordinates": route}}
-                    ],
-                },
-                request=request,
-            )
-        geometry = {
-            "type": "LineString",
-            "coordinates": route if shape == "outlier" else route[1:],
-        }
-        tracepoints: list[dict[str, int] | None] = [{"matchings_index": 0}] * 3
-        matchings = [{"geometry": geometry}]
-        if shape == "outlier":
-            tracepoints[1] = None
-        elif shape == "prefix":
-            tracepoints[0] = None
-        elif shape == "suffix":
-            tracepoints[-1] = None
-        elif shape == "split":
-            matchings.append({"geometry": geometry})
-        data = (
-            {"code": "NoMatch"}
-            if shape == "no_match"
-            else {
-                "code": "Ok",
-                "matchings": matchings,
-                "tracepoints": tracepoints,
-            }
-        )
-        return httpx.Response(
-            200, json=data, request=request, extensions={"hishel_from_cache": True}
-        )
-
-    async with _client(handler) as client:
-        result = await _match_one(
-            MapboxRouteClients(client, client), points, "driving", "token"
-        )
-    assert result.status == RouteEnrichmentStatus.matched
-    assert result.route == [tuple(coord) for coord in route]
-
-
-async def test_unroutable_sparse_trace_keeps_gps_fallback() -> None:
-    def handler(request: httpx.Request) -> httpx.Response:
-        code = "NoMatch" if "/matching/" in request.url.path else "NoRoute"
-        return httpx.Response(200, json={"code": code}, request=request)
-
-    async with _client(handler) as client:
-        result = await _match_one(
-            MapboxRouteClients(client, client),
-            _timed([(4.0, 52.0), (4.1, 52.1), (4.2, 52.2)]),
-            "driving",
-            "token",
-        )
-    assert result.status == RouteEnrichmentStatus.no_route
-    assert result.route is None
-    assert result.error_code == "NoRoute"
-
-
-async def test_partial_match_fallback_respects_coordinate_and_request_limits() -> None:
-    calls: list[httpx.Request] = []
-
-    def handler(request: httpx.Request) -> httpx.Response:
-        calls.append(request)
-        if "/matching/" in request.url.path:
-            return httpx.Response(200, json={"code": "NoMatch"}, request=request)
-        coords = [
-            [float(v) for v in pair.split(",")]
-            for pair in request.url.path.rsplit("/", 1)[-1].split(";")
-        ]
-        assert len(coords) <= 25
+        assert "/matching/" in request.url.path, "must not infer a road with Directions"
         return httpx.Response(
             200,
-            json={
-                "code": "Ok",
-                "routes": [{"geometry": {"type": "LineString", "coordinates": coords}}],
-            },
+            json=response,
             request=request,
         )
 
-    points = _timed([(4.0 + i * 0.001, 52.0 + (i % 2) * 0.001) for i in range(90)])
     async with _client(handler) as client:
         result = await _match_one(
-            MapboxRouteClients(client, client),
-            points,
-            "driving",
-            "token",
-            budget=_RequestBudget(2),
+            MapboxRouteClients(client, client), _timed(coords), "driving", "token"
         )
-    assert len(calls) == 2
-    assert result.status == RouteEnrichmentStatus.matched
-    assert result.route
-    assert result.route[0] == points[0][:2]
-    assert result.route[-1] == points[-1][:2]
+    if shape in {"prefix", "suffix", "split"}:
+        assert result.status == RouteEnrichmentStatus.no_route
+        assert result.route is None
+        assert result.error_code == "incomplete_match"
+    else:
+        assert result.status == RouteEnrichmentStatus.matched
+        assert result.route is not None
+        assert result.route[0] == tuple(route[0])
+        assert result.route[-1] == tuple(route[-1])
 
 
 async def test_discontinuous_trace_never_requests_matching_or_directions() -> None:

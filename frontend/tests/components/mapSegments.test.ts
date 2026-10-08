@@ -52,30 +52,44 @@ describe("drawSegmentsAndMarkers", () => {
     },
   );
 
-  it("retains a complete road route with ordinary endpoint snapping", () => {
-    const map = makeMap();
-    const route: [number, number][] = [
-      [4.0001, 52.0],
-      [4.06, 52.15],
-      [4.1001, 52.1],
-    ];
-    drawSegmentsAndMarkers(map as never, {
-      segments: [
-        makeSegment({
-          kind: "driving",
-          route,
-          points: [
-            { lon: 4.0, lat: 52.0, time: 0 },
-            { lon: 4.1, lat: 52.1, time: 1 },
-          ],
-        }),
-      ],
-      steps: [],
-      albumId: "a1",
-    });
-    const source = map.addSource.mock.calls.find(
-      ([id]) => id === "seg-drive",
-    )?.[1];
-    expect(source.data.geometry.coordinates).toEqual([route]);
-  });
+  it.each(["snapped", "outlier", "loop", "directions"])(
+    "retains a valid $0 road route",
+    (shape) => {
+      const map = makeMap();
+      const route: [number, number][] = [
+        [4.0001, 52.0],
+        [4.06, 52.15],
+        [4.1001, 52.1],
+      ];
+      const points = [
+        { lon: 4.0, lat: 52.0, time: 0 },
+        { lon: 4.06, lat: 52.15, time: 1 },
+        { lon: 4.1, lat: 52.1, time: 2 },
+      ];
+      if (shape === "outlier") points[1].lat = 53;
+      if (shape === "loop") {
+        points[2] = { ...points[0], time: 2 };
+        route[2] = [...route[0]];
+      }
+      if (shape === "directions") {
+        points.splice(1, 1);
+        route[0][0] += 0.01;
+      }
+      drawSegmentsAndMarkers(map as never, {
+        segments: [
+          makeSegment({
+            kind: "driving",
+            route,
+            points,
+          }),
+        ],
+        steps: [],
+        albumId: "a1",
+      });
+      const source = map.addSource.mock.calls.find(
+        ([id]) => id === "seg-drive",
+      )?.[1];
+      expect(source.data.geometry.coordinates).toEqual([route]);
+    },
+  );
 });

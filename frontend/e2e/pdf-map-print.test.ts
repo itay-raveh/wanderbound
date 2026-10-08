@@ -295,6 +295,7 @@ test.describe("PDF map snapshots", () => {
     ];
     await installPdfMapFixture(page, 0, {
       ...bundle,
+      album: { ...bundle.album, maps_ranges: [] },
       segments: [driving, ...flights],
     });
     for (let attempt = 0; attempt < 2; attempt++) {
@@ -306,7 +307,7 @@ test.describe("PDF map snapshots", () => {
           (window as unknown as Record<string, unknown>).__PRINT_READY__ ===
           true,
       );
-      // Inspect real WebGL pixels in the detailed map, not a mocked map class.
+      // Inspect real WebGL pixels in the existing whole-trip map.
       // A suffix-only line occupies the bottom half; the complete drive spans
       // both sides of the map despite terrain and the captured JPEG encoding.
       const extent = await page
