@@ -44,8 +44,14 @@ export function useAlbumNavScrollSync({
   function scrollNavItemIntoView(selector: string) {
     void nextTick(() => {
       const el = listRef.value?.querySelector(selector);
-      (el as HTMLElement | null)?.scrollIntoView({
-        block: "center",
+      const root = listRef.value;
+      if (!root || !el) return;
+      root.scrollTo({
+        top:
+          root.scrollTop +
+          el.getBoundingClientRect().top -
+          root.getBoundingClientRect().top -
+          (root.clientHeight - el.clientHeight) / 2,
         behavior: scrollBehavior(),
       });
     });
