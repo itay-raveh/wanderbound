@@ -269,6 +269,16 @@ test.describe("Large album editor performance", () => {
       await page.goto("/editor");
       const nav = page.getByRole("navigation");
       const root = nav.locator(".nav-list");
+      const settleChapters = () =>
+        expect
+          .poll(() =>
+            nav
+              .locator(".q-expansion-item__content")
+              .evaluateAll((elements) =>
+                elements.every((el) => (el as HTMLElement).style.height === ""),
+              ),
+          )
+          .toBe(true);
       const finalHeader = nav
         .locator(".chapter-group-header")
         .filter({ hasText: "Chapter 40" });
@@ -276,6 +286,7 @@ test.describe("Large album editor performance", () => {
       await expect(finalHeader).toBeInViewport();
       await finalHeader.focus();
       await page.keyboard.press("Enter");
+      await settleChapters();
       const lastRow = nav.locator('[data-nav-step="240"]');
       await lastRow.scrollIntoViewIfNeeded();
       await expect(lastRow).toBeInViewport();
@@ -295,6 +306,7 @@ test.describe("Large album editor performance", () => {
       await expect(finalHeader).toBeFocused();
       await expect(finalHeader).toBeInViewport();
       await page.keyboard.press("Enter");
+      await settleChapters();
       await lastRow.scrollIntoViewIfNeeded();
       await expect(lastRow).toBeInViewport();
       expect(await page.evaluate(() => window.scrollY)).toBe(0);
@@ -507,26 +519,37 @@ test.describe("Large album editor performance", () => {
   test("keeps the active step near the middle of the nav while scrolling", async ({
     page,
   }) => {
-    await mockLargeAlbum(page);
+    await mockLargeAlbum(page, true);
     await page.goto("/editor");
     await expect(page.getByText("Large Album").first()).toBeVisible({
       timeout: 15_000,
     });
-    await scrollNavStepIntoView(page, 180);
-    await page.locator(`[data-nav-step="180"]`).click();
-    await expect(page.getByText("Large Step 180").first()).toBeVisible({
+    await scrollNavStepIntoView(page, 119);
+    await page.locator(`[data-nav-step="119"]`).click();
+    await expect(page.getByText("Large Step 119").first()).toBeVisible({
       timeout: 10_000,
     });
+    await expect(page.locator(".page-position")).toHaveText("Page 595 of 1212");
     await page.mouse.move(640, 360);
-    await page.mouse.wheel(0, 900);
+    await page.mouse.wheel(0, 10000);
 
     await expect
       .poll(() => page.locator("[data-nav-step].visible").textContent())
       .toContain("Large Step");
+    await expect
+      .poll(async () =>
+        Number(
+          await page
+            .locator("[data-nav-step].visible")
+            .getAttribute("data-nav-step"),
+        ),
+      )
+      .toBeGreaterThan(120);
     const activeStep = await page
       .locator("[data-nav-step].visible")
       .getAttribute("data-nav-step");
     expect(activeStep).not.toBeNull();
+    expect(Number(activeStep)).toBeGreaterThan(120);
 
     await expect
       .poll(() => activeNavStepCenterOffset(page, Number(activeStep)))
