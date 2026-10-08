@@ -169,7 +169,11 @@ async function saveMap(range: DateRange) {
           @edit-map="openEditMap"
         >
           <template #step-pages="{ stepId }">
-            <NavStepPages :step="stepIndex.byId.get(stepId)!" :media="media" />
+            <NavStepPages
+              :step="stepIndex.byId.get(stepId)!"
+              :media="media"
+              :album="album"
+            />
           </template>
         </NavChapterGroup>
       </template>

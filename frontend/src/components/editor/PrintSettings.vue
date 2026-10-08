@@ -4,6 +4,7 @@ import { zAlbumChapter, zAlbumMeta } from "@/client/zod.gen";
 import { z } from "zod";
 import { useAlbumMutation } from "@/queries/useAlbumMutation";
 import { useI18n } from "vue-i18n";
+import PageSizeSettings from "./PageSizeSettings.vue";
 const props = defineProps<{
   album: AlbumMeta;
   chapter?: AlbumChapter;
@@ -67,6 +68,7 @@ function setSpine(raw: string | number | null) {
 
 <template>
   <div class="print-settings" :class="{ 'cover-controls': coverOnly }">
+    <PageSizeSettings v-if="!coverOnly" :album="album" />
     <q-input
       v-if="!coverOnly"
       :model-value="album.safe_margin_mm ?? 0"

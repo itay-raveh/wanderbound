@@ -1,8 +1,8 @@
 import type { StepRead as Step } from "@/client";
 import type { PageFraction } from "@/utils/photoLayout";
 import {
-  PAGE_WIDTH_MM,
-  PAGE_HEIGHT_MM,
+  albumPageSize,
+  type PageSize,
   MM_PER_INCH,
   META_RATIO,
 } from "@/utils/pageSize";
@@ -73,9 +73,10 @@ export function computeDpi(
   heightPx: number,
   cell: PageFraction,
   fit: PhotoFit,
+  size: PageSize = albumPageSize(),
 ): number {
-  const cellWidthInches = (cell.widthFrac * PAGE_WIDTH_MM) / MM_PER_INCH;
-  const cellHeightInches = (cell.heightFrac * PAGE_HEIGHT_MM) / MM_PER_INCH;
+  const cellWidthInches = (cell.widthFrac * size.widthMm) / MM_PER_INCH;
+  const cellHeightInches = (cell.heightFrac * size.heightMm) / MM_PER_INCH;
   const widthDpi = widthPx / cellWidthInches;
   const heightDpi = heightPx / cellHeightInches;
   return fit === "contain"
@@ -96,6 +97,7 @@ function dpiTier(
 function effectivePanoramaDimensions(
   media: MediaDimensions,
   cell: PageFraction,
+  size: PageSize,
 ): MediaDimensions | null {
   const panorama = media.panorama;
   if (!panorama) return null;
@@ -105,7 +107,7 @@ function effectivePanoramaDimensions(
     (Math.min(359, (90 * media.width) / media.height) * Math.PI) / 180;
   const perspectiveFov = ((panorama.perspective_fov ?? 70) * Math.PI) / 180;
   const cellAspect =
-    (cell.widthFrac * PAGE_WIDTH_MM) / (cell.heightFrac * PAGE_HEIGHT_MM);
+    (cell.widthFrac * size.widthMm) / (cell.heightFrac * size.heightMm);
   const perspectiveVerticalFov =
     2 * Math.atan(Math.tan(perspectiveFov / 2) / cellAspect);
   const cylinderFocalLength = sourceWidth / capturedFov;
@@ -130,10 +132,11 @@ export function mediaQuality(
   fit: PhotoFit,
   mediaByName: ReadonlyMap<string, MediaDimensions>,
   preset: MediaResolutionWarningPreset = DEFAULT_MEDIA_RESOLUTION_WARNING_PRESET,
+  size: PageSize = albumPageSize(),
 ): PhotoQuality | null {
   const m = mediaByName.get(name);
   if (!m) return null;
-  const rendered = effectivePanoramaDimensions(m, cell) ?? m;
+  const rendered = effectivePanoramaDimensions(m, cell, size) ?? m;
   const edit = m.photo_edit;
   const dimensions = edit
     ? (() => {
@@ -144,7 +147,7 @@ export function mediaQuality(
         };
       })()
     : rendered;
-  const dpi = computeDpi(dimensions.width, dimensions.height, cell, fit);
+  const dpi = computeDpi(dimensions.width, dimensions.height, cell, fit, size);
   return { tier: dpiTier(dpi, preset), dpi: Math.round(dpi) };
 }
 
@@ -154,6 +157,7 @@ export function summarizeQuality(
   backCover: string | undefined,
   mediaByName: ReadonlyMap<string, MediaDimensions>,
   preset: MediaResolutionWarningPreset = DEFAULT_MEDIA_RESOLUTION_WARNING_PRESET,
+  size: PageSize = albumPageSize(),
 ): QualitySummary {
   const summary: QualitySummary = { caution: 0, warning: 0 };
 
@@ -165,13 +169,25 @@ export function summarizeQuality(
   // Cover photos
   if (frontCover)
     count(
-      mediaQuality(frontCover, COVER_FRACTION, "cover", mediaByName, preset)
-        ?.tier ?? "ok",
+      mediaQuality(
+        frontCover,
+        COVER_FRACTION,
+        "cover",
+        mediaByName,
+        preset,
+        size,
+      )?.tier ?? "ok",
     );
   if (backCover)
     count(
-      mediaQuality(backCover, COVER_FRACTION, "cover", mediaByName, preset)
-        ?.tier ?? "ok",
+      mediaQuality(
+        backCover,
+        COVER_FRACTION,
+        "cover",
+        mediaByName,
+        preset,
+        size,
+      )?.tier ?? "ok",
     );
 
   const isP = (name: string) => isPortraitByName(name, mediaByName);
@@ -186,6 +202,7 @@ export function summarizeQuality(
           "cover",
           mediaByName,
           preset,
+          size,
         )?.tier ?? "ok",
       );
 
@@ -205,6 +222,7 @@ export function summarizeQuality(
             "cover",
             mediaByName,
             preset,
+            size,
           )?.tier ?? "ok",
         );
         continue;
@@ -216,8 +234,8 @@ export function summarizeQuality(
       for (let i = 0; i < ordered.length; i++) {
         const cell = photoPageFraction(layoutClass, i);
         count(
-          mediaQuality(ordered[i], cell, fit, mediaByName, preset)?.tier ??
-            "ok",
+          mediaQuality(ordered[i], cell, fit, mediaByName, preset, size)
+            ?.tier ?? "ok",
         );
       }
     }

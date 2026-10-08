@@ -12,7 +12,7 @@ import { useI18n } from "vue-i18n";
 
 const { formatDateRange } = useUserQuery();
 const { t } = useI18n();
-const { mediaByName, mediaResolutionWarningPreset } = useAlbum();
+const { mediaByName, mediaResolutionWarningPreset, pageSize } = useAlbum();
 
 const props = defineProps<{
   album: AlbumMeta;
@@ -37,6 +37,7 @@ const coverQuality = computed(() =>
         "cover",
         mediaByName.value,
         mediaResolutionWarningPreset.value,
+        pageSize.value,
       )
     : null,
 );

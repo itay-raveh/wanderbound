@@ -8,7 +8,7 @@ import MediaItem from "../MediaItem.vue";
 import StepMetaPanel from "./StepMetaPanel.vue";
 import { computed } from "vue";
 
-const { mediaByName, mediaResolutionWarningPreset } = useAlbum();
+const { mediaByName, mediaResolutionWarningPreset, pageSize } = useAlbum();
 
 const props = defineProps<{
   step: Step;
@@ -28,6 +28,7 @@ const coverQuality = computed(() =>
         "cover",
         mediaByName.value,
         mediaResolutionWarningPreset.value,
+        pageSize.value,
       )
     : null,
 );

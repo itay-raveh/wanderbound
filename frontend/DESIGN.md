@@ -96,13 +96,14 @@ Controls are familiar, compact, keyboard-visible, and equivalent across light,
 dark, LTR, and RTL modes. Reuse shared components under `src/components/ui/`
 and Quasar primitives before creating another interaction pattern.
 
-The A4 landscape album page is the signature surface and defines the finished
-interior size. Bleed extends outside its trim boundary. Wraparound covers combine
+Album trim dimensions are editable in the Print inspector. A4 landscape
+(297 × 210 mm) remains the default; presets fill the same editable dimensions.
+Display units do not change stored millimeters. Bleed extends outside its trim boundary. Wraparound covers combine
 two cover panels and a configurable spine on a wider sheet. Preview and PDF share
 the same artwork and geometry. Album geometry uses millimeters; application UI
 uses rem units.
 
-The inspector's Print section owns safe margin, interior and cover bleed, and
+The inspector's Print section owns trim dimensions, safe margin, interior and cover bleed, and
 per-chapter spine width. Front and back cover pages open their chapter's
 wraparound preview from a shared action row alongside panorama controls.
 Wraparound previews, panorama framing, and the full-screen print overview share

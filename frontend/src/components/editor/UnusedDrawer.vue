@@ -26,16 +26,19 @@ const props = defineProps<{
 }>();
 
 const stepMut = useStepMutation(() => props.albumId);
-const { mediaByName } = useAlbum();
+const { mediaByName, geometrySettings } = useAlbum();
 const saving = computed(() => stepMut.asyncStatus.value === "loading");
 const reducedMotion = usePreferredReducedMotion();
 const availablePages = computed(() =>
-  planStepPages(props.step, mediaByName.value).tilePages.flatMap(
-    ({ page, originalIdx }, index) =>
-      page.kind === "grid" &&
-      pageSlots(props.step.pages[originalIdx]).length < 6
-        ? [{ sourceIndex: originalIdx, number: index + 1 }]
-        : [],
+  planStepPages(
+    props.step,
+    mediaByName.value,
+    undefined,
+    geometrySettings.value,
+  ).tilePages.flatMap(({ page, originalIdx }, index) =>
+    page.kind === "grid" && pageSlots(props.step.pages[originalIdx]).length < 6
+      ? [{ sourceIndex: originalIdx, number: index + 1 }]
+      : [],
   ),
 );
 

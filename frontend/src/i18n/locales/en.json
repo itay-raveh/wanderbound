@@ -501,6 +501,16 @@
     }
   },
   "print": {
+    "pageSize": "Page size",
+    "dimensionUnits": "Dimension units",
+    "sizePreset": "Preset",
+    "customSize": "Custom",
+    "pageWidth": "Width",
+    "pageHeight": "Height",
+    "lockRatio": "Lock ratio",
+    "pageSizeBounds": "Width {widthRange}, height {heightRange}; landscape ratio {ratioRange}.",
+    "pageSizeNote": "Check text flow and photo framing after applying.",
+    "applySize": "Apply",
     "mapLoading": "Loading map…",
     "mapFailed": "This map could not load.",
     "retryMap": "Retry map",

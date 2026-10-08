@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { AlbumMedia, StepRead } from "@/client";
+import type { AlbumMedia, AlbumMeta, StepRead } from "@/client";
 import {
   planStepPages,
   reorderStepTilePages,
@@ -18,7 +18,11 @@ import {
   symOutlinedMoreVert,
 } from "@quasar/extras/material-symbols-outlined";
 
-const props = defineProps<{ step: StepRead; media: AlbumMedia[] }>();
+const props = defineProps<{
+  step: StepRead;
+  media: AlbumMedia[];
+  album: AlbumMeta;
+}>();
 const { t } = useI18n();
 const { scrollToSection } = useActiveSection();
 const mutation = useStepMutation(() => props.step.aid);
@@ -27,7 +31,9 @@ const reducedMotion = usePreferredReducedMotion();
 const mediaByName = computed(
   () => new Map(props.media.map((media) => [media.name, media])),
 );
-const plan = computed(() => planStepPages(props.step, mediaByName.value));
+const plan = computed(() =>
+  planStepPages(props.step, mediaByName.value, undefined, props.album),
+);
 const localPages = ref(plan.value.tilePages);
 watch(plan, (value) => {
   localPages.value = value.tilePages;

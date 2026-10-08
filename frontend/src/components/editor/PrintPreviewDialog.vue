@@ -19,7 +19,7 @@ import { buildPrintSpreads } from "../album/printSpreads";
 import PreviewDialog from "../ui/PreviewDialog.vue";
 import PrintPreviewPage from "./PrintPreviewPage.vue";
 import { daysBetween, parseLocalDate } from "@/utils/date";
-import { MM_PX, PAGE_WIDTH_MM, PAGE_HEIGHT_MM } from "@/utils/pageSize";
+import { MM_PX, albumPageSize } from "@/utils/pageSize";
 import {
   symOutlinedChevronLeft,
   symOutlinedChevronRight,
@@ -76,7 +76,7 @@ const spreads = computed(() =>
   group.value
     ? buildPrintSpreads(
         buildPhysicalRenderItems(
-          buildEditorItems([group.value], mediaByName.value),
+          buildEditorItems([group.value], mediaByName.value, props.album),
         ),
       )
     : [],
@@ -91,8 +91,13 @@ const bleed = computed(() =>
     ? (props.album.cover_bleed_mm ?? 0)
     : (props.album.interior_bleed_mm ?? 0),
 );
-const pageWidth = computed(() => (PAGE_WIDTH_MM + 2 * bleed.value) * MM_PX);
-const pageHeight = computed(() => (PAGE_HEIGHT_MM + 2 * bleed.value) * MM_PX);
+const size = computed(() => albumPageSize(props.album));
+const pageWidth = computed(
+  () => (size.value.widthMm + 2 * bleed.value) * MM_PX,
+);
+const pageHeight = computed(
+  () => (size.value.heightMm + 2 * bleed.value) * MM_PX,
+);
 const scale = computed(() =>
   Math.max(
     0.01,

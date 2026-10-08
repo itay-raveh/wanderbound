@@ -120,11 +120,18 @@ function selectContinuationPhotos(
   return result;
 }
 
+import type { AlbumGeometrySettings } from "@/utils/pageSize";
+
 export function planStepPages(
   step: Step,
   mediaByName: ReadonlyMap<string, AlbumMedia>,
-  descriptionPages = layoutDescription(step.description || "").pages,
+  descriptionPages: TextPage[] | undefined = undefined,
+  settings: AlbumGeometrySettings = {},
 ): StepPagePlan {
+  descriptionPages ??= layoutDescription(
+    step.description || "",
+    settings,
+  ).pages;
   const rawPhotoPages = filterCoverFromPages(step.pages, step.cover);
   const continuationPages = descriptionPages.slice(1);
   const continuationPhotos = selectContinuationPhotos(

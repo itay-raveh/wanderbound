@@ -10,7 +10,10 @@ import type { AlbumMedia } from "@/client";
 import type { MediaResolutionWarningPreset } from "@/utils/photoQuality";
 import { placementMediaUrl } from "@/utils/media";
 
+import { albumPageSize, type AlbumGeometrySettings } from "@/utils/pageSize";
+
 interface AlbumProvide {
+  geometrySettings?: ComputedRef<AlbumGeometrySettings>;
   albumId: Ref<string>;
   colors: ComputedRef<Record<string, string>>;
   media: ComputedRef<AlbumMedia[]>;
@@ -20,6 +23,8 @@ interface AlbumProvide {
 }
 
 interface AlbumContext extends AlbumProvide {
+  geometrySettings: ComputedRef<AlbumGeometrySettings>;
+  pageSize: ComputedRef<ReturnType<typeof albumPageSize>>;
   mediaByName: ComputedRef<Map<string, AlbumMedia>>;
   placementMediaUrl: (name: string) => string;
 }
@@ -34,13 +39,11 @@ export function provideAlbum(ctx: AlbumProvide): AlbumContext {
   });
   const albumCtx: AlbumContext = {
     ...ctx,
+    geometrySettings: ctx.geometrySettings ?? computed(() => ({})),
+    pageSize: computed(() => albumPageSize(ctx.geometrySettings?.value)),
     mediaByName,
     placementMediaUrl: (name) =>
-      placementMediaUrl(
-        name,
-        ctx.albumId.value,
-        mediaByName.value.get(name),
-      ),
+      placementMediaUrl(name, ctx.albumId.value, mediaByName.value.get(name)),
   };
   provide(KEY, albumCtx);
   return albumCtx;

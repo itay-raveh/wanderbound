@@ -189,11 +189,15 @@ function updateColor(code: string, color: string) {
 
 .background-row {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: var(--gap-sm);
 }
+.background-row > .q-btn:last-child {
+  margin-inline-start: auto;
+}
 .background-color {
-  flex: 1;
+  flex: 1 1 10rem;
   min-width: 0;
 }
 .accent-colors {

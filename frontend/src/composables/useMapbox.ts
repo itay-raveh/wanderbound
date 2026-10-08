@@ -39,8 +39,12 @@ const MAX_CONCURRENT_PRINT_MAPS = 4;
 const PRINT_MAPS_PER_CPU = 2;
 const PRINT_TILE_SETTLE_MS = 2_000;
 
+// Bound active color-buffer pixels as well as map count. At ratio 2 a
+// maximum 460 × 337 mm bleed sheet uses about 8.9 million pixels.
+const MAX_ACTIVE_PRINT_PIXELS = 16_000_000;
 let activePrintMaps = 0;
-const queuedPrintMaps: Array<() => void> = [];
+let activePrintPixels = 0;
+const queuedPrintMaps: Array<{ run: () => void; pixels: number }> = [];
 let printPixelRatioUsers = 0;
 let originalPixelRatio: PropertyDescriptor | undefined;
 
@@ -78,7 +82,10 @@ function acquirePrintPixelRatio(pixelRatio: number): () => void {
   };
 }
 
-function enqueuePrintMap(start: (release: () => void) => void): () => void {
+function enqueuePrintMap(
+  pixels: number,
+  start: (release: () => void) => void,
+): () => void {
   let state: "queued" | "active" | "done" = "queued";
 
   const drain = () => {
@@ -86,16 +93,23 @@ function enqueuePrintMap(start: (release: () => void) => void): () => void {
       activePrintMaps < maxConcurrentPrintMaps() &&
       queuedPrintMaps.length > 0
     ) {
-      queuedPrintMaps.shift()?.();
+      const index = queuedPrintMaps.findIndex(
+        (entry) =>
+          activePrintMaps === 0 ||
+          activePrintPixels + entry.pixels <= MAX_ACTIVE_PRINT_PIXELS,
+      );
+      if (index === -1) break;
+      queuedPrintMaps.splice(index, 1)[0]?.run();
     }
   };
   const release = () => {
     if (state === "done") return;
     if (state === "queued") {
-      const index = queuedPrintMaps.indexOf(run);
+      const index = queuedPrintMaps.findIndex((entry) => entry.run === run);
       if (index !== -1) queuedPrintMaps.splice(index, 1);
     } else {
       activePrintMaps--;
+      activePrintPixels -= pixels;
     }
     state = "done";
     drain();
@@ -104,10 +118,11 @@ function enqueuePrintMap(start: (release: () => void) => void): () => void {
     if (state !== "queued") return;
     state = "active";
     activePrintMaps++;
+    activePrintPixels += pixels;
     start(release);
   };
 
-  queuedPrintMaps.push(run);
+  queuedPrintMaps.push({ run, pixels });
   drain();
   return release;
 }
@@ -426,13 +441,22 @@ export function useMapbox(options: UseMapboxOptions) {
     releasePrintMapSlot();
   }
 
+  let lastFit: {
+    coords: [number, number][];
+    padding:
+      | number
+      | { top: number; bottom: number; left: number; right: number };
+  } | null = null;
+
   function fitBounds(
     coords: [number, number][],
     padding:
       | number
       | { top: number; bottom: number; left: number; right: number } = 80,
   ) {
-    if (!map.value || coords.length === 0) return;
+    if (coords.length === 0) return;
+    lastFit = { coords, padding };
+    if (!map.value) return;
 
     const bounds = new mapboxgl.LngLatBounds();
     for (const [lng, lat] of coords) {
@@ -450,7 +474,10 @@ export function useMapbox(options: UseMapboxOptions) {
       const el = options.container.value;
       if (el) el.dataset.map = "";
       releasePrintPixelRatio = acquirePrintPixelRatio(printPixelRatio);
-      releasePrintSlot = enqueuePrintMap((release) => {
+      const pixels = Math.ceil(
+        (el?.clientWidth ?? 0) * (el?.clientHeight ?? 0) * printPixelRatio ** 2,
+      );
+      releasePrintSlot = enqueuePrintMap(pixels, (release) => {
         releasePrintSlot = release;
         init();
       });
@@ -526,7 +553,13 @@ export function useMapbox(options: UseMapboxOptions) {
     }
   }
 
-  useResizeObserver(options.container, () => map.value?.resize());
+  useResizeObserver(options.container, () => {
+    const m = map.value;
+    if (!m) return;
+    m.resize();
+    if (lastFit && m.isStyleLoaded())
+      fitBounds(lastFit.coords, lastFit.padding);
+  });
 
   onMounted(scheduleInit);
   onBeforeUnmount(() => {

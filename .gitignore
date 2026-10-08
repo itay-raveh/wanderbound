@@ -16,6 +16,7 @@ dist-ssr/
 .env.sentry-build-plugin
 
 # Test artifacts
+output/playwright/
 test-results/
 playwright-report/
 blob-report/

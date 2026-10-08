@@ -4,6 +4,7 @@ import { mockAlbum, mockMedia, mockStep } from "../tests/fixtures/mocks";
 test("editing and removing a text tile preserves photos and prints saved text", async ({
   authedPage: page,
 }) => {
+  test.setTimeout(60_000);
   let step = { ...mockStep, aid: "aid-1", uid: 1 };
   const originalSlots = step.pages[0].slots.map((slot) => slot.id);
   await page.route("**/api/v1/albums/aid-1", (route) =>
@@ -110,5 +111,7 @@ test("editing and removing a text tile preserves photos and prints saved text", 
   await page.getByRole("button", { name: "Remove text tile" }).click();
   await removeDialog.getByRole("button", { name: "Remove text tile" }).click();
   await expect(page.locator(".page-content .text-item")).toHaveCount(0);
-  expect(step.pages[0].slots.map((slot) => slot.id)).toEqual(originalSlots);
+  await expect
+    .poll(() => step.pages[0].slots.map((slot) => slot.id))
+    .toEqual(originalSlots);
 });

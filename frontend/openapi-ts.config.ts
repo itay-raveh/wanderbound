@@ -9,6 +9,7 @@ export default defineConfig({
       throwOnError: true,
     },
     "@hey-api/typescript",
+    { name: "@hey-api/schemas", type: "json" },
     "@hey-api/sdk",
     {
       name: "zod",

@@ -191,10 +191,42 @@ describe("summarizeQuality", () => {
       revision: 1,
     };
     const steps = [
-      makeStep({ id: 1, pages: [{ kind: "panorama_spread", media: [wide.name] }] }),
+      makeStep({
+        id: 1,
+        pages: [{ kind: "panorama_spread", media: [wide.name] }],
+      }),
     ];
 
-    expect(summarizeQuality(steps, undefined, undefined, mediaMap(wide), "print"))
-      .toEqual({ caution: 0, warning: 1 });
+    expect(
+      summarizeQuality(steps, undefined, undefined, mediaMap(wide), "print"),
+    ).toEqual({ caution: 0, warning: 1 });
   });
+});
+
+it("uses custom physical dimensions for edited-photo and panorama print resolution", () => {
+  const map = new Map([
+    [
+      "edited",
+      {
+        width: 4000,
+        height: 3000,
+        photo_edit: { angle: 0, width: 0.5, height: 0.5 },
+      },
+    ],
+    [
+      "panorama",
+      { width: 8192, height: 2048, panorama: { perspective_fov: 70 } },
+    ],
+  ]);
+  const cell = { widthFrac: 1, heightFrac: 1 };
+  const small = { widthMm: 250, heightMm: 180 };
+  const large = { widthMm: 420, heightMm: 297 };
+  for (const name of map.keys()) {
+    const a = mediaQuality(name, cell, "cover", map, "print", small)!;
+    const b = mediaQuality(name, cell, "cover", map, "print", large)!;
+    expect(a.dpi).toBeGreaterThan(b.dpi);
+  }
+  expect(mediaQuality("edited", cell, "cover", map, "print", large)?.dpi).toBe(
+    121,
+  );
 });

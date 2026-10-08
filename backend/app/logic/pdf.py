@@ -437,6 +437,10 @@ async def _load_print_page(
                     "map-render-failed": (
                         "A map could not be rendered for PDF export. Please try again."
                     ),
+                    "text-overflow": (
+                        "Text no longer fits in an album tile. Enlarge the page or "
+                        "edit the highlighted text tiles before exporting. "
+                    ),
                     "font-load-failed": (
                         "An album font could not be loaded for PDF export. "
                         "Please try again."

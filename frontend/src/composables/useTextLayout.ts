@@ -1,12 +1,13 @@
-import { computed, ref, watch, type ComputedRef, type Ref } from "vue";
+import { computed, ref, type ComputedRef, type Ref } from "vue";
 import { ALLOWED_FONTS } from "@/utils/fonts";
 import {
-  PAGE_WIDTH_MM,
-  PAGE_HEIGHT_MM,
+  albumPageSize,
+  type AlbumGeometrySettings,
   MM_PX,
   META_RATIO,
 } from "@/utils/pageSize";
-import { safeMarginMm } from "./useSafeMargin";
+import { DEFAULT_BODY_FONT, fontStack } from "@/utils/fonts";
+import { useAlbum } from "./useAlbum";
 
 export interface TextPage {
   text: string;
@@ -22,12 +23,12 @@ interface TextLayout {
 const cache = new Map<string, TextLayout>();
 const MAX_CACHE_SIZE = 200;
 
-function cached(text: string, layout: TextLayout): TextLayout {
+function cached(key: string, layout: TextLayout): TextLayout {
   if (cache.size >= MAX_CACHE_SIZE) {
     // Evict oldest entry (first inserted key)
     cache.delete(cache.keys().next().value!);
   }
-  cache.set(text, layout);
+  cache.set(key, layout);
   return layout;
 }
 
@@ -47,7 +48,6 @@ if (
     debounceTimer = setTimeout(() => {
       fontsRevision.value++;
       cache.clear();
-      layoutConfig = null;
     }, 100);
   };
   void document.fonts.ready.then(bumpRevision);
@@ -73,25 +73,16 @@ interface LayoutConfig {
   continuation: ZoneConfig;
 }
 
-let layoutConfig: LayoutConfig | null = null;
-
-// Invalidate layout config + cache when safe margin changes so text reflows.
-watch(safeMarginMm, () => {
-  layoutConfig = null;
-  cache.clear();
-});
-
-function ensureConfig(): LayoutConfig {
-  if (layoutConfig) return layoutConfig;
-
+function ensureConfig(settings: AlbumGeometrySettings): LayoutConfig {
   const rootStyle = getComputedStyle(document.documentElement);
   const remPx = parseFloat(rootStyle.fontSize);
 
   const lineHeight = 1.65;
 
-  const pageWidth = PAGE_WIDTH_MM * MM_PX;
-  const pageHeight = PAGE_HEIGHT_MM * MM_PX;
-  const smPx = safeMarginMm.value * MM_PX;
+  const size = albumPageSize(settings);
+  const pageWidth = size.widthMm * MM_PX;
+  const pageHeight = size.heightMm * MM_PX;
+  const smPx = (settings.safe_margin_mm ?? 0) * MM_PX;
   const insetX = Math.max(
     parseFloat(rootStyle.getPropertyValue("--page-inset-x")) * remPx,
     smPx,
@@ -101,7 +92,7 @@ function ensureConfig(): LayoutConfig {
     smPx,
   );
   const typeXs = parseFloat(rootStyle.getPropertyValue("--type-xs")) * remPx;
-  const fontBody = rootStyle.getPropertyValue("--font-album-body").trim();
+  const fontBody = fontStack(settings.body_font ?? DEFAULT_BODY_FONT);
 
   // Both sidebar and continuation pages use the same column width and font.
   // Right padding is insetY (not insetX) - matches StepMetaPanel/StepDescriptionPage
@@ -129,7 +120,7 @@ function ensureConfig(): LayoutConfig {
     (pageHeight - 2 * insetY) / lineHeightPx,
   );
 
-  layoutConfig = {
+  return {
     sidebar: { columnWidth, maxLines: sidebarMaxLines, font, lineHeightPx },
     continuation: {
       columnWidth,
@@ -138,7 +129,6 @@ function ensureConfig(): LayoutConfig {
       lineHeightPx,
     },
   };
-  return layoutConfig;
 }
 
 function paginateText(text: string, config: LayoutConfig): TextPage[] {
@@ -189,22 +179,30 @@ function paginateText(text: string, config: LayoutConfig): TextPage[] {
   return pages;
 }
 
-export function layoutDescription(text: string): TextLayout {
-  // Subscribe to reactive dependencies so computeds recompute on change
-  void safeMarginMm.value;
+export function layoutDescription(
+  text: string,
+  settings: AlbumGeometrySettings = {},
+): TextLayout {
+  void fontsRevision.value;
   if (fontsRevision.value === 0) return { pages: [] };
-
-  const hit = cache.get(text);
+  const config = ensureConfig(settings);
+  // Fonts, physical geometry, type size and safe margins all affect pagination.
+  const key = JSON.stringify([
+    text,
+    config,
+    fontsRevision.value,
+    document.documentElement.lang,
+  ]);
+  const hit = cache.get(key);
   if (hit) return hit;
-
-  const config = ensureConfig();
-  const pages = paginateText(text, config);
-
-  return cached(text, { pages });
+  return cached(key, { pages: paginateText(text, config) });
 }
 
 export function useTextLayout(
   description: Ref<string>,
 ): ComputedRef<TextLayout> {
-  return computed(() => layoutDescription(description.value));
+  const { geometrySettings } = useAlbum();
+  return computed(() =>
+    layoutDescription(description.value, geometrySettings.value),
+  );
 }

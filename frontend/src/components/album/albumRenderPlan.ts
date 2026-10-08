@@ -113,9 +113,12 @@ export function buildChapterRenderGroups(
     .filter((group) => group.steps.length > 0);
 }
 
+import type { AlbumGeometrySettings } from "@/utils/pageSize";
+
 export function buildEditorItems(
   groups: ChapterRenderGroup[],
   mediaByName: ReadonlyMap<string, AlbumMedia>,
+  settings: AlbumGeometrySettings = {},
 ): EditorItem[] {
   const result: EditorItem[] = [];
   groups.forEach((group) => {
@@ -142,7 +145,12 @@ export function buildEditorItems(
         physicalPageCount++;
         return;
       }
-      const stepPlan = planStepPages(section.step, mediaByName);
+      const stepPlan = planStepPages(
+        section.step,
+        mediaByName,
+        undefined,
+        settings,
+      );
       const stepPages = stepPlan.editorPages;
       for (let pageIndex = 0; pageIndex < stepPages.length; pageIndex++) {
         const page = stepPages[pageIndex];
