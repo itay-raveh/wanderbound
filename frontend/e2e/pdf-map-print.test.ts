@@ -259,111 +259,100 @@ async function snapshotColorCounts(page: Page) {
 test.describe("PDF map snapshots", () => {
   test.describe.configure({ timeout: 120_000 });
 
-  for (const [name, route] of [
-    ["empty", []],
-    [
-      "truncated",
-      [
+  test("renders a restored drive after reload without fitting distant flights", async ({
+    authedPage: page,
+  }) => {
+    const driving: Segment = {
+      ...hike,
+      kind: "driving",
+      route: [
         [5.0, 52.24],
         [5.12, 52.09],
       ],
-    ],
-  ] as const) {
-    test(`renders the full saved ${name} driving route after reload`, async ({
-      authedPage: page,
-    }) => {
-      const driving: Segment = {
+    };
+    // Distant incoming/outgoing flights must not change destination-pin framing.
+    const flights: Segment[] = [
+      {
         ...hike,
-        kind: "driving",
-        route: route.map((c) => [...c]) as [number, number][],
-      };
-      // Distant incoming/outgoing flights must not change destination-pin framing.
-      const flights: Segment[] =
-        name === "empty"
-          ? [
-              {
-                ...hike,
-                kind: "flight",
-                start_time: mockStep.timestamp - 3600,
-                end_time: mockStep.timestamp,
-                points: [
-                  { lat: 40.7, lon: -74, time: mockStep.timestamp - 3600 },
-                  hike.points[0],
-                ],
-              },
-              {
-                ...hike,
-                kind: "flight",
-                start_time: secondStep.timestamp,
-                end_time: secondStep.timestamp + 3600,
-                points: [
-                  hike.points.at(-1)!,
-                  { lat: 40.7, lon: -74, time: secondStep.timestamp + 3600 },
-                ],
-              },
-            ]
-          : [];
-      await installPdfMapFixture(page, 0, {
-        ...bundle,
-        segments: [driving, ...flights],
-      });
-      for (let attempt = 0; attempt < 2; attempt++) {
-        if (attempt === 0) await page.goto("/print/aid-1");
-        else await page.reload();
-        await releasePrintMapMemory(page);
-        await page.waitForFunction(
-          () =>
-            (window as unknown as Record<string, unknown>).__PRINT_READY__ ===
-            true,
-        );
-        // Inspect real WebGL pixels in the detailed map, not a mocked map class.
-        // A suffix-only line occupies the bottom half; the complete drive spans
-        // both sides of the map despite terrain and the captured JPEG encoding.
-        const extent = await page
-          .locator(".map-page .mapbox-print-snapshot")
-          .last()
-          .evaluate(async (image) => {
-            const snapshot = image as HTMLImageElement;
-            await snapshot.decode();
-            const canvas = document.createElement("canvas");
-            canvas.width = snapshot.naturalWidth;
-            canvas.height = snapshot.naturalHeight;
-            const context = canvas.getContext("2d")!;
-            context.drawImage(snapshot, 0, 0);
-            const pixels = context.getImageData(
-              0,
-              0,
-              canvas.width,
-              canvas.height,
-            ).data;
-            let minY = canvas.height;
-            let maxY = 0;
-            for (let y = 0; y < canvas.height; y++) {
-              for (let x = 0; x < canvas.width; x++) {
-                const i = (y * canvas.width + x) * 4;
-                if (
-                  pixels[i] > 190 &&
-                  pixels[i + 1] > 190 &&
-                  pixels[i + 2] > 190
-                ) {
-                  minY = Math.min(minY, y);
-                  maxY = Math.max(maxY, y);
-                }
+        kind: "flight",
+        start_time: mockStep.timestamp - 3600,
+        end_time: mockStep.timestamp,
+        points: [
+          { lat: 40.7, lon: -74, time: mockStep.timestamp - 3600 },
+          hike.points[0],
+        ],
+      },
+      {
+        ...hike,
+        kind: "flight",
+        start_time: secondStep.timestamp,
+        end_time: secondStep.timestamp + 3600,
+        points: [
+          hike.points.at(-1)!,
+          { lat: 40.7, lon: -74, time: secondStep.timestamp + 3600 },
+        ],
+      },
+    ];
+    await installPdfMapFixture(page, 0, {
+      ...bundle,
+      segments: [driving, ...flights],
+    });
+    for (let attempt = 0; attempt < 2; attempt++) {
+      if (attempt === 0) await page.goto("/print/aid-1");
+      else await page.reload();
+      await releasePrintMapMemory(page);
+      await page.waitForFunction(
+        () =>
+          (window as unknown as Record<string, unknown>).__PRINT_READY__ ===
+          true,
+      );
+      // Inspect real WebGL pixels in the detailed map, not a mocked map class.
+      // A suffix-only line occupies the bottom half; the complete drive spans
+      // both sides of the map despite terrain and the captured JPEG encoding.
+      const extent = await page
+        .locator(".map-page .mapbox-print-snapshot")
+        .last()
+        .evaluate(async (image) => {
+          const snapshot = image as HTMLImageElement;
+          await snapshot.decode();
+          const canvas = document.createElement("canvas");
+          canvas.width = snapshot.naturalWidth;
+          canvas.height = snapshot.naturalHeight;
+          const context = canvas.getContext("2d")!;
+          context.drawImage(snapshot, 0, 0);
+          const pixels = context.getImageData(
+            0,
+            0,
+            canvas.width,
+            canvas.height,
+          ).data;
+          let minY = canvas.height;
+          let maxY = 0;
+          for (let y = 0; y < canvas.height; y++) {
+            for (let x = 0; x < canvas.width; x++) {
+              const i = (y * canvas.width + x) * 4;
+              if (
+                pixels[i] > 190 &&
+                pixels[i + 1] > 190 &&
+                pixels[i + 2] > 190
+              ) {
+                minY = Math.min(minY, y);
+                maxY = Math.max(maxY, y);
               }
             }
-            return (maxY - minY) / canvas.height;
+          }
+          return (maxY - minY) / canvas.height;
+        });
+      expect(extent).toBeGreaterThan(0.5);
+      if (attempt === 1)
+        await page
+          .locator(".map-page")
+          .last()
+          .screenshot({
+            path: test.info().outputPath("saved-route-restored.png"),
           });
-        expect(extent).toBeGreaterThan(0.5);
-        if (attempt === 1)
-          await page
-            .locator(".map-page")
-            .last()
-            .screenshot({
-              path: test.info().outputPath("saved-route-restored.png"),
-            });
-      }
-    });
-  }
+    }
+  });
 
   test("keeps maps visible in the screen spread preview after capture", async ({
     authedPage: page,

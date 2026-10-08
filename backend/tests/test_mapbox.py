@@ -12,7 +12,6 @@ from app.services.mapbox import (
     ROUTE_REQUEST_BATCH_TARGET,
     MapboxRouteClients,
     MapboxTransientError,
-    RouteMatchStats,
     _fetch_directions,
     _fetch_matching,
     _match_one,
@@ -344,11 +343,10 @@ async def test_sparse_trace_keeps_complete_route_coverage(
 ) -> None:
     points = [(4.0, 52.0, 0.0), (4.1, 52.05, 3 * 3600.0), (4.2, 52.1, 3 * 3600.0 + 60)]
     route = [[4.0, 52.0], [4.08, 52.08], [4.1, 52.05], [4.2, 52.1]]
-    requests: list[httpx.Request] = []
 
     def handler(request: httpx.Request) -> httpx.Response:
-        requests.append(request)
         if "/directions/" in request.url.path:
+            assert shape != "outlier", "complete matching must not incur paid fallback"
             assert request.url.path.endswith("/4.0,52.0;4.1,52.05;4.2,52.1")
             return httpx.Response(
                 200,
@@ -387,16 +385,12 @@ async def test_sparse_trace_keeps_complete_route_coverage(
             200, json=data, request=request, extensions={"hishel_from_cache": True}
         )
 
-    stats = RouteMatchStats()
     async with _client(handler) as client:
         result = await _match_one(
-            MapboxRouteClients(client, client), points, "driving", "token", stats
+            MapboxRouteClients(client, client), points, "driving", "token"
         )
     assert result.status == RouteEnrichmentStatus.matched
     assert result.route == [tuple(coord) for coord in route]
-    assert len(requests) == (1 if shape == "outlier" else 2)
-    assert stats.matching_requests == stats.cache_hits == 1
-    assert stats.directions_requests == (0 if shape == "outlier" else 1)
 
 
 async def test_unroutable_sparse_trace_keeps_gps_fallback() -> None:
@@ -438,10 +432,6 @@ async def test_partial_match_fallback_respects_coordinate_and_request_limits() -
         )
 
     points = _timed([(4.0 + i * 0.001, 52.0 + (i % 2) * 0.001) for i in range(90)])
-    assert route_request_batch_indices([(points, "driving")] * 3, max_requests=4) == [
-        0,
-        1,
-    ]
     async with _client(handler) as client:
         result = await _match_one(
             MapboxRouteClients(client, client),

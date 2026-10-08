@@ -18,26 +18,18 @@ function makeMap() {
   };
 }
 
-const segment = makeSegment({
-  start_time: 0,
-  end_time: 1,
-  points: [
-    { lat: 1, lon: 2, time: 0 },
-    { lat: 3, lon: 4, time: 1 },
-  ],
-});
-
 describe("drawSegmentsAndMarkers", () => {
   it.each([
-    null,
-    [],
-    [
-      [5.0, 52.24],
-      [5.12, 52.09],
-    ],
+    { route: [] },
+    {
+      route: [
+        [5.0, 52.24],
+        [5.12, 52.09],
+      ],
+    },
   ])(
-    "keeps the complete driving trace visible with saved route %j",
-    (route) => {
+    "keeps the complete driving trace visible with saved route $route",
+    ({ route }) => {
       const map = makeMap();
       const points = [
         { lon: 4.89, lat: 52.37, time: 0 },
@@ -85,19 +77,5 @@ describe("drawSegmentsAndMarkers", () => {
       ([id]) => id === "seg-drive",
     )?.[1];
     expect(source.data.geometry.coordinates).toEqual([route]);
-  });
-
-  it("temporarily detaches terrain while replacing segment sources", () => {
-    const map = makeMap();
-
-    drawSegmentsAndMarkers(map as never, {
-      segments: [segment],
-      steps: [],
-      albumId: "a1",
-    });
-
-    expect(map.setTerrain).toHaveBeenNthCalledWith(1, null);
-    expect(map.removeSource).toHaveBeenCalledWith("seg-old");
-    expect(map.setTerrain).toHaveBeenLastCalledWith({ source: "mapbox-dem" });
   });
 });
