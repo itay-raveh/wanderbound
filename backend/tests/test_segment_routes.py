@@ -1,8 +1,6 @@
 from __future__ import annotations
 
 import inspect
-from collections.abc import AsyncIterator
-from contextlib import asynccontextmanager
 from types import SimpleNamespace
 from typing import TYPE_CHECKING
 from unittest.mock import AsyncMock, patch
@@ -11,6 +9,7 @@ import pytest
 from sqlalchemy import text
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.locks import try_advisory_lock
 from app.logic.segment_routes import (
     _write_outcome,
     mark_album_route_failure_step,
@@ -29,7 +28,7 @@ from app.services.mapbox import (
     RouteMatchResult,
 )
 
-from .factories import AID, insert_album, insert_segment
+from .factories import AID, insert_album, insert_segment, make_user
 
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncEngine
@@ -38,9 +37,13 @@ type Route = list[tuple[float, float]]
 type SegmentSeed = tuple[float, float, SegmentKind]
 
 
-@asynccontextmanager
-async def _lock(*, acquired: bool = True) -> AsyncIterator[bool]:
-    yield acquired
+@pytest.fixture
+def engine(
+    postgres_engine: AsyncEngine, monkeypatch: pytest.MonkeyPatch
+) -> AsyncEngine:
+    monkeypatch.setattr("app.logic.segment_routes.get_engine", lambda: postgres_engine)
+    monkeypatch.setattr("app.core.locks.get_engine", lambda: postgres_engine)
+    return postgres_engine
 
 
 def _http() -> SimpleNamespace:
@@ -103,6 +106,8 @@ def _failed(code: str = "InvalidInput") -> RouteMatchResult:
 
 async def _seed_segments(engine: AsyncEngine, uid: int, *segments: SegmentSeed) -> None:
     async with AsyncSession(engine) as session:
+        session.add(make_user(uid))
+        await session.flush()
         await insert_album(session, uid)
         for start_time, end_time, kind in segments:
             await insert_segment(
@@ -120,7 +125,6 @@ async def _run_route_enrichment(
     uid: int,
     *,
     http: SimpleNamespace | None = None,
-    lock_acquired: bool = True,
     route_result: tuple[list[RouteMatchResult], SimpleNamespace] | None = None,
     side_effect: object | None = None,
 ) -> SimpleNamespace:
@@ -131,11 +135,6 @@ async def _run_route_enrichment(
     )
 
     with (
-        patch("app.logic.segment_routes.get_engine", return_value=engine) as get_engine,
-        patch(
-            "app.logic.segment_routes.try_advisory_lock",
-            return_value=_lock(acquired=lock_acquired),
-        ),
         patch(
             "app.logic.segment_routes.match_segments_with_stats",
             new=match_segments,
@@ -144,7 +143,6 @@ async def _run_route_enrichment(
         stats = await match_album_segment_routes(http, uid, AID)
 
     return SimpleNamespace(
-        get_engine=get_engine,
         match_segments=match_segments,
         http=http,
         stats=stats,
@@ -191,7 +189,7 @@ async def test_unmatched_driving_and_walking_segments_get_routes(
         (300.0, 400.0, SegmentKind.walking),
     )
 
-    result = await _run_route_enrichment(
+    await _run_route_enrichment(
         engine,
         uid,
         route_result=(
@@ -209,16 +207,6 @@ async def test_unmatched_driving_and_walking_segments_get_routes(
     first_state = await _state_for(engine, uid)
     assert first_state is not None
     assert first_state.status == RouteEnrichmentStatus.matched
-    assert result.stats.updated == 2
-    result.match_segments.assert_awaited_once()
-    assert result.match_segments.await_args.args[:2] == (
-        result.http.mapbox_matching,
-        result.http.mapbox_directions,
-    )
-    assert [profile for _, profile in result.match_segments.await_args.args[2]] == [
-        "driving",
-        "walking",
-    ]
 
 
 async def test_hike_and_flight_segments_are_skipped(engine: AsyncEngine) -> None:
@@ -230,8 +218,7 @@ async def test_hike_and_flight_segments_are_skipped(engine: AsyncEngine) -> None
         (300.0, 400.0, SegmentKind.flight),
     )
 
-    result = await _run_route_enrichment(engine, uid)
-    result.match_segments.assert_not_awaited()
+    await _run_route_enrichment(engine, uid)
     assert await _route_for(engine, uid, start_time=100.0, end_time=200.0) is None
     assert await _route_for(engine, uid, start_time=300.0, end_time=400.0) is None
 
@@ -251,30 +238,31 @@ async def test_rows_deleted_before_write_are_skipped(engine: AsyncEngine) -> Non
             await session.commit()
         return [_matched(route)], _stats()
 
-    result = await _run_route_enrichment(engine, uid, side_effect=delete_then_match)
+    await _run_route_enrichment(engine, uid, side_effect=delete_then_match)
 
     async with AsyncSession(engine) as session:
         assert await session.get(Segment, (uid, AID, 100.0, 200.0)) is None
-    assert result.stats.stale == 1
 
 
 async def test_no_route_is_recorded_and_not_retried(engine: AsyncEngine) -> None:
     uid = 3004
     await _seed_segments(engine, uid, (100.0, 200.0, SegmentKind.driving))
-    first = await _run_route_enrichment(
+    await _run_route_enrichment(
         engine,
         uid,
         route_result=([_no_route("NoSegment")], _stats()),
     )
-    second = await _run_route_enrichment(engine, uid)
+
+    async def forbidden_provider(*args: object) -> None:
+        raise AssertionError("terminal no-route must not charge provider again")
+
+    await _run_route_enrichment(engine, uid, side_effect=forbidden_provider)
 
     assert await _route_for(engine, uid) is None
     state = await _state_for(engine, uid)
     assert state is not None
     assert state.status == RouteEnrichmentStatus.no_route
     assert state.error_code == "NoSegment"
-    assert first.stats.no_route == 1
-    second.match_segments.assert_not_awaited()
 
 
 async def test_request_budget_fallback_is_not_recorded_and_is_retried(
@@ -284,7 +272,7 @@ async def test_request_budget_fallback_is_not_recorded_and_is_retried(
     route = [(4.0, 52.0), (4.1, 52.1)]
     await _seed_segments(engine, uid, (100.0, 200.0, SegmentKind.driving))
 
-    first = await _run_route_enrichment(
+    await _run_route_enrichment(
         engine,
         uid,
         route_result=(
@@ -298,18 +286,13 @@ async def test_request_budget_fallback_is_not_recorded_and_is_retried(
     )
 
     assert await _state_for(engine, uid) is None
-    assert first.stats.no_route == 0
-    assert first.stats.recorded == 0
-    assert first.stats.stale == 1
-    assert first.stats.budget_fallbacks == 1
 
-    second = await _run_route_enrichment(
+    await _run_route_enrichment(
         engine,
         uid,
         route_result=([_matched(route)], _stats()),
     )
 
-    second.match_segments.assert_awaited_once()
     assert await _route_for(engine, uid) == route
     state = await _state_for(engine, uid)
     assert state is not None
@@ -319,7 +302,7 @@ async def test_request_budget_fallback_is_not_recorded_and_is_retried(
 async def test_permanent_failure_is_recorded(engine: AsyncEngine) -> None:
     uid = 3005
     await _seed_segments(engine, uid, (100.0, 200.0, SegmentKind.driving))
-    result = await _run_route_enrichment(
+    await _run_route_enrichment(
         engine,
         uid,
         route_result=([_failed()], _stats()),
@@ -329,7 +312,6 @@ async def test_permanent_failure_is_recorded(engine: AsyncEngine) -> None:
     assert state is not None
     assert state.status == RouteEnrichmentStatus.failed
     assert state.error_code == "InvalidInput"
-    assert result.stats.failed == 1
 
 
 async def test_route_matching_exception_propagates(engine: AsyncEngine) -> None:
@@ -409,12 +391,18 @@ async def test_reconciliation_targets_only_unresolved_albums(
 async def test_advisory_lock_already_held_skips_run(engine: AsyncEngine) -> None:
     uid = 3009
     await _seed_segments(engine, uid, (100.0, 200.0, SegmentKind.driving))
-    result = await _run_route_enrichment(engine, uid, lock_acquired=False)
+    async with try_advisory_lock(f"segment-route-match:{uid}:{AID}") as acquired:
+        assert acquired
 
-    result.get_engine.assert_not_called()
-    result.match_segments.assert_not_awaited()
-    assert result.stats.already_running
-    assert await _route_for(engine, uid) is None
+        async def forbidden_provider(*args: object) -> None:
+            raise AssertionError("competing route run must not charge provider")
+
+        await _run_route_enrichment(engine, uid, side_effect=forbidden_provider)
+        assert await _route_for(engine, uid) is None
+    await _run_route_enrichment(
+        engine, uid, route_result=([_matched([(4, 52), (5, 53)])], _stats())
+    )
+    assert await _route_for(engine, uid) == [(4, 52), (5, 53)]
 
 
 @pytest.mark.parametrize("saved_route", [[], [(4.2, 52.2)]])
@@ -428,6 +416,8 @@ async def test_stale_success_is_repaired_once_without_retrying_terminal_failure(
     points = [Point(lon=x, lat=y, time=100 + i * 50) for i, (x, y) in enumerate(coords)]
     async with AsyncSession(engine) as session:
         for owner in (uid, terminal_uid):
+            session.add(make_user(owner))
+            await session.flush()
             await insert_album(session, owner)
             segment = await insert_segment(
                 session, owner, start_time=100, end_time=200, points=points

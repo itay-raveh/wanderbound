@@ -1,9 +1,9 @@
 import json
-from collections.abc import AsyncIterator
 from pathlib import Path
 from unittest.mock import MagicMock
 from uuid import uuid4
 
+import httpx
 import pytest
 
 import app.logic.reconcile as reconcile_mod
@@ -486,7 +486,7 @@ class TestReconcileTripRebuildsSegments:
         assert (row.width, row.height) == (800, 600)
 
     async def test_new_reuploaded_steps_are_added_to_existing_chapter(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+        self, tmp_path: Path
     ) -> None:
         ps_steps = [
             _ps_step(1, slug="start"),
@@ -496,35 +496,56 @@ class TestReconcileTripRebuildsSegments:
         album = _existing_album()
         album.chapters[0].step_ids = [1]
 
-        async def empty_events(
-            events: list[PhaseUpdate],
-        ) -> AsyncIterator[PhaseUpdate]:
-            for event in events:
-                yield event
+        def provider(request: httpx.Request) -> httpx.Response:
+            if request.url.path.endswith("/elevation"):
+                return httpx.Response(200, json={"elevation": [100]})
+            if request.url.path.endswith("/archive"):
+                return httpx.Response(
+                    200,
+                    json={
+                        "daily": {
+                            "time": [request.url.params["start_date"]],
+                            "temperature_2m_max": [20],
+                            "temperature_2m_min": [10],
+                            "apparent_temperature_max": [20],
+                            "apparent_temperature_min": [10],
+                            "weather_code": [0],
+                        }
+                    },
+                )
+            return httpx.Response(200, json={"elements": []})
 
-        def fake_process_new_steps(
-            *args: object,
-            **_kwargs: object,
-        ) -> AsyncIterator[PhaseUpdate]:
-            step_out = args[5]
-            assert isinstance(step_out, list)
-            step_out.append(_existing_step(2, name="New"))
-            return empty_events([])
-
-        monkeypatch.setattr(
-            reconcile_mod,
-            "_process_new_steps",
-            fake_process_new_steps,
-        )
-
-        _, db_out = await _collect_reconcile(
-            trip_dir,
-            album,
-            [_existing_step(1, name="Start")],
-        )
+        db_out: list = []
+        async with httpx.AsyncClient(transport=httpx.MockTransport(provider)) as http:
+            clients = HttpClients(
+                open_meteo=http,
+                overpass=http,
+                mapbox_matching=http,
+                mapbox_directions=http,
+                gphotos_picker=http,
+                gphotos_download=http,
+                gphotos_token=http,
+                gphotos_oauth=MagicMock(),
+            )
+            await collect_async(
+                reconcile_trip(
+                    clients,
+                    _user(),
+                    trip_dir,
+                    album,
+                    [_existing_step(1, name="Start")],
+                    db_out,
+                )
+            )
 
         reconciled_album = next(obj for obj in db_out if isinstance(obj, Album))
         assert reconciled_album.chapters[0].step_ids == [1, 2]
+        steps = [obj for obj in db_out if isinstance(obj, reconcile_mod.Step)]
+        assert [(step.id, step.name) for step in steps] == [
+            (1, "Step 1"),
+            (2, "Step 2"),
+        ]
+        assert steps[1].location == _LOC_B
 
 
 @pytest.mark.parametrize(

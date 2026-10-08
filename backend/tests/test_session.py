@@ -73,13 +73,6 @@ def _gated_processing(
     return fake_processing
 
 
-def _scheduled_album_calls(uid: int) -> list[tuple[HttpClients, int, str]]:
-    return [
-        (_MOCK_HTTP, uid, "trip-1"),
-        (_MOCK_HTTP, uid, "trip-2"),
-    ]
-
-
 class TestProcessingSession:
     async def test_replay_past_events_on_late_subscribe(self) -> None:
         events = [
@@ -160,33 +153,6 @@ class TestProcessStream:
         assert call_count == 1
         assert result[0] == TripStart(trip_index=0)
 
-    async def test_route_enrichment_survives_subscriber_disconnect(self) -> None:
-        gate = asyncio.Event()
-
-        user = _mock_user(uid=22)
-        with (
-            patch(
-                "app.logic.session.run_processing",
-                _gated_processing(
-                    gate,
-                    before=[TripStart(trip_index=0)],
-                    after=[PhaseUpdate(phase="layouts", done=1, total=1)],
-                ),
-            ),
-            patch("app.logic.session.schedule_album_route_enrichment") as schedule,
-        ):
-            stream = process_stream(_MOCK_HTTP, user)
-            first = await anext(stream)
-            await stream.aclose()
-
-            gate.set()
-            session = _sessions[user.id]
-            await session._task
-
-        assert first == TripStart(trip_index=0)
-        calls = [call.args for call in schedule.call_args_list]
-        assert calls == _scheduled_album_calls(22)
-
 
 class TestPersistedProcessStream:
     @pytest.fixture(autouse=True)
@@ -230,7 +196,7 @@ class TestPersistedProcessStream:
         operation = await latest_processing_operation(session, uid=123)
         assert operation is not None
         assert operation.status == "succeeded"
-        assert starts == ["processing:" + operation.operation_id]
+        assert starts == [operation.workflow_id]
         assert (
             first
             == second
@@ -324,7 +290,7 @@ class TestPersistedProcessStream:
 
         operation = await latest_processing_operation(session, uid=654)
         assert operation is not None
-        assert starts == ["processing:" + operation.operation_id]
+        assert starts == [operation.workflow_id]
         assert events == [
             TripStart(trip_index=0),
             PhaseUpdate(phase="layouts", done=1, total=1),

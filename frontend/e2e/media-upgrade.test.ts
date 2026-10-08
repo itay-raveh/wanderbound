@@ -213,6 +213,28 @@ test.describe("Media Upgrade", () => {
   }) => {
     await mockConnectedUser(page);
     await mockPickerSession(page, { ready: false });
+    let releasePoll!: () => void;
+    const heldPoll = new Promise<void>((resolve) => {
+      releasePoll = resolve;
+    });
+    let pollStarted!: () => void;
+    const pollReady = new Promise<void>((resolve) => {
+      pollStarted = resolve;
+    });
+    let matches = 0;
+    await page.route(`${API}/google-photos/match/**`, async (route) => {
+      matches += 1;
+      await route.fulfill({
+        contentType: "text/event-stream",
+        body: sseBody(matchEvents),
+      });
+    });
+    await page.route(`${API}/google-photos/sessions/sess-1`, async (route) => {
+      if (route.request().method() !== "GET") return route.fallback();
+      pollStarted();
+      await heldPoll;
+      await route.fulfill({ json: { ready: true } });
+    });
     await prepareOnboardedPopupFlow(page);
     await page.goto("/editor");
 
@@ -223,10 +245,29 @@ test.describe("Media Upgrade", () => {
       .getByRole("button", { name: /waiting for selection/i });
     await expect(runningBtn).toBeVisible({ timeout: 5_000 });
 
+    await pollReady;
+    const pollFinished = page.waitForEvent("requestfinished", {
+      predicate: (request) =>
+        request.url().endsWith("/google-photos/sessions/sess-1") &&
+        request.method() === "GET",
+    });
+    const closed = page.waitForRequest(
+      (request) =>
+        request.url().endsWith("/google-photos/sessions/sess-1") &&
+        request.method() === "DELETE",
+    );
     await runningBtn.scrollIntoViewIfNeeded();
     await runningBtn.click();
-
+    releasePoll();
+    await pollFinished;
+    // Let the completed fetch's continuations and resulting UI update reach a paint.
+    await page.evaluate(() => new Promise<void>((resolve) =>
+      requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
+    ));
+    await closed;
     await expect(upgradeBtn).toBeVisible({ timeout: 5_000 });
+    expect(matches).toBe(0);
+    await expect(page.getByText(/files ready/i)).toHaveCount(0);
   });
 
   test("popup blocked surfaces error button", async ({ authedPage: page }) => {

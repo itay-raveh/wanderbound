@@ -1,4 +1,6 @@
+import asyncio
 from collections.abc import AsyncIterator
+from pathlib import Path
 from types import SimpleNamespace
 from typing import TYPE_CHECKING, Any, cast
 from uuid import uuid4
@@ -7,16 +9,27 @@ import httpx
 import pytest
 import pytest_asyncio
 from dbos import DBOS, SetWorkflowID
-from sqlalchemy import text
+from sqlalchemy import event, text
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.config import get_settings
-from app.logic import segment_routes
+from app.logic import segment_routes, session as processing_session
+from app.logic.trip_processing import PhaseUpdate, TripStart
+from app.logic.workflows import media_hashes
+from app.models.album_media import AlbumMedia
 from app.models.polarsteps import Point
 from app.models.segment import RouteEnrichmentStatus, Segment, SegmentRouteEnrichment
 from app.services.mapbox import ROUTE_REQUEST_BATCH_TARGET
-from tests.factories import AID, insert_album, insert_segment, make_user
+from tests.factories import (
+    AID,
+    DEFAULT_MEDIA_NAME,
+    create_test_jpeg,
+    insert_album,
+    insert_album_media,
+    insert_segment,
+    make_user,
+)
 
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncEngine
@@ -141,3 +154,114 @@ async def test_route_workflow_persists_batches_and_scopes_failures(
                 assert all(
                     state.error_code.startswith("retry_exhausted:") for state in states
                 )
+
+
+async def test_terminal_hash_backfill_retries_once_and_persists_hashes(
+    route_runtime: AsyncEngine,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(media_hashes, "get_engine", lambda: route_runtime)
+    monkeypatch.setattr(get_settings(), "DATA_FOLDER", tmp_path)
+    async with AsyncSession(route_runtime) as session:
+        session.add(make_user(1))
+        await session.flush()
+        await insert_album(session, 1)
+        row = await insert_album_media(session, 1)
+        target = create_test_jpeg(
+            get_settings().USERS_FOLDER / "1" / "trip" / AID / row.name, 64, 48
+        )
+        row.byte_size = target.stat().st_size
+        session.add(row)
+        await session.commit()
+    await DBOS.register_queue_async(media_hashes.MEDIA_HASH_QUEUE, worker_concurrency=1)
+
+    def interrupted_write(
+        conn: object,
+        _cursor: object,
+        statement: str,
+        params: object,
+        context: object,
+        _many: object,
+    ) -> None:
+        if statement.lstrip().upper().startswith("UPDATE ALBUM_MEDIA"):
+            raise OSError("database write interrupted")
+
+    event.listen(route_runtime.sync_engine, "before_cursor_execute", interrupted_write)
+    try:
+        original = await media_hashes.enqueue_media_hash_backfill(
+            1, AID, 1, "test-revision"
+        )
+        with pytest.raises(Exception, match=r"maximum.*retries"):
+            await original.get_result()
+    finally:
+        event.remove(
+            route_runtime.sync_engine, "before_cursor_execute", interrupted_write
+        )
+    async with AsyncSession(route_runtime) as session:
+        assert (
+            await session.get_one(AlbumMedia, (1, AID, DEFAULT_MEDIA_NAME))
+        ).perceptual_hashes is None
+    retry = await media_hashes.enqueue_media_hash_backfill(1, AID, 1, "test-revision")
+    await retry.get_result()
+    async with AsyncSession(route_runtime) as session:
+        assert (
+            await session.get_one(AlbumMedia, (1, AID, DEFAULT_MEDIA_NAME))
+        ).perceptual_hashes is not None
+    await media_hashes.enqueue_media_hash_backfill(1, AID, 1, "test-revision")
+    runs = await DBOS.list_workflows_async(name="media_hash.backfill")
+    assert sorted(run.status for run in runs) == ["ERROR", "SUCCESS"]
+
+
+async def test_route_enrichment_persists_after_subscriber_disconnect(
+    route_runtime: AsyncEngine,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    expected = await _seed_routes(route_runtime)
+    async with AsyncSession(route_runtime, expire_on_commit=False) as session:
+        user = await session.get_one(type(make_user(1)), 1)
+        user.album_ids = [AID]
+    gate = asyncio.Event()
+
+    async def completed_processing(
+        http: object, user: object
+    ) -> AsyncIterator[TripStart | PhaseUpdate]:
+        yield TripStart(trip_index=0)
+        await gate.wait()
+        yield PhaseUpdate(phase="layouts", done=1, total=1)
+
+    def provider(request: httpx.Request) -> httpx.Response:
+        coords = [
+            [float(value) for value in pair.split(",")]
+            for pair in request.url.path.rsplit("/", 1)[-1].split(";")
+        ]
+        return httpx.Response(
+            200,
+            json={
+                "code": "Ok",
+                "routes": [{"geometry": {"type": "LineString", "coordinates": coords}}],
+            },
+        )
+
+    monkeypatch.setattr(processing_session, "run_processing", completed_processing)
+    async with httpx.AsyncClient(transport=httpx.MockTransport(provider)) as http:
+        clients = SimpleNamespace(mapbox_matching=http, mapbox_directions=http)
+        monkeypatch.setattr(
+            segment_routes, "get_route_enrichment_http_clients", lambda: clients
+        )
+        processing_session._sessions.clear()
+        stream = processing_session.process_stream(clients, user)
+        assert await anext(stream) == TripStart(trip_index=0)
+        await stream.aclose()
+        gate.set()
+        await processing_session._sessions[1]._task
+        try:
+            async with asyncio.timeout(10):
+                while True:
+                    async with AsyncSession(route_runtime) as persisted:
+                        segments = (await persisted.exec(select(Segment))).all()
+                        if {row.start_time: row.route for row in segments} == expected:
+                            break
+                    await asyncio.sleep(0.01)
+        finally:
+            processing_session._sessions.clear()

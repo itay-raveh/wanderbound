@@ -55,7 +55,11 @@ class TestRunMatching:
         google_items = [
             _make_item(
                 f"gp-{i}",
-                _match_dt(10 + i * 4, 30).isoformat(),
+                [
+                    "1999-01-01T00:00:00Z",
+                    "2024-01-20T10:00:00Z",
+                    "2030-12-31T23:59:00Z",
+                ][i],
                 base_url=f"https://lh3.googleusercontent.com/{name}",
             )
             for i, name in enumerate(names)

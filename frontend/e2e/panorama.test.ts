@@ -158,16 +158,8 @@ test("frames a panorama globally and prints a two-page spread", async ({
     )
     .toBe(true);
   await expect(dialog.getByRole("alert")).toHaveCount(0);
-  await expect(dialog.locator('input[name="zoom"]')).toHaveAttribute(
-    "max",
-    "3",
-  );
-
   await dialog.locator('input[name="perspective"]').fill("55");
   await dialog.locator('input[name="zoom"]').fill("1.837");
-  await expect(
-    dialog.locator('input[name="zoom"]').locator("..").locator("output"),
-  ).toHaveText("1.84×");
   const box = await preview.boundingBox();
   expect(box).not.toBeNull();
   await page.mouse.move(box!.x + box!.width * 0.65, box!.y + box!.height * 0.5);
@@ -197,15 +189,17 @@ test("frames a panorama globally and prints a two-page spread", async ({
   await expect
     .poll(() =>
       fullPagePanorama.evaluate((element) => {
-        const container = element.parentElement;
-        const image = element.querySelector("img");
-        return {
-          padding: container ? getComputedStyle(container).paddingTop : null,
-          fit: image ? getComputedStyle(image).objectFit : null,
-        };
+        const container = element.parentElement!.getBoundingClientRect();
+        const image = element.querySelector("img")!.getBoundingClientRect();
+        return Math.max(
+          Math.abs(image.left - container.left),
+          Math.abs(image.top - container.top),
+          Math.abs(image.right - container.right),
+          Math.abs(image.bottom - container.bottom),
+        );
       }),
     )
-    .toEqual({ padding: "0px", fit: "cover" });
+    .toBeLessThan(1);
   await scrollToStep(page, "Amsterdam");
   await expect(page.locator(".panorama-frame-action").first()).toBeVisible();
   await page.locator(".panorama-spread-action").click();

@@ -5,7 +5,9 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 from unittest.mock import AsyncMock, patch
 
+import av
 import pytest
+from PIL import Image
 
 from app.logic.external_media.album_media import replace_album_media_from_saved
 from app.logic.external_media.undo import (
@@ -134,37 +136,37 @@ def _seed_video_undo_files(
     undo_dir = tmp_path / ".undo"
     undo_dir.mkdir()
     snapshot = undo_dir / VALID_VIDEO_NAME
-    snapshot.write_bytes(b"original video")
+    _write_video(snapshot, "red")
     if snapshot_poster is not None:
         snapshot.with_suffix(".jpg").write_bytes(snapshot_poster)
     return target.with_suffix(".jpg")
+
+
+def _write_video(path: Path, color: str) -> None:
+    with av.open(str(path), mode="w") as container:
+        stream = container.add_stream("mpeg4", rate=4)
+        stream.width, stream.height = 64, 48
+        stream.pix_fmt = "yuv420p"
+        stream.thread_count = 1
+        for _ in range(4):
+            frame = av.VideoFrame.from_image(Image.new("RGB", (64, 48), color))
+            for packet in stream.encode(frame):
+                container.mux(packet)
+        for packet in stream.encode():
+            container.mux(packet)
 
 
 async def _restore_video_undo(
     session: AsyncSession,
     album: Album,
     tmp_path: Path,
-    *,
-    create_frame_patch: bool = False,
-) -> AsyncMock:
-    with (
-        patch(
-            "app.logic.external_media.undo.Media.probe",
-            AsyncMock(return_value=Media(name=VALID_VIDEO_NAME, width=640, height=480)),
-        ),
-        patch(
-            "app.logic.external_media.undo.extract_frame",
-            AsyncMock(),
-            create=create_frame_patch,
-        ) as extract_frame,
-    ):
-        await restore_undo_snapshot(
-            session,
-            album=album,
-            album_dir=tmp_path,
-            media_name=VALID_VIDEO_NAME,
-        )
-    return extract_frame
+) -> None:
+    await restore_undo_snapshot(
+        session,
+        album=album,
+        album_dir=tmp_path,
+        media_name=VALID_VIDEO_NAME,
+    )
 
 
 def _add_undo_snapshot(
@@ -290,10 +292,9 @@ async def test_video_undo_restores_snapshot_poster(
     )
     await session.commit()
 
-    extract_frame = await _restore_video_undo(session, album, tmp_path)
+    await _restore_video_undo(session, album, tmp_path)
 
     assert poster.read_bytes() == b"custom poster"
-    extract_frame.assert_not_awaited()
     row = await session.get_one(AlbumMedia, (uid, AID, VALID_VIDEO_NAME))
     assert row.perceptual_hashes == ["0123456789abcdef"]
 
@@ -310,8 +311,17 @@ async def test_video_undo_regenerates_restored_poster(
     _add_undo_snapshot(session, uid=uid)
     await session.commit()
 
-    extract_frame = await _restore_video_undo(
-        session, album, tmp_path, create_frame_patch=True
-    )
+    await _restore_video_undo(session, album, tmp_path)
 
-    extract_frame.assert_awaited_once_with(target)
+    with Image.open(target.with_suffix(".jpg")) as poster:
+        assert poster.size == (64, 48)
+        pixel = poster.getpixel((0, 0))
+        assert isinstance(pixel, tuple)
+        red, _, blue = pixel
+        assert red > blue + 100
+    row = await session.get_one(AlbumMedia, (uid, AID, VALID_VIDEO_NAME))
+    assert (row.width, row.height) == (64, 48)
+    assert row.byte_size == target.stat().st_size
+    assert (
+        await session.get(AlbumMediaUndoSnapshot, (uid, AID, VALID_VIDEO_NAME)) is None
+    )

@@ -3,7 +3,7 @@ from collections.abc import AsyncIterator
 from io import BytesIO
 from pathlib import Path
 from typing import Any
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock, patch
 from uuid import uuid4
 from zipfile import ZipFile
 
@@ -97,23 +97,31 @@ async def test_run_processing_stale_guard_skips_db_save(
     async def cancelled() -> bool:
         return False
 
-    async def fake_process_trip(*args: object) -> AsyncIterator[PhaseUpdate]:
+    engine = _sqlite_engine()
+    await _create_schema(engine)
+
+    async def fake_process_trip(
+        _http: HttpClients,
+        _user: User,
+        _trip_dir: Path,
+        db_out: list,
+    ) -> AsyncIterator[PhaseUpdate]:
+        db_out.append(_album(title="Stale run must not persist"))
         yield PhaseUpdate(phase="layouts", done=1, total=1)
 
-    with (
-        patch(
-            "app.logic.trip_pipeline._load_existing",
-            new=AsyncMock(return_value=({}, {}, {})),
-        ),
-        patch("app.logic.trip_pipeline._process_trip", fake_process_trip),
-        patch("app.logic.trip_pipeline._save_new", new=AsyncMock()) as save_new,
-    ):
-        events = await collect_async(
-            run_processing(_MOCK_HTTP, user, should_continue=cancelled)
-        )
-
-    save_new.assert_not_awaited()
-    assert events[-1] == ErrorData()
+    try:
+        with (
+            patch("app.logic.trip_pipeline.get_engine", return_value=engine),
+            patch("app.logic.trip_pipeline._process_trip", fake_process_trip),
+        ):
+            events = await collect_async(
+                run_processing(_MOCK_HTTP, user, should_continue=cancelled)
+            )
+        async with AsyncSession(engine) as session:
+            assert (await session.exec(select(Album))).all() == []
+        assert events[-1] == ErrorData()
+    finally:
+        await engine.dispose()
 
 
 async def test_save_new_guard_skips_commit_inside_save_transaction(

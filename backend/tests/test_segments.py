@@ -400,9 +400,12 @@ class TestHikePoints:
     def test_non_hike_segments_are_rdp_simplified(self) -> None:
         gps = _track(0.0, 0.0, 0.0, 0.5, h0=9.0, h1=9.5, n=50)
         segments = list(build_segments([_step(0.0, 0.5, 9.5)], gps))
-        for seg in segments:
-            if seg.kind != SegmentKind.hike:
-                assert len(seg.points) <= 10
+        assert segments
+        assert all(seg.kind != SegmentKind.hike for seg in segments)
+        points = [point for seg in segments for point in seg.points]
+        assert points[0] == gps[0]
+        assert points[-1] == gps[-1]
+        assert len(points) < len(gps)
 
 
 class TestStructure:
@@ -413,7 +416,9 @@ class TestStructure:
             + _track(0.0, 0.2, 0.0, 0.7, h0=14.5, h1=15.0, n=5)
             + _track(0.0, 0.7, 0.0, 0.71, h0=16.0, h1=18.0, n=10)
         )
-        return list(build_segments([_step(0.0, 0.7, 15.0)], gps))
+        segments = list(build_segments([_step(0.0, 0.7, 15.0)], gps))
+        assert segments
+        return segments
 
     def test_all_segments_have_at_least_two_points(
         self, mixed_segments: list[SegmentData]
@@ -433,10 +438,10 @@ class TestStructure:
 
 
 class TestRobustness:
-    def test_no_gps_does_not_crash(self) -> None:
+    def test_sparse_steps_without_gps_do_not_invent_a_route(self) -> None:
         steps = [_step(0.0, 0.0, 9.0), _step(0.0, 0.1, 14.0)]
         segments = list(build_segments(steps, []))
-        assert all(len(s.points) >= 2 for s in segments)
+        assert segments == []
 
 
 def test_demo_routes_respect_mapbox_input_contracts() -> None:
