@@ -19,15 +19,7 @@ function makeMap() {
 }
 
 describe("drawSegmentsAndMarkers", () => {
-  it.each([
-    { route: [] },
-    {
-      route: [
-        [5.0, 52.24],
-        [5.12, 52.09],
-      ],
-    },
-  ])(
+  it.each([{ route: [] }, { route: [[5.12, 52.09]] }])(
     "keeps the complete driving trace visible with saved route $route",
     ({ route }) => {
       const map = makeMap();
@@ -52,7 +44,7 @@ describe("drawSegmentsAndMarkers", () => {
     },
   );
 
-  it.each(["snapped", "outlier", "loop", "directions"])(
+  it.each(["snapped", "outlier", "loop", "directions", "tidied_endpoint"])(
     "retains a valid $0 road route",
     (shape) => {
       const map = makeMap();
@@ -66,6 +58,7 @@ describe("drawSegmentsAndMarkers", () => {
         { lon: 4.06, lat: 52.15, time: 1 },
         { lon: 4.1, lat: 52.1, time: 2 },
       ];
+      if (shape === "tidied_endpoint") points[0].lon = -74;
       if (shape === "outlier") points[1].lat = 53;
       if (shape === "loop") {
         points[2] = { ...points[0], time: 2 };

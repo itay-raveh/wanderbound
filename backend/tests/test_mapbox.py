@@ -402,7 +402,7 @@ async def test_matching_keeps_coverage_without_guessing_another_road(
         result = await _match_one(
             MapboxRouteClients(client, client), _timed(coords), "driving", "token"
         )
-    if shape in {"prefix", "geometry_prefix", "suffix", "split"}:
+    if shape == "split":
         assert result.status == RouteEnrichmentStatus.no_route
         assert result.route is None
         assert result.error_code == "incomplete_match"

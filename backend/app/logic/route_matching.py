@@ -1,7 +1,7 @@
 import numpy as np
 from simplification.cutil import simplify_coords_idx
 
-from app.logic.spatial.geo import Coords, haversine_km
+from app.logic.spatial.geo import Coords
 from app.models.segment import SegmentKind
 
 MATCHABLE_KINDS = frozenset({SegmentKind.driving, SegmentKind.walking})
@@ -12,23 +12,6 @@ _RDP_TOLERANCES = [
     (100, 0.0001),  # < 100km: ~10m
     (float("inf"), 0.001),  # >= 100km: ~110m
 ]
-
-
-# Map Matching accepts at most 50m of snapping. Use its maximum, rather than
-# its 5m default, to conservatively inspect legacy matches without metadata.
-MATCH_MAX_SNAP_KM = 0.05
-
-
-def route_covers_trace_endpoints(coords: Coords, route: Coords | None) -> bool:
-    if not route or len(route) < 2:
-        return False
-    # Two-point traces use Directions, which has different snapping rules.
-    if len(coords) <= 2:
-        return True
-    return all(
-        haversine_km(gps[1], gps[0], road[1], road[0]) <= MATCH_MAX_SNAP_KM
-        for gps, road in ((coords[0], route[0]), (coords[-1], route[-1]))
-    )
 
 
 def reduce_coord_indices(coords: Coords, max_count: int) -> list[int]:

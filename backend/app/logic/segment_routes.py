@@ -16,7 +16,7 @@ from app.core.db import get_engine
 from app.core.http_clients import HttpClients
 from app.core.locks import try_advisory_lock
 from app.core.observability import set_span_data, start_span
-from app.logic.route_matching import MATCHABLE_KINDS, route_covers_trace_endpoints
+from app.logic.route_matching import MATCHABLE_KINDS
 from app.models.segment import (
     RouteEnrichmentStatus,
     Segment,
@@ -254,8 +254,27 @@ def start_album_route_enrichment(uid: int, aid: str) -> object:
 async def pending_route_enrichment_targets(
     session: AsyncSession,
 ) -> list[tuple[int, str]]:
-    rows = await _route_candidates(session)
-    return sorted({(seg.uid, seg.aid) for seg, _ in rows})
+    # Project keys only: historical GPS/geometry must never be loaded at startup.
+    query = (
+        select(Segment.uid, Segment.aid)
+        .outerjoin(SegmentRouteEnrichment, _enrichment_join())
+        .where(
+            col(Segment.kind).in_(MATCHABLE_KINDS),
+            _route_unusable(),
+            or_(
+                _without_enrichment_state(),
+                col(SegmentRouteEnrichment.status) == RouteEnrichmentStatus.matched,
+            ),
+        )
+        .distinct()
+        .order_by(col(Segment.uid), col(Segment.aid))
+        .execution_options(yield_per=100)
+    )
+    result = await session.stream(query)
+    try:
+        return [(uid, aid) async for uid, aid in result]
+    finally:
+        await result.close()
 
 
 async def reconcile_missing_route_enrichments() -> None:
@@ -350,7 +369,7 @@ async def _match_routes_in_session(  # noqa: PLR0913
     stats.limiter_wait_ms = route_stats.limiter_wait_ms
     stats.provider_latency_ms = route_stats.provider_latency_ms
     stats.budget_fallbacks = route_stats.budget_fallbacks
-    for (key, _, _), result in zip(snapshots, results, strict=True):
+    for (key, coords, profile), result in zip(snapshots, results, strict=True):
         outcome = result
         if outcome.error_code == REQUEST_BUDGET_EXCEEDED:
             continue
@@ -365,7 +384,7 @@ async def _match_routes_in_session(  # noqa: PLR0913
             stats.no_route += 1
         else:
             stats.failed += 1
-        recorded, updated = await _write_outcome(session, key, outcome)
+        recorded, updated = await _write_outcome(session, key, outcome, coords, profile)
         stats.recorded += recorded
         stats.updated += updated
     await session.commit()
@@ -452,24 +471,29 @@ async def _unmatched_snapshots(
     ]
 
 
+def _route_unusable() -> ColumnElement[bool]:
+    # JSON extraction is NULL for SQL/JSON null, empty and single-point arrays.
+    # A nonempty legacy line is ambiguous without original matching metadata.
+    return col(Segment.route)[1].as_string().is_(None)
+
+
 def _needs_route_enrichment(seg: Segment, state: SegmentRouteEnrichment | None) -> bool:
-    # Never retry terminal no_route/failed outcomes. Only stale successful
-    # geometry (or untouched segments) can enter this bounded repair path.
-    return (
-        state is None or state.status == RouteEnrichmentStatus.matched
-    ) and not route_covers_trace_endpoints(
-        [(p.lon, p.lat) for p in seg.points], seg.route
+    return (state is None or state.status == RouteEnrichmentStatus.matched) and (
+        seg.route is None or len(seg.route) < 2
     )
 
 
 async def _route_candidates(
-    session: AsyncSession, uid: int | None = None, aid: str | None = None
+    session: AsyncSession, uid: int, aid: str
 ) -> list[tuple[Segment, SegmentRouteEnrichment | None]]:
     query = (
         select(Segment, SegmentRouteEnrichment)
         .outerjoin(SegmentRouteEnrichment, _enrichment_join())
         .where(
             col(Segment.kind).in_(MATCHABLE_KINDS),
+            _route_unusable(),
+            Segment.uid == uid,
+            Segment.aid == aid,
             or_(
                 _without_enrichment_state(),
                 col(SegmentRouteEnrichment.status) == RouteEnrichmentStatus.matched,
@@ -477,8 +501,6 @@ async def _route_candidates(
         )
         .order_by(col(Segment.start_time))
     )
-    if uid is not None:
-        query = query.where(Segment.uid == uid, Segment.aid == aid)
     rows = await session.exec(query)
     return [(seg, state) for seg, state in rows if _needs_route_enrichment(seg, state)]
 
@@ -487,12 +509,27 @@ async def _write_outcome(
     session: AsyncSession,
     key: SegmentKey,
     result: RouteMatchResult,
+    expected_points: list[tuple[float, float, float]],
+    expected_profile: str,
 ) -> tuple[int, int]:
-    segment = await session.get(Segment, key)
-    state = await session.get(SegmentRouteEnrichment, key)
-    if segment is None or not _needs_route_enrichment(segment, state):
+    segment = await session.get(
+        Segment, key, populate_existing=True, with_for_update=True
+    )
+    state = await session.get(SegmentRouteEnrichment, key, populate_existing=True)
+    if (
+        segment is None
+        or str(segment.kind) != expected_profile
+        or [(p.lon, p.lat, p.time) for p in segment.points] != expected_points
+        or not _needs_route_enrichment(segment, state)
+    ):
         return 0, 0
 
+    if result.status == RouteEnrichmentStatus.matched and (
+        result.route is None or len(result.route) < 2
+    ):
+        result = RouteMatchResult(
+            status=RouteEnrichmentStatus.failed, error_code="invalid_geometry"
+        )
     segment.route = None
     session.add(segment)
     updated = 0
@@ -532,8 +569,8 @@ async def _mark_pending_failed(
         error_code=error_code[:100],
     )
     recorded = 0
-    for key, _, _ in snapshots:
-        wrote, _ = await _write_outcome(session, key, failed)
+    for key, coords, profile in snapshots:
+        wrote, _ = await _write_outcome(session, key, failed, coords, profile)
         recorded += wrote
     await session.commit()
     return recorded

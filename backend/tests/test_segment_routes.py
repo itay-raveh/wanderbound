@@ -8,10 +8,12 @@ from typing import TYPE_CHECKING
 from unittest.mock import AsyncMock, call, patch
 
 import pytest
+from sqlalchemy import text
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.logic.segment_routes import (
     RouteEnrichmentIncompleteError,
+    _write_outcome,
     album_route_enrichment_workflow,
     mark_album_route_failure_step,
     match_album_segment_routes,
@@ -511,7 +513,7 @@ async def test_advisory_lock_already_held_skips_run(engine: AsyncEngine) -> None
     assert await _route_for(engine, uid) is None
 
 
-@pytest.mark.parametrize("saved_route", [[], [(4.1, 52.1), (4.2, 52.2)]])
+@pytest.mark.parametrize("saved_route", [[], [(4.2, 52.2)]])
 @pytest.mark.parametrize("repaired", [False, True])
 async def test_stale_success_is_repaired_once_without_retrying_terminal_failure(
     engine: AsyncEngine, saved_route: Route, *, repaired: bool
@@ -558,3 +560,129 @@ async def test_stale_success_is_repaired_once_without_retrying_terminal_failure(
     assert terminal is not None
     assert terminal.error_code == "NoSegment"
     assert await _route_for(engine, terminal_uid) is None
+
+
+async def test_changed_gps_during_matching_never_receives_stale_route(
+    engine: AsyncEngine,
+) -> None:
+    uid = 4100
+    await _seed_segments(engine, uid, (100.0, 200.0, SegmentKind.driving))
+    new_points = [Point(lon=10, lat=50, time=100), Point(lon=11, lat=51, time=200)]
+
+    async def change_then_match(
+        *_args: object,
+    ) -> tuple[list[RouteMatchResult], SimpleNamespace]:
+        async with AsyncSession(engine) as session:
+            segment = await session.get(Segment, (uid, AID, 100.0, 200.0))
+            assert segment is not None
+            segment.points = new_points
+            session.add(segment)
+            await session.commit()
+        return [_matched([(4, 52), (5, 53)])], _stats()
+
+    await _run_route_enrichment(engine, uid, side_effect=change_then_match)
+    assert await _route_for(engine, uid) is None
+    assert await _state_for(engine, uid) is None
+    async with AsyncSession(engine) as session:
+        segment = await session.get(Segment, (uid, AID, 100.0, 200.0))
+        assert segment is not None
+        assert segment.points == new_points
+
+
+async def test_single_point_match_is_terminal_without_repeated_paid_repair(
+    engine: AsyncEngine,
+) -> None:
+    uid = 4101
+    await _seed_segments(engine, uid, (100.0, 200.0, SegmentKind.driving))
+    await _run_route_enrichment(
+        engine, uid, route_result=([_matched([(4, 52)])], _stats())
+    )
+    assert await _route_for(engine, uid) is None
+    state = await _state_for(engine, uid)
+    assert state is not None
+    assert state.status == RouteEnrichmentStatus.failed
+    assert state.error_code == "invalid_geometry"
+    await _run_route_enrichment(
+        engine,
+        uid,
+        side_effect=AssertionError(
+            "terminal geometry must not incur another paid request"
+        ),
+    )
+
+
+async def test_startup_recovery_does_not_deserialize_unrelated_history(
+    engine: AsyncEngine,
+) -> None:
+    historical_uid, pending_uid = 4102, 4103
+    await _seed_segments(engine, historical_uid, (100.0, 200.0, SegmentKind.driving))
+    await _run_route_enrichment(
+        engine, historical_uid, route_result=([_matched([(4, 52), (5, 53)])], _stats())
+    )
+    await _seed_segments(engine, pending_uid, (100.0, 200.0, SegmentKind.driving))
+    # Incompatible historical GPS cannot block startup recovery for another user.
+    # Startup needs album keys, never historical Point model deserialization.
+    async with engine.begin() as connection:
+        await connection.execute(
+            text("UPDATE segment SET points = :points WHERE uid = :uid"),
+            {"points": '[{"legacy_coordinate": 1}]', "uid": historical_uid},
+        )
+    try:
+        async with AsyncSession(engine) as session:
+            targets = await pending_route_enrichment_targets(session)
+    finally:
+        async with engine.begin() as connection:
+            await connection.execute(
+                text("UPDATE segment SET points = :points WHERE uid = :uid"),
+                {"points": "[]", "uid": historical_uid},
+            )
+    assert (pending_uid, AID) in targets
+    assert (historical_uid, AID) not in targets
+
+
+async def test_ambiguous_legacy_route_is_preserved_without_paid_repair(
+    engine: AsyncEngine,
+) -> None:
+    uid = 4104
+    await _seed_segments(engine, uid, (100.0, 200.0, SegmentKind.driving))
+    async with AsyncSession(engine) as session:
+        segment = await session.get(Segment, (uid, AID, 100.0, 200.0))
+        assert segment is not None
+        segment.points = [
+            Point(lon=4, lat=52, time=100),
+            Point(lon=4.1, lat=52.1, time=150),
+            Point(lon=4.2, lat=52.2, time=200),
+        ]
+        session.add(segment)
+        await session.commit()
+    route = [(30.0, 20.0), (30.1, 20.1)]
+    await _run_route_enrichment(engine, uid, route_result=([_matched(route)], _stats()))
+    await _run_route_enrichment(
+        engine,
+        uid,
+        side_effect=AssertionError("legacy geometry is not proof of corruption"),
+    )
+    assert await _route_for(engine, uid) == route
+
+
+async def test_older_failure_cannot_clear_concurrently_committed_repair(
+    engine: AsyncEngine,
+) -> None:
+    uid = 4105
+    key = (uid, AID, 100.0, 200.0)
+    await _seed_segments(engine, uid, (100.0, 200.0, SegmentKind.driving))
+    route = [(4.0, 52.0), (4.1, 52.1)]
+    async with AsyncSession(engine, expire_on_commit=False) as older:
+        cached_segment = await older.get(Segment, key)
+        assert cached_segment is not None
+        coords = [(p.lon, p.lat, p.time) for p in cached_segment.points]
+        # Hold the old identity-map object while another transaction repairs it.
+        async with AsyncSession(engine) as repair:
+            await _write_outcome(repair, key, _matched(route), coords, "driving")
+            await repair.commit()
+        await _write_outcome(older, key, _failed("older_failure"), coords, "driving")
+        await older.commit()
+    assert await _route_for(engine, uid) == route
+    state = await _state_for(engine, uid)
+    assert state is not None
+    assert state.status == RouteEnrichmentStatus.matched

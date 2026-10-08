@@ -4,7 +4,6 @@ import { mediaThumbUrl } from "@/utils/media";
 import "./map-segments.css";
 import mapboxgl from "mapbox-gl";
 import bezierSpline from "@turf/bezier-spline";
-import distance from "@turf/distance";
 import { lineString } from "@turf/helpers";
 
 const LAYER_PREFIX = "seg-";
@@ -339,19 +338,11 @@ function drawSegmentsAndMarkersInner(
       case "walking":
       case "driving": {
         const kind = seg.kind;
-        // Older albums may contain an empty or truncated successful match.
-        // Allow road snapping/simplification, but never hide a missing endpoint.
+        // Empty/single-point saved geometry cannot draw a line. Nonempty legacy
+        // geometry may legitimately omit tidied outliers; retain it unchanged.
         const route = seg.route;
-        // Map Matching allows at most 50m snapping; two-point Directions routes
-        // have different snapping rules and are not checked against that limit.
-        const complete =
-          route &&
-          route.length >= 2 &&
-          (coords.length <= 2 ||
-            (distance(coords[0], route[0]) <= 0.05 &&
-              distance(coords[coords.length - 1], route[route.length - 1]) <=
-                0.05));
-        const routeCoords: [number, number][] = complete ? route : coords;
+        const routeCoords: [number, number][] =
+          route && route.length >= 2 ? route : coords;
         routeBuckets[kind].push(routeCoords);
         allCoords.push(...coords);
         break;

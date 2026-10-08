@@ -15,7 +15,6 @@ from app.core.observability import set_span_data, start_span
 from app.logic.route_matching import (
     Coords,
     reduce_coord_indices,
-    route_covers_trace_endpoints,
     simplify_route,
 )
 from app.logic.spatial.geo import total_length_km
@@ -218,11 +217,7 @@ def _parse_matching_response(
     ]
     if len(points) < 2:
         return _failed("invalid_geometry")
-    # Tidy can omit clustered/outlier endpoints while retaining the whole line.
-    if (
-        tracepoints[0] is None or tracepoints[-1] is None
-    ) and not route_covers_trace_endpoints(request_coords, points):
-        return _no_route("incomplete_match")
+    # Null endpoint tracepoints may be legitimate tidied outliers.
     return _matched(points)
 
 
@@ -500,8 +495,6 @@ async def _match_one(  # noqa: PLR0913
         return result
 
     coords = _coords(points)
-    if not route_covers_trace_endpoints(coords, result.route):
-        return _no_route("incomplete_match")
     span = total_length_km(coords)
     simplified = simplify_route(result.route, span)
     logger.debug(

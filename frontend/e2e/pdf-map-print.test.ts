@@ -265,10 +265,7 @@ test.describe("PDF map snapshots", () => {
     const driving: Segment = {
       ...hike,
       kind: "driving",
-      route: [
-        [5.0, 52.24],
-        [5.12, 52.09],
-      ],
+      route: [],
     };
     // Distant incoming/outgoing flights must not change destination-pin framing.
     const flights: Segment[] = [
@@ -308,7 +305,7 @@ test.describe("PDF map snapshots", () => {
           true,
       );
       // Inspect real WebGL pixels in the existing whole-trip map.
-      // A suffix-only line occupies the bottom half; the complete drive spans
+      // An empty saved route draws no line; the recovered GPS drive spans
       // both sides of the map despite terrain and the captured JPEG encoding.
       const extent = await page
         .locator(".map-page .mapbox-print-snapshot")
