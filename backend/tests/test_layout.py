@@ -1,12 +1,6 @@
-import pytest
+from functools import cache
 
-from app.logic.layout.builder import (
-    _build_pages,
-    _landscape_page_count,
-    _landscape_pages,
-    _optimal_mixed_count,
-    _portrait_page_count,
-)
+from app.logic.layout.builder import _build_pages
 
 # Helpers
 
@@ -16,90 +10,21 @@ def _names(prefix: str, n: int) -> list[str]:
     return [f"{prefix}{i}" for i in range(n)]
 
 
-VALID_LANDSCAPE_SIZES = {1, 3, 4}
+# Supported album grids: portrait-only 1/2/3, landscape-only 1/3/4,
+# and one portrait with two landscapes. This oracle packs actual grid shapes
+# rather than reusing the production page-count or mixing helpers.
+GRIDS = ((1, 0), (2, 0), (3, 0), (0, 1), (0, 3), (0, 4), (1, 2))
 
 
-# _landscape_page_count
-
-
-class TestLandscapePageCount:
-    @pytest.mark.parametrize(
-        ("n", "expected"),
-        [
-            (0, 0),
-            (1, 1),
-            (2, 2),
-            (3, 1),
-            (4, 1),
-            (5, 2),
-            (6, 2),
-            (7, 2),
-            (8, 2),
-            (9, 3),
-            (10, 3),
-            (11, 3),
-            (12, 3),
-            (13, 4),
-        ],
+@cache
+def _minimum_pages(portraits: int, landscapes: int) -> int:
+    if portraits == landscapes == 0:
+        return 0
+    return 1 + min(
+        _minimum_pages(portraits - p, landscapes - l)
+        for p, l in GRIDS
+        if p <= portraits and l <= landscapes
     )
-    def test_values(self, n: int, expected: int) -> None:
-        assert _landscape_page_count(n) == expected
-
-
-# _optimal_mixed_count
-
-
-class TestOptimalMixedCount:
-    def test_result_minimizes_pages(self) -> None:
-        """Brute-force verify that the returned b gives the minimum total pages."""
-        for p in range(15):
-            for l in range(15):
-                b = _optimal_mixed_count(p, l)
-                total = (
-                    b + _portrait_page_count(p - b) + _landscape_page_count(l - 2 * b)
-                )
-
-                # Check all other valid b values give >= total
-                for b2 in range(min(p, l // 2) + 1):
-                    t2 = (
-                        b2
-                        + _portrait_page_count(p - b2)
-                        + _landscape_page_count(l - 2 * b2)
-                    )
-                    assert total <= t2, (
-                        f"p={p}, l={l}: b={b} gives {total}, b={b2} gives {t2}"
-                    )
-
-
-# _landscape_pages
-
-
-class TestLandscapePages:
-    def test_n5_edge_case(self) -> None:
-        items = _names("l", 5)
-        pages = list(_landscape_pages(items))
-        assert len(pages) == 2
-        assert len(pages[0]) == 4
-        assert len(pages[1]) == 1
-
-    @pytest.mark.parametrize("n", [3, 4, 6, 7, 8, 9, 10, 11, 12, 13, 20])
-    def test_valid_page_sizes(self, n: int) -> None:
-        items = _names("l", n)
-        pages = list(_landscape_pages(items))
-        for page in pages:
-            assert len(page) in VALID_LANDSCAPE_SIZES, (
-                f"invalid page size {len(page)} for n={n}"
-            )
-
-    @pytest.mark.parametrize("n", range(21))
-    def test_all_items_consumed(self, n: int) -> None:
-        items = _names("l", n)
-        pages = list(_landscape_pages(items))
-        flat = [p for page in pages for p in page]
-        assert sorted(flat) == sorted(items)
-
-
-# Integration tests for _build_pages
 
 
 class TestBuildPages:
@@ -137,39 +62,19 @@ class TestBuildPages:
         sizes = sorted(len(p) for p in pages)
         assert sizes == [1, 3, 3, 4]
 
-    @pytest.mark.parametrize(
-        ("p", "l"),
-        [
-            (0, 0),
-            (1, 0),
-            (0, 1),
-            (3, 3),
-            (1, 2),
-            (1, 4),
-            (4, 6),
-            (5, 10),
-            (3, 7),
-            (10, 10),
-        ],
-    )
-    def test_all_items_consumed(self, p: int, l: int) -> None:
-        portraits = _names("p", p)
-        landscapes = _names("l", l)
-        pages = list(_build_pages(portraits, landscapes))
-        flat = [item for page in pages for item in page]
-        assert sorted(flat) == sorted(portraits + landscapes)
-
-    @pytest.mark.parametrize(
-        ("p", "l"),
-        [(3, 3), (1, 2), (4, 6), (5, 10), (3, 7), (10, 10), (6, 12)],
-    )
-    def test_no_single_photo_pages_when_avoidable(self, p: int, l: int) -> None:
-        """With enough photos, every page should have at least 2 items."""
-        portraits = _names("p", p)
-        landscapes = _names("l", l)
-        pages = list(_build_pages(portraits, landscapes))
-
-        # Only allow singles if total count makes them unavoidable
-        singles = sum(1 for page in pages if len(page) == 1)
-        # A single is unavoidable only if we have exactly 1 item of some type left over
-        assert singles <= (p % 3 == 1) + (l in {1, 2}) + (l == 5)
+    def test_packing_preserves_every_photo_in_valid_minimal_grids(self) -> None:
+        for p in range(21):
+            for l in range(21):
+                portraits = _names("p", p)
+                landscapes = _names("l", l)
+                pages = list(_build_pages(portraits, landscapes))
+                assert sorted(item for page in pages for item in page) == sorted(
+                    portraits + landscapes
+                ), (p, l)
+                for page in pages:
+                    shape = (
+                        sum(name.startswith("p") for name in page),
+                        sum(name.startswith("l") for name in page),
+                    )
+                    assert shape in GRIDS, (p, l, page)
+                assert len(pages) == _minimum_pages(p, l), (p, l)

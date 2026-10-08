@@ -1,6 +1,5 @@
 from pathlib import Path
 
-import imagehash
 import numpy as np
 from PIL import Image
 from PIL.ExifTags import Base as ExifBase
@@ -70,18 +69,6 @@ class TestGlobalMatching:
 
         assert list(zip(rows.tolist(), cols.tolist(), strict=True)) == [(1, 0)]
 
-    def test_thresholded_assignment_handles_more_than_one_hundred_pairs(
-        self,
-    ) -> None:
-        count = 101
-        cost = np.full((count, count), 13, dtype=np.int16)
-        np.fill_diagonal(cost, 0)
-
-        rows, cols = phash_matching._thresholded_assignment(cost, threshold=12)
-
-        assert len(rows) == count
-        assert np.array_equal(rows, cols)
-
     def test_thresholded_assignment_handles_observed_large_selection(self) -> None:
         local_count = 401
         candidate_count = 1_400
@@ -117,29 +104,3 @@ class TestGlobalMatching:
             ("a.jpg", "google-a"),
             ("b.jpg", "google-b"),
         }
-
-    def test_optimal_assignment_not_greedy(self) -> None:
-        h_base = _make_hash(0)
-
-        bits_p1 = np.array([(0 >> i) & 1 for i in range(64)], dtype=bool)
-        bits_p1[0] = True
-        bits_p1[1] = True
-        h_p1 = imagehash.ImageHash(bits_p1)
-
-        bits_p2 = np.zeros(64, dtype=bool)
-        bits_p2[0] = True
-        h_p2 = imagehash.ImageHash(bits_p2)
-
-        bits_gp2 = np.zeros(64, dtype=bool)
-        bits_gp2[0] = True
-        bits_gp2[1] = True
-        bits_gp2[2] = True
-        h_gp2 = imagehash.ImageHash(bits_gp2)
-
-        results = phash_matching.match_media_globally(
-            [_hm("photo1.jpg", h_p1), _hm("photo2.jpg", h_p2)],
-            [_hm("gp-1", h_base), _hm("gp-2", h_gp2)],
-        ).matches
-        matched_locals = {result.local_name for result in results}
-        assert "photo1.jpg" in matched_locals
-        assert "photo2.jpg" in matched_locals

@@ -2,19 +2,16 @@ import asyncio
 from collections.abc import Iterator
 from pathlib import Path
 from typing import TYPE_CHECKING
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock
 
 import pytest
+from PIL import Image
 
-from app.logic.media_upgrade.phash_matching import (
-    compute_phash_from_path,
-)
 from app.logic.media_upgrade.pipeline import (
     MatchInProgress,
     _clear_caches,
     run_matching,
 )
-from app.models.google_photos import PickedMediaItem
 
 from .factories import create_test_jpeg
 from .media_upgrade_helpers import (
@@ -22,7 +19,6 @@ from .media_upgrade_helpers import (
     make_item as _make_item,
     match_datetime as _match_dt,
     test_token as _test_token,
-    write_jpeg as _write_jpeg,
 )
 
 if TYPE_CHECKING:
@@ -84,80 +80,58 @@ class TestRunMatching:
                 task.cancel()
             await asyncio.gather(*slow_tasks, return_exceptions=True)
 
-    async def test_invalidates_cached_hash_when_local_file_changes(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    @pytest.mark.parametrize("changed", ["local_file", "candidate_metadata"])
+    async def test_changed_media_cannot_reuse_a_stale_photo_match(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, changed: str
     ) -> None:
-        album_dir = tmp_path / "album"
-        album_dir.mkdir()
-        photo = album_dir / "photo.jpg"
-        _write_jpeg(photo, 800, 600)
+        photo = create_test_jpeg(tmp_path / "photo.jpg", 800, 600)
+        candidate_bytes = photo.read_bytes()
+        candidate_width = 800
 
-        async def fake_candidate(
-            _download: object,
-            item: PickedMediaItem,
-            _tokens: object,
-            _cached_hash: object,
-        ) -> tuple[str, imagehash.ImageHash]:
-            return item.id, _make_hash(0)
+        async def download(*_args: object, **_kwargs: object) -> bytes:
+            return candidate_bytes
 
-        monkeypatch.setattr(
-            "app.logic.media_upgrade.matching._hash_candidate_one", fake_candidate
-        )
-
-        async def match_once() -> None:
-            _ = [
-                event
-                async for event in run_matching(
-                    clients=AsyncMock(),
-                    album_dir=album_dir,
-                    media_by_step={1: ["photo.jpg"]},
-                    step_ids=[1],
-                    google_items=[
-                        _make_item("google-photo", _match_dt(10).isoformat())
-                    ],
-                    tokens=_test_token,
-                )
-            ]
-
-        await match_once()
-        _write_jpeg(photo, 1200, 800)
-
-        with patch(
-            "app.logic.media_upgrade.hash_cache.compute_phash_from_path",
-            wraps=compute_phash_from_path,
-        ) as compute:
-            await match_once()
-        assert compute.call_count == 1
-
-    async def test_invalidates_candidate_hash_when_metadata_changes(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        album_dir = tmp_path / "album"
-        album_dir.mkdir()
-        photo = create_test_jpeg(album_dir / "photo.jpg", 800, 600)
-        download = AsyncMock(return_value=photo.read_bytes())
         monkeypatch.setattr(
             "app.logic.media_upgrade.matching.download_media_bytes", download
         )
 
-        for width in (800, 801):
-            _ = [
+        async def match_once() -> list:
+            events = [
                 event
                 async for event in run_matching(
                     clients=AsyncMock(),
-                    album_dir=album_dir,
+                    album_dir=tmp_path,
                     media_by_step={1: ["photo.jpg"]},
                     step_ids=[1],
                     google_items=[
                         _make_item(
                             "google-photo",
                             _match_dt(10).isoformat(),
-                            width=width,
+                            width=candidate_width,
                             height=600,
                         )
                     ],
                     tokens=_test_token,
                 )
             ]
+            return events[-1].matches
 
-        assert download.await_count == 2
+        assert [
+            (match.local_name, match.google_id) for match in await match_once()
+        ] == [("photo.jpg", "google-photo")]
+
+        # A distinct, reproducible image makes stale identity observable in the
+        # matching result, even if hashing and download internals are refactored.
+        replacement = tmp_path / "replacement.jpg"
+        Image.frombytes(
+            "RGB",
+            (32, 32),
+            bytes((i * 37 + i * i // 17) % 256 for i in range(32 * 32 * 3)),
+        ).resize((801, 600)).save(replacement, "JPEG")
+        if changed == "local_file":
+            replacement.replace(photo)
+        else:
+            candidate_bytes = replacement.read_bytes()
+            candidate_width = 801
+
+        assert await match_once() == []

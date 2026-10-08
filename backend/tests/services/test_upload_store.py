@@ -1,5 +1,5 @@
 from typing import Any
-from unittest.mock import MagicMock
+from urllib.parse import parse_qs, urlsplit
 
 import boto3
 import pytest
@@ -29,27 +29,17 @@ def store() -> UploadStoreService:
     return UploadStoreService(internal, signing, bucket="uploads", presign_ttl=900)
 
 
-def test_sign_uses_public_client_and_requested_part(store: UploadStoreService) -> None:
-    signing = MagicMock()
-    signing.generate_presigned_url.return_value = "https://public.example/signed"
-    store.signing_client = signing
+def test_signed_part_targets_public_storage_and_binds_the_requested_upload(
+    store: UploadStoreService,
+) -> None:
+    url = urlsplit(store.sign_part("uploads/id.zip", "provider-id", 3, 1_024))
+    params = parse_qs(url.query)
 
-    assert (
-        store.sign_part("uploads/id.zip", "provider-id", 3, 1_024)
-        == "https://public.example/signed"
-    )
-    signing.generate_presigned_url.assert_called_once_with(
-        "upload_part",
-        Params={
-            "Bucket": "uploads",
-            "Key": "uploads/id.zip",
-            "UploadId": "provider-id",
-            "PartNumber": 3,
-            "ContentLength": 1_024,
-        },
-        ExpiresIn=900,
-        HttpMethod="PUT",
-    )
+    assert url.netloc == "public:3900"
+    assert url.path == "/uploads/uploads/id.zip"
+    assert params["uploadId"] == ["provider-id"]
+    assert params["partNumber"] == ["3"]
+    assert "content-length" in params["X-Amz-SignedHeaders"][0].split(";")
 
 
 def test_provider_errors_are_normalized_without_provider_text_or_url(
