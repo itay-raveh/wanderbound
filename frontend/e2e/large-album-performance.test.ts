@@ -282,7 +282,9 @@ test.describe("Large album editor performance", () => {
       await firstRow.hover();
       const beforeWheel = await root.evaluate((el) => el.scrollTop);
       await page.mouse.wheel(0, 300);
-      await expect.poll(() => root.evaluate((el) => el.scrollTop)).toBeGreaterThan(beforeWheel);
+      await expect
+        .poll(() => root.evaluate((el) => el.scrollTop))
+        .toBeGreaterThan(beforeWheel);
       await expect(lastRow).toBeInViewport();
       await finalHeader.scrollIntoViewIfNeeded();
       await finalHeader.focus();
@@ -293,7 +295,20 @@ test.describe("Large album editor performance", () => {
       await page.keyboard.press("Enter");
       await firstRow.scrollIntoViewIfNeeded();
       await firstRow.hover();
-      await page.mouse.wheel(0, 300);
+      // Continue user gestures as the reopened content becomes scrollable.
+      // One gesture during the expansion can precede its final scroll extent.
+      await expect
+        .poll(async () => {
+          await page.mouse.wheel(0, 300);
+          const row = await lastRow.boundingBox();
+          const sidebar = await root.boundingBox();
+          return (
+            !!row &&
+            !!sidebar &&
+            row.y + row.height <= sidebar.y + sidebar.height
+          );
+        })
+        .toBe(true);
       await expect(lastRow).toBeInViewport();
       expect(await page.evaluate(() => window.scrollY)).toBe(0);
     });
@@ -318,8 +333,15 @@ test.describe("Large album editor performance", () => {
       await expect(page.getByText(`Large Step ${step}`).first()).toBeVisible({
         timeout: 10_000,
       });
-      await expect(page.locator(`[data-nav-step="${step}"]`)).toHaveAttribute("aria-current", "step");
-      await expect(page.locator(".album-container .step-name").filter({ hasText: `Large Step ${step}` })).toBeInViewport();
+      await expect(page.locator(`[data-nav-step="${step}"]`)).toHaveAttribute(
+        "aria-current",
+        "step",
+      );
+      await expect(
+        page
+          .locator(".album-container .step-name")
+          .filter({ hasText: `Large Step ${step}` }),
+      ).toBeInViewport();
       await expect
         .poll(() => page.locator("[data-media]").count())
         .toBeLessThan(120);
@@ -339,7 +361,9 @@ test.describe("Large album editor performance", () => {
     await selectedStep.click();
     await expect(selectedStep).toBeFocused();
     await expect(selectedStep).toHaveAttribute("aria-current", "step");
-    const activePageBaseline = await page.locator(".page-position").textContent();
+    const activePageBaseline = await page
+      .locator(".page-position")
+      .textContent();
     // Let the initial navigation and virtual-list measurement settle before
     // measuring user scrolling, including one-frame focus/anchoring jumps.
     await page.waitForTimeout(200);
@@ -413,7 +437,9 @@ test.describe("Large album editor performance", () => {
       .poll(() => navList.evaluate((el) => el.scrollTop))
       .toBeLessThan(beforeReversing);
     await page.waitForTimeout(150);
-    await expect(page.locator(".page-position")).toHaveText(activePageBaseline!);
+    await expect(page.locator(".page-position")).toHaveText(
+      activePageBaseline!,
+    );
 
     // Focus recovery must leave the rendered steps reachable by keyboard.
     await page.keyboard.press("Tab");
@@ -422,7 +448,11 @@ test.describe("Large album editor performance", () => {
     const step = Number(await keyboardStep.getAttribute("data-nav-step"));
     await page.keyboard.press("Enter");
     await expect(keyboardStep).toHaveAttribute("aria-current", "step");
-    await expect(page.locator(".album-container .step-name").filter({ hasText: `Large Step ${step}` })).toBeInViewport();
+    await expect(
+      page
+        .locator(".album-container .step-name")
+        .filter({ hasText: `Large Step ${step}` }),
+    ).toBeInViewport();
   });
 
   test("keeps sidebar boundary scrolling out of the album viewer", async ({
@@ -433,7 +463,9 @@ test.describe("Large album editor performance", () => {
     const entries = page.locator(".nav-list");
     const outer = page.locator(".nav-list");
     await expect(entries).toBeVisible({ timeout: 15_000 });
-    const activePageBaseline = await page.locator(".page-position").textContent();
+    const activePageBaseline = await page
+      .locator(".page-position")
+      .textContent();
 
     // The only scroller must reach the last row and contain boundary gestures.
     await entries.evaluate((el) => {
@@ -469,7 +501,9 @@ test.describe("Large album editor performance", () => {
     }
     await page.waitForTimeout(250);
     expect(await page.evaluate(() => window.scrollY)).toBe(0);
-    await expect(page.locator(".page-position")).toHaveText(activePageBaseline!);
+    await expect(page.locator(".page-position")).toHaveText(
+      activePageBaseline!,
+    );
     expect(
       await entries.evaluate(
         (el) => el.scrollHeight - el.clientHeight - el.scrollTop,
@@ -497,8 +531,15 @@ test.describe("Large album editor performance", () => {
     await expect(page.getByText("Large Step 119").first()).toBeVisible({
       timeout: 10_000,
     });
-    await expect(page.locator('[data-nav-step="119"]')).toHaveAttribute("aria-current", "step");
-    await expect(page.locator(".album-container .step-name").filter({ hasText: "Large Step 119" })).toBeInViewport();
+    await expect(page.locator('[data-nav-step="119"]')).toHaveAttribute(
+      "aria-current",
+      "step",
+    );
+    await expect(
+      page
+        .locator(".album-container .step-name")
+        .filter({ hasText: "Large Step 119" }),
+    ).toBeInViewport();
     await page.mouse.move(640, 360);
     await page.mouse.wheel(0, 10000);
 
@@ -543,7 +584,11 @@ test.describe("Large album editor performance", () => {
     segmentPointRequests.length = 0;
     await chapterCover.click();
 
-    await expect(page.locator(".album-container .front-title").filter({ hasText: "Chapter 3" })).toBeInViewport();
+    await expect(
+      page
+        .locator(".album-container .front-title")
+        .filter({ hasText: "Chapter 3" }),
+    ).toBeInViewport();
     await page.waitForTimeout(2_000);
     expect(segmentPointRequests).toHaveLength(0);
 
