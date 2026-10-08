@@ -345,8 +345,8 @@ def _matching_shape(
         coords[-1] = coords[0]
     route = [list(p) for p in coords]
     tracepoints: list[dict[str, int] | None] = [{"matchings_index": 0}] * 3
-    if shape == "prefix":
-        tracepoints[0] = None
+    if shape in {"prefix", "geometry_prefix"}:
+        tracepoints[0] = None if shape == "prefix" else tracepoints[0]
         route = route[1:]
     elif shape == "suffix":
         tracepoints[-1] = None
@@ -376,6 +376,7 @@ def _matching_shape(
     "shape",
     [
         "prefix",
+        "geometry_prefix",
         "suffix",
         "split",
         "interior_outlier",
@@ -401,7 +402,7 @@ async def test_matching_keeps_coverage_without_guessing_another_road(
         result = await _match_one(
             MapboxRouteClients(client, client), _timed(coords), "driving", "token"
         )
-    if shape in {"prefix", "suffix", "split"}:
+    if shape in {"prefix", "geometry_prefix", "suffix", "split"}:
         assert result.status == RouteEnrichmentStatus.no_route
         assert result.route is None
         assert result.error_code == "incomplete_match"

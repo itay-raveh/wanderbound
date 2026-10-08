@@ -500,6 +500,8 @@ async def _match_one(  # noqa: PLR0913
         return result
 
     coords = _coords(points)
+    if not route_covers_trace_endpoints(coords, result.route):
+        return _no_route("incomplete_match")
     span = total_length_km(coords)
     simplified = simplify_route(result.route, span)
     logger.debug(
