@@ -1,10 +1,12 @@
 import json
 from pathlib import Path
+from typing import TYPE_CHECKING
 from unittest.mock import MagicMock
 from uuid import uuid4
 
 import httpx
 import pytest
+from sqlmodel.ext.asyncio.session import AsyncSession
 
 import app.logic.reconcile as reconcile_mod
 from app.core.http_clients import HttpClients
@@ -18,6 +20,7 @@ from app.logic.reconcile import (
     _scan_step_media,
     reconcile_trip,
 )
+from app.logic.trip_pipeline import _save_reupload
 from app.logic.trip_processing import PhaseUpdate, SegmentsFound
 from app.models.album import Album
 from app.models.album_media import AlbumMedia, PanoramaConfig, PhotoEdit
@@ -34,6 +37,10 @@ from tests.factories import (
     make_user,
     make_weather,
 )
+
+if TYPE_CHECKING:
+    from sqlalchemy.ext.asyncio import AsyncEngine
+
 
 _MOCK_HTTP = MagicMock(spec=HttpClients)
 _UID = 1
@@ -486,7 +493,10 @@ class TestReconcileTripRebuildsSegments:
         assert (row.width, row.height) == (800, 600)
 
     async def test_new_reuploaded_steps_are_added_to_existing_chapter(
-        self, tmp_path: Path
+        self,
+        tmp_path: Path,
+        postgres_engine: AsyncEngine,
+        monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         ps_steps = [
             _ps_step(1, slug="start"),
@@ -495,6 +505,17 @@ class TestReconcileTripRebuildsSegments:
         trip_dir = _build_trip_dir(tmp_path, ps_steps)
         album = _existing_album()
         album.chapters[0].step_ids = [1]
+        existing = _existing_step(1, name="Start")
+        async with AsyncSession(postgres_engine, expire_on_commit=False) as session:
+            session.add(_user())
+            await session.flush()
+            session.add(album)
+            await session.flush()
+            session.add_all(reconcile_mod._step_read_to_rows(existing))
+            await session.commit()
+        monkeypatch.setattr(
+            "app.logic.trip_pipeline.get_engine", lambda: postgres_engine
+        )
 
         def provider(request: httpx.Request) -> httpx.Response:
             if request.url.path.endswith("/elevation"):
@@ -538,14 +559,24 @@ class TestReconcileTripRebuildsSegments:
                 )
             )
 
-        reconciled_album = next(obj for obj in db_out if isinstance(obj, Album))
-        assert reconciled_album.chapters[0].step_ids == [1, 2]
-        steps = [obj for obj in db_out if isinstance(obj, reconcile_mod.Step)]
-        assert [(step.id, step.name) for step in steps] == [
-            (1, "Step 1"),
-            (2, "Step 2"),
-        ]
-        assert steps[1].location == _LOC_B
+        assert await _save_reupload(
+            _UID,
+            db_out,
+            {_RECONCILE_AID},
+            {_RECONCILE_AID: album},
+            [trip_dir],
+        )
+        async with AsyncSession(postgres_engine) as persisted:
+            saved_album = await persisted.get_one(Album, (_UID, _RECONCILE_AID))
+            assert saved_album.chapters[0].step_ids == [1, 2]
+            first = await persisted.get_one(
+                reconcile_mod.Step, (_UID, _RECONCILE_AID, 1)
+            )
+            added = await persisted.get_one(
+                reconcile_mod.Step, (_UID, _RECONCILE_AID, 2)
+            )
+            assert (first.name, added.name) == ("Step 1", "Step 2")
+            assert added.location == _LOC_B
 
 
 @pytest.mark.parametrize(

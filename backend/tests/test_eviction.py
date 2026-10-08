@@ -44,7 +44,14 @@ async def _seed(
             album = await insert_album(session, uid, aid)
             album.last_active_at = datetime.now(UTC) - timedelta(hours=hours)
             session.add(album)
-            path = get_settings().USERS_FOLDER / str(uid) / "trip" / aid / "data.bin"
+            path = (
+                get_settings().USERS_FOLDER
+                / str(uid)
+                / "trip"
+                / aid
+                / "step"
+                / "data.bin"
+            )
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_bytes(b"original" * 10)
         await session.commit()
@@ -60,8 +67,8 @@ async def test_real_user_eviction_preserves_records_and_uploading_user(
     await eviction.run_eviction(skip_uid=2)
     users = get_settings().USERS_FOLDER
     assert not (users / "1/trip/old").exists()
-    assert (users / "1/trip/recent/data.bin").read_bytes() == b"original" * 10
-    assert (users / "2/trip/uploading/data.bin").read_bytes() == b"original" * 10
+    assert (users / "1/trip/recent/step/data.bin").read_bytes() == b"original" * 10
+    assert (users / "2/trip/uploading/step/data.bin").read_bytes() == b"original" * 10
     async with AsyncSession(storage_db) as session:
         assert await session.get(User, 1) is not None
         assert await session.get(Album, (1, "old")) is not None
@@ -102,7 +109,7 @@ async def test_demo_eviction_recovers_without_deleting_other_sessions(
                 await eviction.run_eviction(skip_uid=2)
     pending = users / ".evictions/1"
     if failure != "none":
-        assert (pending / "trip/old/data.bin").read_bytes() == b"original" * 10
+        assert (pending / "trip/old/step/data.bin").read_bytes() == b"original" * 10
         async with AsyncSession(storage_db) as session:
             assert (await session.get(User, 1) is None) == (failure == "cleanup")
         await eviction.run_eviction(skip_uid=1)
@@ -125,4 +132,4 @@ async def test_demo_eviction_recovers_without_deleting_other_sessions(
         assert (users / "1/trip/new/data.bin").read_bytes() == b"new session"
     else:
         assert not (users / "1").exists()
-    assert (users / "2/trip/real/data.bin").read_bytes() == b"original" * 10
+    assert (users / "2/trip/real/step/data.bin").read_bytes() == b"original" * 10
