@@ -8,8 +8,9 @@ from typing import TYPE_CHECKING
 import pytest
 from sqlmodel import col, select
 
+import app.logic.uploads.finalize as finalize_mod
 from app.core.config import get_settings
-from app.logic.uploads.finalize import finalize_upload_session
+from app.logic.uploads.finalize import finalize_upload_session, replace_folder_once
 from app.models.processing import ProcessingOperation, UploadSession
 from tests.factories import PS_USER, TRIPS, make_user
 
@@ -156,3 +157,57 @@ async def test_local_finalization_rejects_a_concurrent_upload_for_the_same_user(
     )
 
     assert await finalize_upload_session(session, upload, source) is None
+
+
+@pytest.mark.parametrize(
+    "source_change", ["identical", "changed", "removed", "poster", "retry"]
+)
+def test_folder_replacement_retains_posters_only_for_identical_videos(
+    tmp_path: Path, source_change: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    name = "11111111-1111-4111-8111-111111111111_22222222-2222-4222-8222-222222222222"
+    target = tmp_path / "album"
+    source = tmp_path / "upload"
+    videos = source / "step_1" / "videos"
+    videos.mkdir(parents=True)
+    target.mkdir()
+    (target / f"{name}.mp4").write_bytes(b"original video")
+    (target / f"{name}.jpg").write_bytes(b"chosen poster")
+    (target / ".thumbs").mkdir()
+    (target / ".thumbs" / "stale.webp").write_bytes(b"stale thumbnail")
+    if source_change != "removed":
+        (videos / f"{name}.mp4").write_bytes(
+            b"replaced video" if source_change == "changed" else b"original video"
+        )
+    if source_change == "poster":
+        (videos / f"{name}.jpg.jpg").write_bytes(b"uploaded photo")
+    (videos / "new.mp4").write_bytes(b"new video")
+
+    if source_change == "retry":
+
+        def fail_copy(_source: Path, destination: Path) -> None:
+            destination.write_bytes(b"partial poster")
+            raise OSError("Interrupted poster copy")
+
+        with monkeypatch.context() as patch:
+            patch.setattr(finalize_mod.shutil, "copy2", fail_copy)
+            with pytest.raises(OSError, match="Interrupted poster copy"):
+                replace_folder_once(source, target, marker="reimport")
+        assert (target / f"{name}.jpg").read_bytes() == b"chosen poster"
+
+    replace_folder_once(source, target, marker="reimport")
+    replace_folder_once(source, target, marker="reimport")
+
+    poster = target / f"{name}.jpg"
+    if source_change in {"identical", "retry"}:
+        assert poster.read_bytes() == b"chosen poster"
+        assert not (target / "step_1" / "videos" / poster.name).exists()
+    else:
+        assert not poster.exists()
+    if source_change == "poster":
+        assert (
+            target / "step_1" / "videos" / f"{name}.jpg.jpg"
+        ).read_bytes() == b"uploaded photo"
+    assert (target / "step_1" / "videos" / "new.mp4").read_bytes() == b"new video"
+    assert not (target / ".thumbs").exists()
+    assert not list(tmp_path.glob("*.upload-backup-*"))

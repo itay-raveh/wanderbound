@@ -117,7 +117,8 @@ async def update_video_frame(
         raise HTTPException(status.HTTP_404_NOT_FOUND)
     poster = video.with_suffix(".jpg")
     # Delete stale poster and its thumbnails before re-extracting.
-    poster.unlink(missing_ok=True)
-    delete_thumbnails(poster)
-    await extract_frame(video, timestamp)
+    async with generation_lock(poster):
+        poster.unlink(missing_ok=True)
+        delete_thumbnails(poster)
+        await extract_frame(video, timestamp)
     logger.debug("asset.frame_reextracted", media_name=name, timestamp_s=timestamp)

@@ -7,6 +7,7 @@ with potentially changed media on disk after a re-upload.
 import asyncio
 from collections.abc import AsyncIterator
 from pathlib import Path
+from uuid import uuid4
 
 import structlog
 from pydantic import TypeAdapter, ValidationError
@@ -37,7 +38,6 @@ from app.logic.trip_processing import (
     drain_queue,
     fetch_layouts,
     load_trip_data,
-    multi_day_hike_ranges,
     prepare_media,
     run_elevations,
     run_weather,
@@ -46,7 +46,7 @@ from app.logic.trip_processing import (
 from app.models.album import Album
 from app.models.album_media import AlbumMedia
 from app.models.polarsteps import PSStep
-from app.models.step import Step, StepPageLayout, StepRead
+from app.models.step import Step, StepPageLayout, StepRead, StepSlotLayout
 from app.models.user import User
 
 logger = structlog.get_logger(__name__)
@@ -300,7 +300,14 @@ async def _process_new_steps(  # noqa: PLR0913
                 weather=step.weather,
                 cover=step.cover_media_name,
                 pages=[
-                    StepPageLayout.model_validate({"kind": "grid", "media": page})
+                    StepPageLayout(
+                        id=uuid4(),
+                        kind="grid",
+                        slots=[
+                            StepSlotLayout(id=uuid4(), kind="photo", media_name=name)
+                            for name in page
+                        ],
+                    )
                     for page in (layout.pages if layout else [])
                 ],
                 unused=[],
@@ -360,9 +367,8 @@ async def reconcile_trip(  # noqa: PLR0913
         ps.id: media for ps, media in zip(trip.all_steps, scan_results, strict=True)
     }
 
-    # Phase 2: Flatten media and detect cover
+    # New-step layouts need the original step folders before media is flattened.
     cover_name = cover_name_from_trip(trip)
-    cover_name, _cover_orientation = await prepare_media(trip_dir, cover_name)
 
     # Phase 3: New steps get full processing
     db_by_step_id = {s.id: s for s in existing_steps}
@@ -374,6 +380,8 @@ async def reconcile_trip(  # noqa: PLR0913
             http, user, aid, new_ps_steps, cover_name, new_step_objects
         ):
             yield event
+
+    cover_name, _cover_orientation = await prepare_media(trip_dir, cover_name)
 
     # Phase 4: Reconcile existing steps
     if existing_media_rows is None:
@@ -461,7 +469,7 @@ async def reconcile_trip(  # noqa: PLR0913
     )
     yield PhaseUpdate(phase="segments", done=1, total=1)
     yield count_segments(segments)
-    album.maps_ranges = multi_day_hike_ranges(segments)
+    # Map pages are user settings; rebuilding routes must not reset their ranges.
 
     db_out.append(album)
     db_out.extend(album_media)
