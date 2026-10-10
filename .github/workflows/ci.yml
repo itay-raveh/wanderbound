@@ -183,11 +183,15 @@ jobs:
         working-directory: frontend
       - run: bun run test:e2e
         working-directory: frontend
-      - if: failure()
+      - if: ${{ !cancelled() }}
         uses: actions/upload-artifact@v7
         with:
           name: playwright-report
-          path: frontend/test-results/
+          path: |
+            frontend/test-results/**/trace.zip
+            frontend/test-results/**/test-failed-*.png
+            frontend/test-results/**/error-context.md
+          if-no-files-found: ignore
           retention-days: 7
 
   test-migrations:
