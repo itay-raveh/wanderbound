@@ -18,7 +18,7 @@ dependencies = [
     "httpx<1",
     "hishel[httpx]~=1.0",
     "httpx-retries<1",
-    "polars~=1.40",
+    "polars~=2.0",
     "playwright~=1.52",
     "coloraide~=8.7",
     "pyrate-limiter~=4.4",
