@@ -1,4 +1,5 @@
 import json
+from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 from typing import TYPE_CHECKING
 from unittest.mock import MagicMock
@@ -9,6 +10,7 @@ import pytest
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 import app.logic.reconcile as reconcile_mod
+from app.core.config import get_settings
 from app.core.http_clients import HttpClients
 from app.logic.layout.media import Media
 from app.logic.photo_edit import validate_photo_edit
@@ -20,8 +22,9 @@ from app.logic.reconcile import (
     _scan_step_media,
     reconcile_trip,
 )
+from app.logic.step_media import read_steps_with_media
 from app.logic.trip_pipeline import _save_reupload
-from app.logic.trip_processing import PhaseUpdate, SegmentsFound
+from app.logic.trip_processing import PhaseUpdate, SegmentsFound, multi_day_hike_ranges
 from app.models.album import Album
 from app.models.album_media import AlbumMedia, PanoramaConfig, PhotoEdit
 from app.models.polarsteps import Location, PSStep
@@ -358,6 +361,66 @@ async def _collect_reconcile(
 
 
 class TestReconcileTripRebuildsSegments:
+    @pytest.mark.parametrize("removed", [True, False])
+    async def test_reimport_preserves_saved_map_ranges_while_rebuilding_routes(
+        self,
+        tmp_path: Path,
+        postgres_engine: AsyncEngine,
+        monkeypatch: pytest.MonkeyPatch,
+        *,
+        removed: bool,
+    ) -> None:
+        start = datetime(2025, 5, 1, 8, tzinfo=UTC)
+        points = [
+            {
+                "lat": 45 + (day * 8 + hour) * 0.009,
+                "lon": 7 + (0.004 if hour % 2 else 0),
+                "time": (start + timedelta(days=day, hours=hour)).timestamp(),
+            }
+            for day in range(2)
+            for hour in range(9)
+        ]
+        ps_steps = [
+            _ps_step(day + 1).model_copy(
+                update={
+                    "timestamp": points[day * 9]["time"],
+                    "location": _LOC.model_copy(
+                        update={"lat": points[day * 9]["lat"], "lon": 7}
+                    ),
+                }
+            )
+            for day in range(2)
+        ]
+        trip_dir = _build_trip_dir(tmp_path, ps_steps)
+        (trip_dir / "locations.json").write_text(json.dumps({"locations": points}))
+        album = _existing_album()
+        chosen = [] if removed else [(date(2025, 5, 2), date(2025, 5, 2))]
+        album.maps_ranges = chosen.copy()
+        album.show_page_numbers = True
+        existing = [_existing_step(ps.id) for ps in ps_steps]
+        async with AsyncSession(postgres_engine, expire_on_commit=False) as session:
+            session.add(_user())
+            await session.flush()
+            session.add(album)
+            await session.flush()
+            for step in existing:
+                session.add_all(reconcile_mod._step_read_to_rows(step))
+            await session.commit()
+        monkeypatch.setattr(
+            "app.logic.trip_pipeline.get_engine", lambda: postgres_engine
+        )
+
+        _, objects = await _collect_reconcile(trip_dir, album, existing)
+        segments = [obj for obj in objects if isinstance(obj, Segment)]
+        assert multi_day_hike_ranges(segments) == [(date(2025, 5, 1), date(2025, 5, 2))]
+        assert await _save_reupload(
+            _UID, objects, {_RECONCILE_AID}, {_RECONCILE_AID: album}, [trip_dir]
+        )
+        async with AsyncSession(postgres_engine) as session:
+            saved = await session.get_one(Album, (_UID, _RECONCILE_AID))
+            assert saved.maps_ranges == chosen
+            assert saved.show_page_numbers is True
+
     async def test_segments_included_in_db_out(self, tmp_path: Path) -> None:
         ps_steps = [
             _ps_step(1, slug="start"),
@@ -506,6 +569,17 @@ class TestReconcileTripRebuildsSegments:
         album = _existing_album()
         album.chapters[0].step_ids = [1]
         existing = _existing_step(1, name="Start")
+        monkeypatch.setattr(get_settings(), "DATA_FOLDER", tmp_path)
+        user = _user()
+        user.trips_folder.mkdir(parents=True)
+        trip_dir = trip_dir.rename(user.trips_folder / _RECONCILE_AID)
+        media_name = (
+            "11111111-1111-4111-8111-111111111111_"
+            "22222222-2222-4222-8222-222222222222.jpg"
+        )
+        create_test_jpeg(
+            trip_dir / ps_steps[1].folder_name / "photos" / media_name, 640, 480
+        )
         async with AsyncSession(postgres_engine, expire_on_commit=False) as session:
             session.add(_user())
             await session.flush()
@@ -577,6 +651,12 @@ class TestReconcileTripRebuildsSegments:
             )
             assert (first.name, added.name) == ("Step 1", "Step 2")
             assert added.location == _LOC_B
+            saved_steps = await read_steps_with_media(persisted, _UID, _RECONCILE_AID)
+            new_step = next(step for step in saved_steps if step.id == 2)
+            assert [name for page in new_step.pages for name in page.media] == [
+                media_name
+            ]
+            await persisted.get_one(AlbumMedia, (_UID, _RECONCILE_AID, media_name))
 
 
 @pytest.mark.parametrize(

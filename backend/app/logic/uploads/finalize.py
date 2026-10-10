@@ -1,4 +1,6 @@
 import asyncio
+import hashlib
+import shutil
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -6,6 +8,7 @@ from sqlmodel import col, select
 
 from app.api.v1.deps import to_user_public
 from app.core.locks import try_advisory_lock
+from app.logic.layout.media import MEDIA_EXTENSIONS, normalize_name
 from app.logic.processing_operations import mark_user_processing_operations_stale
 from app.logic.session import cancel_session
 from app.logic.upload import scan_user_folder
@@ -24,6 +27,35 @@ def finalization_operation_id(upload_id: str) -> str:
     return f"upload:{upload_id}:processing"
 
 
+def _retain_video_posters(previous: Path, source: Path) -> None:
+    uploaded = {
+        normalize_name(path.name): path
+        for path in source.rglob("*")
+        if path.is_file() and path.suffix.lower() in MEDIA_EXTENSIONS
+    }
+    for video in previous.glob("*.mp4"):
+        poster = video.with_suffix(".jpg")
+        replacement = uploaded.get(video.name)
+        if (
+            replacement is None
+            or not poster.is_file()
+            or poster.name in uploaded
+            or video.stat().st_size != replacement.stat().st_size
+        ):
+            continue
+        # A matching filename/size alone can still contain a different video.
+        with video.open("rb") as old, replacement.open("rb") as new:
+            if (
+                hashlib.file_digest(old, "sha256").digest()
+                != hashlib.file_digest(new, "sha256").digest()
+            ):
+                continue
+        # Keep derivatives out of step folders so they aren't imported as photos.
+        staged = source / f".{poster.name}.tmp"
+        shutil.copy2(poster, staged)
+        staged.replace(source / poster.name)
+
+
 def replace_folder_once(source: Path, target: Path, *, marker: str) -> None:
     backup = target.with_name(f"{target.name}.upload-backup-{marker}")
     marker_path = target / _MARKER
@@ -40,6 +72,7 @@ def replace_folder_once(source: Path, target: Path, *, marker: str) -> None:
         remove_tree_if_present(backup)
         target.rename(backup)
     try:
+        _retain_video_posters(backup, source)
         (source / _MARKER).write_text(marker)
         source.rename(target)
     except Exception:
