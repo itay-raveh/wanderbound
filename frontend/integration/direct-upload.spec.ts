@@ -142,6 +142,7 @@ test("uploads a multipart ZIP directly from the Vite origin", async ({
   ).toBeVisible({ timeout: 90_000 });
   await page.getByLabel("Trip albums").click();
   await page.getByRole("option", { name: "trip-100" }).click();
+  await page.keyboard.press("Escape");
   await page.getByRole("button", { name: "Import selected albums" }).click();
   await expect(fileInput).not.toBeAttached({ timeout: 90_000 });
 

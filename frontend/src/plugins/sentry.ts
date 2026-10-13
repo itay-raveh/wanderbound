@@ -39,6 +39,21 @@ export function setupSentry(
     dsn: settings.PUBLIC_SENTRY_DSN ?? undefined,
     environment: settings.ENVIRONMENT,
     release: BUILD_VERSION ? `wanderbound@${BUILD_VERSION}` : undefined,
+    // Preserve v10 collection limits; v11 otherwise opts into bodies and PII.
+    dataCollection: {
+      userInfo: false,
+      cookies: false,
+      httpHeaders: {
+        request: { deny: ["forwarded", "-ip", "remote-", "via", "-user"] },
+        response: { deny: ["forwarded", "-ip", "remote-", "via", "-user"] },
+      },
+      httpBodies: [],
+      urlQueryParams: { deny: ["forwarded", "-ip", "remote-", "via", "-user"] },
+      genAI: { inputs: false, outputs: false },
+      databaseQueryData: false,
+      queues: false,
+      graphQL: { document: false, variables: false },
+    },
     integrations: [
       Sentry.feedbackIntegration({
         autoInject: true,
