@@ -73,6 +73,11 @@ jobs:
               - '.pre-commit-config.yaml'
               - 'mise.toml'
               - 'mise.lock'
+              - 'backend/pyproject.toml'
+              - 'frontend/package.json'
+              - 'package.json'
+              - 'bun.lock'
+              - 'uv.lock'
 
   gitleaks:
     runs-on: ubuntu-latest
