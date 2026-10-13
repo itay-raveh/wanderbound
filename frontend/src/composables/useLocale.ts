@@ -1,11 +1,11 @@
-import type { QuasarLanguage } from "quasar";
 import { Lang } from "quasar";
 import { watch, type Ref } from "vue";
 import i18n, { uiLang } from "@/i18n";
 
 // Discover all Quasar lang packs at build time (~81 locales).
 // Vite creates lazy chunks for each - only loaded when needed.
-const quasarLangs = import.meta.glob<{ default: QuasarLanguage }>(
+type QuasarLangPack = Parameters<typeof Lang.set>[0];
+const quasarLangs = import.meta.glob<{ default: QuasarLangPack }>(
   "../../node_modules/quasar/lang/*.js",
 );
 
@@ -30,7 +30,7 @@ export function resolveLocale(bcp47: string): string {
   return bcp47;
 }
 
-async function loadQuasarLang(bcp47: string): Promise<QuasarLanguage> {
+async function loadQuasarLang(bcp47: string): Promise<QuasarLangPack> {
   const resolved = resolveLocale(bcp47);
   const loader =
     quasarLangs[packPath(resolved)] ?? quasarLangs[packPath("en-US")];
