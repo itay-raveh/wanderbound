@@ -37,7 +37,7 @@
         "marked": "^18.0.0",
         "pinia": "^4.0.0",
         "postcss-rtlcss": "^6.0.0",
-        "quasar": "2.24.0",
+        "quasar": "2.35.0",
         "vue": "^3.5.30",
         "vue-draggable-plus": "^0.6.1",
         "vue-i18n": "^11.3.0",
@@ -1138,7 +1138,7 @@
 
     "quansync": ["quansync@0.2.11", "", {}, "sha512-AifT7QEbW9Nri4tAwR5M/uzpBuqfZf+zwaEM/QkzEjj7NBuFD2rBuy0K3dE+8wltbezDV7JMA0WfnCPYRSYbXA=="],
 
-    "quasar": ["quasar@2.24.0", "", {}, "sha512-esoimUWc5e4Ms89mYZRDaeGqHWAIcqZVMqDnkCsMFlR3sFwdURRRDXrFzHTFLsY53KBE4krp2qqurnf91eYZNA=="],
+    "quasar": ["quasar@2.35.0", "", {}, "sha512-Ic/cyk5J1f6kTdEutjyYH34fAElvEIFpuna5izgsp8jxzXeRohftZSrHzvlIIFhJj6wsztRO+D+JN7dNXqyqDg=="],
 
     "queue-microtask": ["queue-microtask@1.2.3", "", {}, "sha512-NuaNSa6flKT5JaSYQzJok04JzTL1CA6aGhv5rfLW3PgqA+M2ChpZQnAC8h8i4ZFkBS8X5RqkDBHA7r4hej3K9A=="],
 
