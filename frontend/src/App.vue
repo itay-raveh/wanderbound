@@ -4,6 +4,9 @@ import { useMeta } from "quasar";
 import { PAGE_WIDTH_MM, PAGE_HEIGHT_MM, META_RATIO } from "@/utils/pageSize";
 import ScreenGuard from "@/components/ScreenGuard.vue";
 import SiteFooter from "@/components/SiteFooter.vue";
+import { useI18n } from "vue-i18n";
+
+const { t } = useI18n();
 
 useMeta({
   titleTemplate: (title) => (title ? `${title} | Wanderbound` : "Wanderbound"),
@@ -18,7 +21,9 @@ root.setProperty("--meta-ratio", String(META_RATIO));
 
 <template>
   <ScreenGuard>
-    <a href="#main-content" class="skip-to-content">Skip to content</a>
+    <a href="#main-content" class="skip-to-content">{{
+      t("common.skipToContent")
+    }}</a>
     <q-layout view="hHh LpR lff">
       <q-page-container id="main-content">
         <RouterView />
