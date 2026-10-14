@@ -20,15 +20,13 @@
   <img src="frontend/public/landing/step-page-dark.jpg" width="400" alt="Generated album page with destination info, photo, coordinates, and weather">
 </p>
 
-- Start from an intelligently laid out album, then edit with full freedom
-- Backfills enhanced weather and elevation data, and automaticly recognizes known mountion peaks
-- Upgrades compressed Polarsteps photos with originals from Google Photos
-- Add maps with your GPS data. Automaticaly recognizes hikes, flights, and roads
-- Include your videos in the album by selecting one frame, right within our editor
+- Start from an intelligently laid out album, then edit with full freedom, including all fonts and colors
+- Backfill enhanced weather and elevation data, and automatically recognizes known mountain peaks
+- Upgrade compressed Polarsteps photos with originals from your device or Google Photos
+- Add maps with your GPS data. Automatically recognizes hikes, flights, and roads
+- Include your videos in the album by selecting one poster frame, right within our editor
 - Look around phone panoramas, choose their framing, and lay them out across one or two full pages
 - Full RTL and localization support
-
-See planned features, or ask for your own, [here](https://github.com/itay-raveh/wanderbound/issues?q=is%3Aissue%20state%3Aopen%20label%3Aenhancement).
 
 <p align="center">
   <img src="frontend/public/landing/hike-map-dark.jpg" width="240" alt="Map page with satellite imagery and elevation profile">&nbsp;
@@ -36,18 +34,9 @@ See planned features, or ask for your own, [here](https://github.com/itay-raveh/
   <img src="frontend/public/landing/auto-album-dark.jpg" width="240" alt="Auto-generated photo grid layout">
 </p>
 
-## Tech Stack
-
-|                    |                                                                     |
-|--------------------|---------------------------------------------------------------------|
-| **Backend**        | FastAPI, SQLAlchemy, Polars, Playwright, DBOS, PyAv, ffmpeg         |
-| **Frontend**       | Vue, Quasar, Uppy, Mapbox, Turf                                     |
-| **Storage**        | PostgreSQL, S3                                                      |
-| **External APIs**  | Open-Meteo, Mapbox, Google Photos Picker, OpenStreetMap Overpass    |
-
 ## Self-Hosting
 
-You can see [the setup for the public instance](https://github.com/itay-raveh/infra) for insparation.
+You can see [the setup for the public instance](https://github.com/itay-raveh/infra) for inspiration.
 
 ### Kubernetes
 
@@ -55,8 +44,7 @@ We provide a Helm chart, see the [installation guide](charts/wanderbound/README.
 
 ### Docker Compose
 
-[mise](https://mise.jdx.dev/) manages tool versions and all project
-commands. Install it, then:
+[mise](https://mise.jdx.dev/) manages tool versions and all project commands. Install it, then:
 
 ```bash
 git clone https://github.com/itay-raveh/wanderbound.git
@@ -67,11 +55,9 @@ mise run setup
 
 Fill in the values in the created `.env` file.
 
-When both Google and Microsoft sign-in are unconfigured, the landing page offers
-**Continue as…** for existing local accounts. Selecting an account opens its saved
-albums without uploading the ZIP again. Anyone who can access the installation
-can use these accounts, so keep this mode on a trusted network or behind access
-controls. Configuring either sign-in provider disables the local account picker.
+When OAuth sign-ins are unconfigured, the landing page offers local accounts.
+Anyone who can access the installation can use these accounts, so keep this mode on a trusted network or behind access controls.
+Configuring either sign-in provider disables the local account picker.
 
 Run at <https://localhost:8000>:
 
@@ -79,27 +65,10 @@ Run at <https://localhost:8000>:
 docker compose up -d
 ```
 
-This will spin up Wanderbound, PostgresSQL (DB), and Garage (S3).
+This will spin up Wanderbound, PostgresSQL, and Garage (S3).
 
-For production, set `ENVIRONMENT=production`, `APP_VERSION` to one of our [tags](https://github.com/itay-raveh/wanderbound/tags),
-and `DOMAIN`, then use:
+For production, set `ENVIRONMENT=production`, `APP_VERSION` to one of our [tags](https://github.com/itay-raveh/wanderbound/tags), and `DOMAIN`, then use:
 
 ```bash
 docker compose -f compose.yml up -d
-```
-
-## Development
-
-Clone, run `mise run setup` and fill in `.env`, as described above.
-
-To see other project commands:
-
-```bash
-mise tasks
-```
-
-To run the local dev stack at <https://localhost:5173>:
-
-```bash
-mise run dev
 ```
