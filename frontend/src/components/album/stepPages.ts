@@ -29,6 +29,18 @@ export function withSlots(
   };
 }
 
+export function withoutPhotos(
+  page: StepPageLayoutOutput,
+  names: ReadonlySet<string>,
+): StepPageLayoutOutput {
+  return withSlots(
+    page,
+    pageSlots(page).filter(
+      (slot) => slot.kind === "text" || !names.has(slot.media_name ?? ""),
+    ),
+  );
+}
+
 export function photoSlot(name: string): StepSlotLayout {
   return { id: crypto.randomUUID(), kind: "photo", media_name: name };
 }
@@ -144,13 +156,7 @@ export function planStepPages(
     ? rawPhotoPages
         .map(({ originalIdx, page }) => ({
           originalIdx,
-          page: withSlots(
-            page,
-            pageSlots(page).filter(
-              (slot) =>
-                slot.kind === "text" || !used.has(slot.media_name ?? ""),
-            ),
-          ),
+          page: withoutPhotos(page, used),
         }))
         .filter(({ page }) => pageSlots(page).length > 0)
     : rawPhotoPages;
