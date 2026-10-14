@@ -72,3 +72,13 @@ For production, set `ENVIRONMENT=production`, `APP_VERSION` to one of our [tags]
 ```bash
 docker compose -f compose.yml up -d
 ```
+
+## Development
+
+Complete the [project setup](#docker-compose), then run the development servers from the repository root:
+
+```bash
+mise run dev
+```
+
+For translations and code contributions, see the [contribution guide](CONTRIBUTING.md).
