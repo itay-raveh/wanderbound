@@ -29,6 +29,7 @@ import {
   pageSizeStyle,
   sheetSize,
   MM_PX,
+  type AlbumGeometrySettings,
 } from "@/utils/pageSize";
 import {
   DEFAULT_MEDIA_RESOLUTION_WARNING_PRESET,
@@ -107,7 +108,22 @@ watchEffect(() => {
   interiorBleedMm.value = props.album.interior_bleed_mm ?? 0;
 });
 
-const pageSize = computed(() => albumPageSize(props.album));
+const geometrySettings = computed<AlbumGeometrySettings>((previous) => {
+  const settings = {
+    page_width_mm: props.album.page_width_mm,
+    page_height_mm: props.album.page_height_mm,
+    safe_margin_mm: props.album.safe_margin_mm,
+    body_font: props.album.body_font,
+  };
+  return previous &&
+    previous.page_width_mm === settings.page_width_mm &&
+    previous.page_height_mm === settings.page_height_mm &&
+    previous.safe_margin_mm === settings.safe_margin_mm &&
+    previous.body_font === settings.body_font
+    ? previous
+    : settings;
+});
+const pageSize = computed(() => albumPageSize(geometrySettings.value));
 const coverSize = computed(() =>
   sheetSize(
     pageSize.value,
@@ -145,8 +161,9 @@ const albumStyle = computed(() => {
       : {}),
   };
 });
+const hiddenSteps = computed(() => props.album.hidden_steps);
 const visibleSteps = computed(() => {
-  const hidden = new Set(props.album.hidden_steps ?? []);
+  const hidden = new Set(hiddenSteps.value ?? []);
   if (!hidden.size) return props.steps;
   return props.steps.filter((s) => !hidden.has(s.id));
 });
@@ -167,7 +184,7 @@ const mediaResolutionWarningPreset = computed(
 );
 const { mediaByName } = provideAlbum({
   albumId,
-  geometrySettings: computed(() => props.album),
+  geometrySettings,
   colors: albumColors,
   media: albumMedia,
   tripStart,
@@ -175,8 +192,11 @@ const { mediaByName } = provideAlbum({
   mediaResolutionWarningPreset,
 });
 
+const hiddenHeaders = computed(() => props.album.hidden_headers);
+const chapters = computed(() => props.album.chapters);
+const mapRanges = computed(() => props.album.maps_ranges);
 const activeHeaders = computed(() =>
-  visibleHeaderKeys(props.album.hidden_headers ?? []).filter(
+  visibleHeaderKeys(hiddenHeaders.value ?? []).filter(
     (key) =>
       props.printPart !== "content" ||
       (key !== "cover-front" && key !== "cover-back"),
@@ -185,7 +205,7 @@ const activeHeaders = computed(() =>
 
 const chapterRenderGroups = computed<ChapterRenderGroup[]>(() =>
   buildChapterRenderGroups(
-    props.album,
+    { chapters: chapters.value, maps_ranges: mapRanges.value },
     visibleSteps.value,
     props.segmentOutlines,
     activeHeaders.value,
@@ -225,7 +245,11 @@ const pageH = computed(
     ) + 12,
 );
 const editorItems = computed(() =>
-  buildEditorItems(chapterRenderGroups.value, mediaByName.value, props.album),
+  buildEditorItems(
+    chapterRenderGroups.value,
+    mediaByName.value,
+    geometrySettings.value,
+  ),
 );
 const physicalRenderItems = computed(() =>
   buildPhysicalRenderItems(editorItems.value),

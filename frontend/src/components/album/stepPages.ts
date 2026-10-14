@@ -143,6 +143,7 @@ export function planStepPages(
   descriptionPages ??= layoutDescription(
     step.description || "",
     settings,
+    step,
   ).pages;
   const rawPhotoPages = filterCoverFromPages(step.pages, step.cover);
   const continuationPages = descriptionPages.slice(1);

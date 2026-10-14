@@ -375,6 +375,8 @@ async function apply() {
 </template>
 
 <style scoped>
+/* Crop coordinates and pointer deltas use physical image axes in every locale. */
+/* rtl:begin:ignore */
 .photo-edit-canvas {
   position: relative;
   width: 100%;
@@ -445,6 +447,7 @@ async function apply() {
   bottom: -0.5rem;
   right: -0.5rem;
 }
+/* rtl:end:ignore */
 .scope-note {
   margin: 0;
   color: var(--text-muted);
