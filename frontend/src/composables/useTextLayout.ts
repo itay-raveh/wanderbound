@@ -22,6 +22,11 @@ interface TextLayout {
 
 const cache = new Map<string, TextLayout>();
 const MAX_CACHE_SIZE = 200;
+// A live step retains its own pagination even when the shared cache is full.
+const ownerCache = new WeakMap<
+  object,
+  { key: string; text: string; layout: TextLayout }
+>();
 
 function cached(key: string, layout: TextLayout): TextLayout {
   if (cache.size >= MAX_CACHE_SIZE) {
@@ -73,13 +78,23 @@ interface LayoutConfig {
   continuation: ZoneConfig;
 }
 
+const configCache = new Map<string, LayoutConfig>();
 function ensureConfig(settings: AlbumGeometrySettings): LayoutConfig {
+  const size = albumPageSize(settings);
+  const key = JSON.stringify([
+    size,
+    settings.safe_margin_mm,
+    settings.body_font,
+  ]);
+  const hit = configCache.get(key);
+  if (hit) return hit;
+  // Share geometry within one render, then observe root CSS again next turn.
+  if (!configCache.size) queueMicrotask(() => configCache.clear());
   const rootStyle = getComputedStyle(document.documentElement);
   const remPx = parseFloat(rootStyle.fontSize);
 
   const lineHeight = 1.65;
 
-  const size = albumPageSize(settings);
   const pageWidth = size.widthMm * MM_PX;
   const pageHeight = size.heightMm * MM_PX;
   const smPx = (settings.safe_margin_mm ?? 0) * MM_PX;
@@ -120,7 +135,7 @@ function ensureConfig(settings: AlbumGeometrySettings): LayoutConfig {
     (pageHeight - 2 * insetY) / lineHeightPx,
   );
 
-  return {
+  const config = {
     sidebar: { columnWidth, maxLines: sidebarMaxLines, font, lineHeightPx },
     continuation: {
       columnWidth,
@@ -129,6 +144,8 @@ function ensureConfig(settings: AlbumGeometrySettings): LayoutConfig {
       lineHeightPx,
     },
   };
+  configCache.set(key, config);
+  return config;
 }
 
 function paginateText(text: string, config: LayoutConfig): TextPage[] {
@@ -182,20 +199,25 @@ function paginateText(text: string, config: LayoutConfig): TextPage[] {
 export function layoutDescription(
   text: string,
   settings: AlbumGeometrySettings = {},
+  owner?: object,
 ): TextLayout {
   void fontsRevision.value;
   if (fontsRevision.value === 0) return { pages: [] };
   const config = ensureConfig(settings);
   // Fonts, physical geometry, type size and safe margins all affect pagination.
   const key = JSON.stringify([
-    text,
     config,
     fontsRevision.value,
     document.documentElement.lang,
   ]);
-  const hit = cache.get(key);
-  if (hit) return hit;
-  return cached(key, { pages: paginateText(text, config) });
+  const previous = owner && ownerCache.get(owner);
+  if (previous?.key === key && previous.text === text) return previous.layout;
+  const sharedKey = JSON.stringify([text, key]);
+  const layout =
+    cache.get(sharedKey) ??
+    cached(sharedKey, { pages: paginateText(text, config) });
+  if (owner) ownerCache.set(owner, { key, text, layout });
+  return layout;
 }
 
 export function useTextLayout(
@@ -203,6 +225,6 @@ export function useTextLayout(
 ): ComputedRef<TextLayout> {
   const { geometrySettings } = useAlbum();
   return computed(() =>
-    layoutDescription(description.value, geometrySettings.value),
+    layoutDescription(description.value, geometrySettings.value, description),
   );
 }

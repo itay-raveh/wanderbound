@@ -77,7 +77,7 @@ export type PhysicalRenderItem =
     };
 
 export function buildChapterRenderGroups(
-  album: AlbumMeta,
+  album: Pick<AlbumMeta, "chapters" | "maps_ranges">,
   visibleSteps: Step[],
   segmentOutlines: SegmentOutline[],
   headerKeys: HeaderKey[],
