@@ -1,5 +1,4 @@
 import { expect, openEditor, scrollToStep, test } from "./fixtures";
-import sharp from "sharp";
 import en from "../src/i18n/locales/en.json" with { type: "json" };
 import he from "../src/i18n/locales/he.json" with { type: "json" };
 import {
@@ -103,19 +102,31 @@ for (const [locale, labels] of [
       body: rendered,
       contentType: "image/png",
     });
-    const { data, info } = await sharp(rendered)
-      .removeAlpha()
-      .raw()
-      .toBuffer({ resolveWithObject: true });
-    const pixel = (x: number, y: number) => {
-      const offset =
-        (Math.floor(y * info.height) * info.width +
-          Math.floor(x * info.width)) *
-        info.channels;
-      return [...data.subarray(offset, offset + 3)];
-    };
-    expect(pixel(0.2, 0.2)).toEqual([41, 114, 170]);
-    expect(pixel(0.625, 0.5)).toEqual([255, 206, 84]);
+    const pixels = await page.evaluate(
+      async (bytes) => {
+        const bitmap = await createImageBitmap(
+          new Blob([new Uint8Array(bytes)], { type: "image/png" }),
+        );
+        const canvas = document.createElement("canvas");
+        canvas.width = bitmap.width;
+        canvas.height = bitmap.height;
+        const context = canvas.getContext("2d")!;
+        context.drawImage(bitmap, 0, 0);
+        const pixel = (x: number, y: number) =>
+          [
+            ...context.getImageData(
+              Math.floor(x * canvas.width),
+              Math.floor(y * canvas.height),
+              1,
+              1,
+            ).data,
+          ].slice(0, 3);
+        return { background: pixel(0.2, 0.2), subject: pixel(0.625, 0.5) };
+      },
+      [...rendered],
+    );
+    expect(pixels.background).toEqual([41, 114, 170]);
+    expect(pixels.subject).toEqual([255, 206, 84]);
     expect(
       await dialog
         .locator(".preview-controls")
