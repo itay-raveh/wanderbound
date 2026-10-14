@@ -2,8 +2,9 @@ import { createI18n } from "vue-i18n";
 import en from "./locales/en.json";
 import he from "./locales/he.json";
 import de from "./locales/de.json";
+import fr from "./locales/fr.json";
 
-const messages = { en, he, de };
+const messages = { en, he, de, fr };
 type MessageLanguage = keyof typeof messages;
 
 export function uiLang(bcp47: string): MessageLanguage {

@@ -6,7 +6,8 @@
     "retry": "Please try again.",
     "cancel": "Cancel",
     "save": "Save",
-    "close": "Close"
+    "close": "Close",
+    "skipToContent": "Skip to content"
   },
   "units": {
     "km": "km",

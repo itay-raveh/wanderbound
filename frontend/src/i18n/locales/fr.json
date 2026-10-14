@@ -1,0 +1,548 @@
+{
+  "brand": "Wanderbound",
+  "tagline": "Importez votre voyage {polarsteps} et créez un album prêt à imprimer",
+  "common": {
+    "loadingAlbum": "Chargement de l’album…",
+    "retry": "Veuillez réessayer.",
+    "cancel": "Annuler",
+    "save": "Enregistrer",
+    "close": "Fermer",
+    "skipToContent": "Aller au contenu"
+  },
+  "units": {
+    "km": "km",
+    "mi": "mi",
+    "m": "m",
+    "ft": "ft",
+    "masl": "Altitude",
+    "ftAsl": "ft d’altitude"
+  },
+  "duration": {
+    "hours": "{n} h",
+    "days": "{n} j"
+  },
+  "phase": {
+    "label": {
+      "elevations": "Cartographie du relief",
+      "weather": "Vérification de la météo",
+      "segments": "Recherche des itinéraires",
+      "layouts": "Mise en page des photos"
+    },
+    "status": {
+      "elevations": "Reconstitution du relief parcouru…",
+      "weather": "Recherche de la météo rencontrée en chemin…",
+      "segments": "Recherche des randonnées, trajets, promenades et vols…",
+      "layouts": "Disposition de vos photos sur les pages…"
+    }
+  },
+  "landing": {
+    "autoAlbumTitle": "Vos photos, prêtes à imprimer",
+    "autoAlbumBody": "Importez votre export {polarsteps} : nous répartissons vos photos sur les pages pour créer un album équilibré, prêt à imprimer. Vous choisissez vos préférées.",
+    "hikeMapTitle": "Retrouvez vos randonnées telles que vous les avez vécues",
+    "hikeMapBody": "Vos randonnées s’affichent sur des images satellite, avec le tracé exact de votre parcours et un profil d’altitude montrant chaque montée et chaque descente.",
+    "overviewTitle": "Tout votre voyage sur une page",
+    "overviewBody": "Point culminant, nuit la plus froide, journée la plus chaude, lieu le plus éloigné de chez vous : retrouvez votre voyage et les pays visités sur une seule page.",
+    "localizationTitle": "Votre langue, votre sens de lecture",
+    "localizationBody": "Contrairement à l’album de {polarsteps}, nous prenons en charge l’hébreu, l’arabe, le japonais et les mises en page de droite à gauche. Votre album s’adapte à votre langue.",
+    "selfHostPrompt": "Vous préférez ne pas vous connecter ? {link}",
+    "selfHostLink": "Hébergez Wanderbound vous-même.",
+    "openEditor": "Ouvrir l’éditeur"
+  },
+  "login": {
+    "signInGoogle": "Se connecter avec Google",
+    "signInMicrosoft": "Se connecter avec Microsoft",
+    "localZip": "Se connecter avec une archive ZIP Polarsteps",
+    "localContinue": "Continuer en tant que…",
+    "localRetry": "Réessayer",
+    "localAccountId": "Identifiant Polarsteps : {id}",
+    "localEmpty": "Aucun compte local pour le moment. Importez une archive ZIP pour commencer.",
+    "localLoadFailed": "Impossible de charger les comptes locaux.",
+    "signInFailed": "Échec de la connexion. @:common.retry"
+  },
+  "register": {
+    "getDataTitle": "Récupérez vos données Polarsteps",
+    "getDataStep1": "Connectez-vous sur {link} depuis un ordinateur",
+    "getDataStep2": "Ouvrez {settings}, puis faites défiler jusqu’à {download}",
+    "getDataStep3": "Cliquez sur {startArchive}",
+    "getDataStep4": "Consultez votre messagerie pour obtenir le lien de téléchargement",
+    "getDataWait": "L’archive arrive généralement en quelques minutes, mais cela peut prendre plusieurs heures.",
+    "uploadTitle": "Importez votre {file}",
+    "uploadFailed": "Échec de l’importation. @:common.retry",
+    "uploadProgress": "Progression de l’importation",
+    "uploadPhases": {
+      "uploading": "Envoi de votre export…",
+      "downloading": "Préparation du fichier importé…",
+      "validating": "Vérification de votre export Polarsteps…",
+      "importing": "Importation de vos voyages et photos…"
+    },
+    "uploadErrors": {
+      "upload_invalid_zip": "Ce fichier n’est pas un export Polarsteps valide. Sélectionnez une autre archive ZIP.",
+      "upload_failed": "Échec de l’importation. Réessayez."
+    },
+    "tripPicker": {
+      "title": "Choisir les albums",
+      "body": "Sélectionnez les voyages de cette archive ZIP à transformer en albums.",
+      "label": "Albums de voyage",
+      "selected": "aucun album sélectionné | un album sélectionné | {n} albums sélectionnés",
+      "continue": "Importer les albums sélectionnés",
+      "error": "Impossible d’enregistrer la sélection. Réessayez."
+    },
+    "fileTooLarge": "Fichier trop volumineux. Taille maximale : {max} Go.",
+    "badZip": "Ce fichier ne semble pas être un export Polarsteps valide.",
+    "greeting": "Bonjour, {name}",
+    "evictedTitle": "Bon retour !",
+    "evictedBody": "Nous avons supprimé vos fichiers pour libérer de l’espace, mais vos modifications sont conservées. Importez à nouveau vos données pour reprendre là où vous en étiez.",
+    "reuploadTitle": "Mettre à jour vos données",
+    "reuploadBody": "Importez de nouvelles données pour mettre vos albums à jour avec vos derniers voyages et photos.",
+    "statusReady": "Votre album est prêt",
+    "statusError": "Une erreur s’est produite",
+    "statusBuilding": "Création de votre album…",
+    "overallProgress": "Progression globale",
+    "tripsProgress": "Voyages traités : {current} sur {total}",
+    "trips": "aucun voyage | {n} voyage | {n} voyages",
+    "steps": "aucune étape | {n} étape | {n} étapes",
+    "countries": "aucun pays | {n} pays | {n} pays",
+    "segmentsFound": "Itinéraires trouvés :",
+    "segmentSummary": {
+      "hikes": "aucune randonnée | {n} randonnée | {n} randonnées",
+      "walks": "aucune promenade | {n} promenade | {n} promenades",
+      "drives": "aucun trajet en voiture | {n} trajet en voiture | {n} trajets en voiture",
+      "flights": "aucun vol | {n} vol | {n} vols"
+    },
+    "tryAgain": "Réessayer",
+    "uploadAgain": "Importer un autre fichier",
+    "openAlbum": "Ouvrir votre album",
+    "unsupportedTitle": "Navigateur non pris en charge",
+    "unsupportedBody": "Utilisez un navigateur récent : {chrome}, {firefox}, {safari} ou {edge}.",
+    "welcomeNew": "Votre album commence ici",
+    "welcomeBack": "Bon retour sur Wanderbound",
+    "dropZone": "Déposez votre fichier ici ou cliquez pour le sélectionner",
+    "getDataGuide": "Consulter le guide détaillé de Polarsteps"
+  },
+  "editor": {
+    "showPageNumbers": "Afficher les numéros de page",
+    "pagePosition": "Page {page} sur {total}",
+    "pageRangePosition": "Pages {start} à {end} sur {total}",
+    "toolbar": "Outils de l’album",
+    "exportPdf": "Exporter en PDF",
+    "exportChaptersTitle": "Exporter des chapitres",
+    "allChapters": "Tous les chapitres",
+    "exportSelectedChapters": "Exporter la sélection",
+    "font": "Police des titres",
+    "bodyFont": "Police du texte",
+    "properties": "Propriétés",
+    "stepContent": "Photos et texte",
+    "coverPhoto": "Photo de couverture",
+    "accentColors": "Couleurs d’accentuation",
+    "safeMargin": "Marge de sécurité",
+    "photoQuality": "Qualité des photos",
+    "resolutionWarningsOff": "Désactivés",
+    "resolutionWarningsRelaxed": "Souples",
+    "resolutionWarningsPrint": "Impression",
+    "zoom": "Zoom",
+    "pageBackground": "Fond de page",
+    "themeDefault": "Valeur du thème",
+    "resetBackground": "Réinitialiser"
+  },
+  "panorama": {
+    "treat": "Traiter comme un panorama",
+    "makeFullPage": "Afficher en pleine page",
+    "makeSpread": "Afficher sur deux pages en vis-à-vis",
+    "alignment": {
+      "title": "Page ajoutée pour le panorama",
+      "body": "Cette page a été ajoutée pour que les deux pages suivantes apparaissent côte à côte plutôt que recto verso. Cette note ne sera pas imprimée."
+    },
+    "frame": {
+      "title": "Cadrer le panorama",
+      "preview": "Aperçu interactif du panorama",
+      "loading": "Préparation de l’aperçu interactif…",
+      "unsupported": "Le recadrage interactif nécessite un navigateur compatible avec WebGL. Le cadrage enregistré reste disponible dans l’album.",
+      "perspective": "Perspective",
+      "zoom": "Zoom",
+      "disable": "Utiliser comme une photo normale",
+      "apply": "Appliquer le cadrage"
+    }
+  },
+  "photoEdit": {
+    "title": "Modifier la photo",
+    "preview": "Aperçu du recadrage",
+    "scope": "Les modifications s’appliquent partout où cette photo apparaît.",
+    "rotation": "Rotation",
+    "angleExact": "Angle de rotation en degrés",
+    "zoom": "Zoom",
+    "zoomHint": "La zone recadrée reste remplie pendant la rotation.",
+    "ratioLock": "Conserver les proportions d’origine",
+    "reset": "Réinitialiser la photo",
+    "apply": "Appliquer les modifications",
+    "moveCrop": "Déplacer la zone de recadrage. Utilisez les touches fléchées pour l’ajuster.",
+    "resizeCrop": "Redimensionner la zone de recadrage. Utilisez les touches fléchées pour l’ajuster.",
+    "loadError": "Impossible de charger cette photo. @:common.retry"
+  },
+  "textTile": {
+    "edit": "Modifier le bloc de texte",
+    "remove": "Supprimer le bloc de texte",
+    "removeConfirmTitle": "Supprimer ce bloc de texte ?",
+    "removeConfirmBody": "Le texte de ce bloc sera supprimé.",
+    "label": "Texte",
+    "placeholder": "Cliquez pour ajouter du texte",
+    "overflow": "Le texte ne tient pas dans le bloc. Raccourcissez-le pour continuer."
+  },
+  "settings": {
+    "menu": "Paramètres",
+    "appearance": "Apparence",
+    "light": "Clair",
+    "system": "Système",
+    "dark": "Sombre",
+    "distance": "Distance",
+    "temperature": "Température",
+    "account": "Compte",
+    "userId": "Identifiant utilisateur : {id}",
+    "signOut": "Se déconnecter",
+    "reuploadData": "Réimporter les données",
+    "exportData": "Exporter mes données",
+    "deleteAll": "Supprimer toutes les données",
+    "deleteFailed": "Impossible de supprimer vos données. @:common.retry"
+  },
+  "delete": {
+    "title": "Supprimer toutes les données ?",
+    "body": "Cette action supprimera définitivement vos données importées et tous vos albums. Vous devrez importer à nouveau vos données pour continuer.",
+    "confirm": "Tout supprimer",
+    "deleting": "Suppression…"
+  },
+  "album": {
+    "day": "JOUR {n}",
+    "stepNamePlaceholder": "Nom de l’étape",
+    "chapterTitlePlaceholder": "Titre du chapitre",
+    "chapterSubtitlePlaceholder": "Sous-titre du chapitre",
+    "descriptionPlaceholder": "Ajouter une description…",
+    "dropPhotoToAdd": "Déposez une photo pour ajouter une page",
+    "frontCover": "Première de couverture",
+    "backCover": "Quatrième de couverture",
+    "coverDarkness": "Assombrissement de la couverture",
+    "noLandscapePhotos": "Aucune photo au format paysage disponible",
+    "unused": "Non utilisées",
+    "unusedHint": "Glissez une photo sur une page ou utilisez son bouton plus pour en choisir une.",
+    "unusedEmpty": "Glissez une photo de l’album ici pour la mettre de côté.",
+    "placePhoto": "Placer {name} sur une page",
+    "newPhotoPage": "Nouvelle page d’album",
+    "dropPhotosHere": "Déposez des photos ici",
+    "removeMap": "Supprimer la carte",
+    "loading": "Chargement de « {name} »…",
+    "useAsPoster": "Utiliser comme vignette vidéo",
+    "prevFrame": "Image précédente (,)",
+    "nextFrame": "Image suivante (.)",
+    "selectPhoto": "Sélectionner une photo",
+    "selectCoverPhoto": "Sélectionner la photo de couverture {index} sur {total}",
+    "tripRouteMap": "Carte de l’itinéraire du voyage",
+    "playVideo": "Lire la vidéo"
+  },
+  "hike": {
+    "mapLabel": "Carte de la randonnée",
+    "elevationProfile": "Profil d’altitude",
+    "adjustStart": "Ajuster le départ de la randonnée",
+    "adjustEnd": "Ajuster la fin de la randonnée"
+  },
+  "overview": {
+    "title": "Vue d’ensemble du voyage",
+    "coldest": "Le plus froid",
+    "hottest": "Le plus chaud",
+    "highest": "Le plus haut",
+    "furthestFromHome": "Le plus loin de chez vous"
+  },
+  "inspector": {
+    "overview": "Vue d’ensemble"
+  },
+  "externalMedia": {
+    "section": "Médias externes",
+    "replaceQuality": "Remplacer par une version de meilleure qualité",
+    "google": {
+      "title": "Google Photos",
+      "connected": "Connecté, prêt pour les améliorations ou les remplacements.",
+      "disconnected": "Disponible après la connexion à Google Photos.",
+      "unavailable": "Indisponible pour ce compte."
+    },
+    "quality": {
+      "allGood": "Aucun avertissement sur la qualité des photos pour le moment.",
+      "needsAttention": "Photos à vérifier : {warning} de faible qualité et {caution} de qualité moyenne.",
+      "warningChip": "Qualité d’impression insuffisante : {count}",
+      "cautionChip": "Qualité d’impression limite : {count}",
+      "allClear": "Tout est bon",
+      "jumpToNext": "Aller au prochain avertissement de qualité",
+      "jumpAnnounce": "Avertissement de qualité {index} sur {total}"
+    },
+    "targets": {
+      "stepUnused": "Importer parmi les photos non utilisées de l’étape {stepId}",
+      "coverCandidates": "Importer parmi les photos de couverture possibles",
+      "mapUnavailable": "Sélectionnez une étape ou une couverture pour ajouter des photos.",
+      "overviewUnavailable": "Sélectionnez une étape ou une couverture pour ajouter des photos.",
+      "none": "Sélectionnez une étape ou une couverture pour ajouter des photos."
+    },
+    "import": {
+      "label": "Destination de l’importation",
+      "action": "Importer des médias externes",
+      "moreOptions": "Plus d’options d’importation",
+      "shortAction": "Importer",
+      "toTarget": "Importer vers {target}",
+      "toCover": "Importer vers la couverture",
+      "unnamedStep": "cette étape"
+    },
+    "replace": {
+      "label": "Média sélectionné",
+      "action": "Remplacer le média sélectionné",
+      "shortAction": "Remplacer",
+      "replacing": "Remplacement du média…",
+      "done": "Média remplacé",
+      "receipt": "{before} → {after}",
+      "noneSelected": "Aucun média sélectionné",
+      "noSelection": "Sélectionnez d’abord une photo ou une vidéo.",
+      "invalid": "Ce remplacement n’a pas pu être appliqué.",
+      "error": "Échec du remplacement. Réessayez."
+    },
+    "review": {
+      "title": "Vérifier le remplacement",
+      "body": "Ce média sera remplacé partout où il apparaît dans l’album.",
+      "current": "Média actuel",
+      "replacement": "Média de remplacement",
+      "confirm": "Remplacer partout",
+      "errors": {
+        "previewFailed": "Impossible de lire l’aperçu du fichier sélectionné.",
+        "typeMismatch": "Une photo ne peut remplacer qu’une photo, et une vidéo ne peut remplacer qu’une vidéo."
+      },
+      "warnings": {
+        "lowerResolution": "La résolution du média de remplacement est inférieure à celle du média actuel.",
+        "aspectRatio": "Les proportions du média de remplacement sont sensiblement différentes.",
+        "orientation": "Le média de remplacement passe du portrait au paysage, ou l’inverse."
+      }
+    },
+    "undo": {
+      "action": "Annuler le remplacement",
+      "keep": "Conserver le remplacement",
+      "retry": "Réessayer d’annuler",
+      "undoing": "Annulation du remplacement…",
+      "done": "Remplacement annulé.",
+      "failed": "Échec de l’annulation. Réessayez."
+    }
+  },
+  "mediaImport": {
+    "addMedia": "Ajouter des médias",
+    "device": "Appareil",
+    "googlePhotos": "Google Photos",
+    "authorizing": "Connexion à Google Photos…",
+    "picking": "En attente de votre sélection…",
+    "uploading": "Envoi des médias…",
+    "processing": "Traitement des médias…",
+    "done": "1 élément ajouté | {count} éléments ajoutés",
+    "error": "Échec de l’importation des médias. Réessayez.",
+    "errors": {
+      "badFile": "Ce fichier n’est pas pris en charge.",
+      "googleUnavailable": "Google Photos n’est pas disponible pour ce compte.",
+      "incompleteStream": "La connexion d’importation a été interrompue avant la fin.",
+      "network": "Erreur réseau. @:common.retry",
+      "popupBlocked": "La fenêtre contextuelle a été bloquée. Autorisez les fenêtres contextuelles et réessayez.",
+      "selectionTimeout": "Le délai de sélection est dépassé.",
+      "tooLarge": "Le média sélectionné est trop volumineux.",
+      "tooMany": "Sélectionnez 50 éléments au maximum."
+    }
+  },
+  "export": {
+    "preparing": "Préparation de l’export…",
+    "progress": "Export des données… {done} fichiers sur {total}"
+  },
+  "chapters": {
+    "title": "Chapitres",
+    "untitled": "Chapitre {number}",
+    "split": "Diviser le chapitre",
+    "actions": "Actions du chapitre",
+    "mergePrevious": "Fusionner avec le chapitre précédent",
+    "mergeNext": "Fusionner avec le chapitre suivant",
+    "boundary": "Début du chapitre",
+    "startsAt": "Commence à"
+  },
+  "error": {
+    "loadAlbum": "Échec du chargement de l’album :",
+    "updatePreference": "Impossible d’enregistrer votre préférence. @:common.retry",
+    "saveAlbum": "Impossible d’enregistrer les modifications de l’album. @:common.retry",
+    "saveStep": "Impossible d’enregistrer les modifications de l’étape. @:common.retry",
+    "panoramaFrame": "Impossible d’appliquer le cadrage du panorama. @:common.retry",
+    "photoEdit": "Impossible d’enregistrer les modifications de la photo. @:common.retry",
+    "videoFrame": "Impossible de définir la vignette de la vidéo. @:common.retry",
+    "pdfExport": "Échec de l’export PDF. @:common.retry",
+    "dataExport": "Échec de l’export des données. @:common.retry",
+    "processingFailed": "Échec du traitement.",
+    "connectionFailed": "Connexion interrompue. @:common.retry",
+    "adjustBoundary": "Impossible d’ajuster la limite. @:common.retry",
+    "trimTooShort": "Zone trop courte"
+  },
+  "pdf": {
+    "queued": "En attente du générateur PDF…",
+    "highLoad": "Le service est très sollicité. Aucune erreur ne s’est produite. Veuillez réessayer.",
+    "loadingProgress": "@:common.loadingAlbum ({done}/{total})",
+    "renderingSingle": "Génération du PDF…",
+    "renderingChapters": "Génération des PDF des chapitres… {done}/{total}",
+    "renderingBytes": "Génération du PDF… {size}",
+    "ready": "Prêt",
+    "cancel": "Annuler l’export"
+  },
+  "footer": {
+    "privacy": "Confidentialité",
+    "terms": "Conditions d’utilisation",
+    "contact": "Des questions ?",
+    "issues": "Signaler un problème",
+    "disclaimerIndependent": "Wanderbound est un projet indépendant, sans affiliation avec Polarsteps.",
+    "disclaimerRecommendation": "Si l’album officiel de Polarsteps vous convient, utilisez-le."
+  },
+  "shortcuts": {
+    "title": "Raccourcis clavier",
+    "navigatePhotos": "Parcourir les photos",
+    "sendToUnused": "Mettre de côté",
+    "setAsCover": "Définir comme couverture",
+    "clearSelection": "Effacer la sélection",
+    "undo": "Annuler",
+    "redo": "Rétablir"
+  },
+  "nav": {
+    "steps": "Étapes",
+    "countries": "Pays",
+    "chapters": "Chapitres",
+    "stepCount": "aucune étape | {n} étape | {n} étapes",
+    "cover": "Couverture",
+    "map": "Carte",
+    "stepNavigation": "Navigation entre les étapes",
+    "selectAlbum": "Sélectionner un album",
+    "hideStep": "Masquer l’étape",
+    "showStep": "Afficher l’étape",
+    "photoPages": "Pages de l’album",
+    "photoPage": "Page d’album {number}",
+    "pageActions": "Actions de la page d’album {number}",
+    "addText": "Ajouter du texte",
+    "addTextHint": "Ajoute le texte à la page sélectionnée si possible, sinon crée une nouvelle page.",
+    "movePageUp": "Déplacer vers le haut",
+    "movePageDown": "Déplacer vers le bas",
+    "pageMoved": "Page photo déplacée en position {number}",
+    "hideAll": "Tout masquer",
+    "showAll": "Tout afficher",
+    "addMap": "Ajouter une carte",
+    "editMap": "Modifier la carte",
+    "mapAdded": "Carte ajoutée",
+    "mapUpdated": "Carte mise à jour",
+    "startStep": "Étape de départ",
+    "endStep": "Étape d’arrivée",
+    "album": "Album",
+    "inspector": "Inspecteur",
+    "showNavigation": "Afficher la navigation",
+    "hideNavigation": "Masquer la navigation",
+    "showInspector": "Afficher l’inspecteur",
+    "hideInspector": "Masquer l’inspecteur"
+  },
+  "screen": {
+    "title": "Écran plus grand nécessaire",
+    "body": "Cette application est conçue pour les ordinateurs et les tablettes en mode paysage. Utilisez un ordinateur ou tournez votre tablette à l’horizontale."
+  },
+  "demo": {
+    "tryButton": "Essayer avec un album de démonstration",
+    "bannerText": "Vous explorez un album de démonstration",
+    "bannerCta": "Connectez-vous avec votre propre voyage"
+  },
+  "quality": {
+    "cautionTooltip": "Risque de manquer légèrement de netteté à l’impression (environ {dpi} PPI effectifs)",
+    "warningTooltip": "Risque d’être floue à l’impression (environ {dpi} PPI effectifs)",
+    "exportTitle": "Certaines photos risquent d’être de mauvaise qualité à l’impression",
+    "exportBody": "Votre album contient des photos qui risquent de manquer de netteté à l’impression : {warning} de faible qualité et {caution} de qualité moyenne.",
+    "exportBodyWarningOnly": "Votre album contient des photos de faible qualité qui risquent de manquer de netteté à l’impression : {warning}.",
+    "exportBodyCautionOnly": "Votre album contient des photos de qualité moyenne qui risquent de manquer de netteté à l’impression : {caution}.",
+    "exportCancel": "Revenir en arrière",
+    "exportConfirm": "Exporter quand même"
+  },
+  "upgrade": {
+    "button": "Améliorer les médias",
+    "onboarding": {
+      "title": "Retrouver la qualité d’origine",
+      "body": "Remplacez les photos Polarsteps de mauvaise qualité.",
+      "tip": "Sélectionnez uniquement des photos. Vous pouvez remplacer les vidéos une par une depuis le panneau des médias.",
+      "continue": "Connecter Google Photos"
+    },
+    "authorizing": "Connexion à Google Photos…",
+    "picking": "En attente de votre sélection…",
+    "preparing": "Analyse de l’album",
+    "matching": "Recherche des correspondances",
+    "summary": {
+      "readyTitle": "1 fichier prêt à être amélioré | {count} fichiers prêts à être améliorés",
+      "noMatchTitle": "Aucune correspondance trouvée",
+      "noNewMatchTitle": "Aucune nouvelle correspondance trouvée",
+      "allUpgradedTitle": "Déjà en qualité d’origine",
+      "noMatchBody": "Vérifiez que vous avez sélectionné des photos du voyage. Les vidéos doivent être remplacées une par une.",
+      "selectedCount": "1 photo Google sélectionnée | {count} photos Google sélectionnées",
+      "alreadyUpgradedCount": "1 était déjà en qualité d’origine | {count} étaient déjà en qualité d’origine",
+      "matchCoverage": "1 fichier de l’album trouvé parmi {selected}. | {matched} fichiers de l’album trouvés parmi {selected}.",
+      "matchCoverageWithUpgraded": "1 fichier de l’album trouvé parmi {selected}. {upgraded}. | {matched} fichiers de l’album trouvés parmi {selected}. {upgraded}.",
+      "confirm": "Améliorer 1 fichier | Améliorer {count} fichiers",
+      "selectMore": "En sélectionner d’autres"
+    },
+    "downloading": "Téléchargement",
+    "done": "1 fichier amélioré en qualité d’origine | {replaced} fichiers améliorés en qualité d’origine",
+    "doneSkipped": "1 fichier amélioré, {skipped} déjà en qualité d’origine | {replaced} fichiers améliorés, {skipped} déjà en qualité d’origine",
+    "donePartial": "{replaced} fichier amélioré sur 1 | {replaced} fichiers améliorés sur {total}",
+    "error": "Échec de l’amélioration. Réessayez.",
+    "errors": {
+      "popupBlocked": "La fenêtre contextuelle a été bloquée. Autorisez les fenêtres contextuelles et réessayez.",
+      "selectionTimeout": "Le délai de sélection est dépassé.",
+      "selectionExpired": "Cette sélection Google Photos a expiré. Sélectionnez à nouveau les photos.",
+      "connectionLost": "Connexion interrompue pendant l’amélioration.",
+      "authCancelled": "Autorisation annulée.",
+      "authTimeout": "Délai d’autorisation dépassé.",
+      "tooManySelectionRounds": "Trop de sélections successives dans Google Photos.",
+      "tooManyMatches": "Trop de fichiers correspondants sélectionnés."
+    },
+    "options": "Options d’amélioration",
+    "disconnect": "Déconnecter Google Photos",
+    "disconnectConfirm": {
+      "title": "Déconnecter Google Photos ?",
+      "body": "Vous pourrez vous reconnecter à tout moment pour améliorer d’autres fichiers.",
+      "confirm": "Déconnecter"
+    }
+  },
+  "print": {
+    "pageSize": "Format de page",
+    "dimensionUnits": "Unités de mesure",
+    "sizePreset": "Format prédéfini",
+    "customSize": "Personnalisé",
+    "pageWidth": "Largeur",
+    "pageHeight": "Hauteur",
+    "lockRatio": "Conserver les proportions",
+    "pageSizeBounds": "Largeur {widthRange}, hauteur {heightRange} ; proportions paysage {ratioRange}.",
+    "pageSizeNote": "Vérifiez la disposition du texte et le cadrage des photos après l’application.",
+    "applySize": "Appliquer",
+    "mapLoading": "Chargement de la carte…",
+    "mapFailed": "Impossible de charger cette carte.",
+    "retryMap": "Réessayer de charger la carte",
+    "preview": "Aperçu avant impression",
+    "backToEditor": "Retour à l’éditeur",
+    "chapter": "Chapitre",
+    "covers": "Couvertures",
+    "interior": "Pages intérieures",
+    "frontCover": "Première de couverture",
+    "backCover": "Quatrième de couverture",
+    "pageNumber": "Page {number}",
+    "spreadCount": "{current} sur {total}",
+    "spreadNavigation": "Parcourir les doubles pages",
+    "previousSpread": "Double page précédente",
+    "nextSpread": "Double page suivante",
+    "zoomIn": "Zoom avant",
+    "zoomOut": "Zoom arrière",
+    "fitSpread": "Adapter la double page",
+    "previewNote": "Les numéros de page correspondent au PDF du chapitre.",
+    "emptyPreview": "Aucune page à afficher.",
+
+    "title": "Impression",
+    "interiorBleed": "Fond perdu des pages intérieures",
+    "coverBleed": "Fond perdu de la couverture",
+    "spineWidth": "Largeur du dos",
+    "previewCover": "Aperçu de la couverture dépliée",
+    "combined": "Couverture et contenu dans un seul fichier",
+    "separate": "Couverture et contenu dans des fichiers séparés",
+    "combinedHint": "Un PDF par chapitre sélectionné. Si plusieurs chapitres sont sélectionnés, ils sont téléchargés dans une archive ZIP.",
+    "separateHint": "Une archive ZIP contenant cover.pdf et content.pdf pour chaque chapitre sélectionné.",
+    "dimensionRange": "Saisissez un nombre entre 0 et {max}.",
+    "wholeDimensionRange": "Saisissez un nombre entier entre 0 et {max}."
+  }
+}
