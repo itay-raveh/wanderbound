@@ -1,6 +1,6 @@
 import type { z } from "zod";
 import { useTimeoutFn } from "@vueuse/core";
-import { onScopeDispose, ref, type Ref } from "vue";
+import { onScopeDispose, ref, toValue, type Ref } from "vue";
 import { Loading, Notify } from "quasar";
 
 type ExportState = "idle" | "running" | "done" | "error";
@@ -18,9 +18,6 @@ type EventAction =
   | { info: string };
 
 type StringOrGetter = string | (() => string);
-function resolve(v: StringOrGetter): string {
-  return typeof v === "function" ? v() : v;
-}
 
 interface PolledExportConfig<T = unknown> {
   schema: z.ZodType<T>;
@@ -65,7 +62,7 @@ export function usePolledExportDownload<T>(
     cancelReset();
     controller = new AbortController();
     state.value = "running";
-    showLoading(resolve(config.initialMessage));
+    showLoading(toValue(config.initialMessage));
 
     try {
       const stream = await config.connect(controller.signal);
@@ -96,7 +93,7 @@ export function usePolledExportDownload<T>(
 
       const a = document.createElement("a");
       a.href = config.downloadUrl(downloadToken);
-      a.download = resolve(config.filename);
+      a.download = toValue(config.filename);
       a.click();
       state.value = "done";
     } catch (err) {
@@ -104,7 +101,7 @@ export function usePolledExportDownload<T>(
       state.value = "error";
       Notify.create({
         type: "negative",
-        message: resolve(config.errorMessage),
+        message: toValue(config.errorMessage),
       });
     } finally {
       if (!config.headless) Loading.hide();

@@ -9,6 +9,7 @@ import {
   gridPage,
   pageSlots,
   photoSlot,
+  withoutPhotos,
   withSlots,
 } from "@/components/album/stepPages";
 
@@ -23,15 +24,7 @@ const STEP_MUTATE_KEY: InjectionKey<StepMutateFn> = Symbol("step-mutate");
 function stripPhotos(step: Step, photoSet: Set<string>) {
   return {
     pages: step.pages
-      .map((page) =>
-        withSlots(
-          page,
-          pageSlots(page).filter(
-            (slot) =>
-              slot.kind === "text" || !photoSet.has(slot.media_name ?? ""),
-          ),
-        ),
-      )
+      .map((page) => withoutPhotos(page, photoSet))
       .filter((page) => pageSlots(page).length > 0),
     unused: step.unused.filter((p) => !photoSet.has(p)),
   };
@@ -117,10 +110,6 @@ export function useStepLayout(
     mutate?.({ sid: step.value.id, update: patch });
   }
 
-  function withoutPhotos(photoSet: Set<string>) {
-    return stripPhotos(step.value, photoSet);
-  }
-
   function onCoverUpdate(cover: string) {
     saveField(coverUpdatePayload(step.value, cover));
   }
@@ -173,14 +162,7 @@ export function useStepLayout(
         .map((p, i) =>
           i === idx
             ? nextTarget
-            : withSlots(
-                p,
-                pageSlots(p).filter(
-                  (slot) =>
-                    slot.kind === "text" ||
-                    !addedSet.has(slot.media_name ?? ""),
-                ),
-              ),
+            : withoutPhotos(p, addedSet),
         )
         .filter((p) => pageSlots(p).length > 0);
       const unused = [
@@ -234,7 +216,7 @@ export function useStepLayout(
         if (dropZoneList.value.length === 0) return;
         const photos = [...dropZoneList.value];
         dropZoneList.value = [];
-        const cleaned = withoutPhotos(new Set(photos));
+        const cleaned = stripPhotos(step.value, new Set(photos));
         saveField({
           ...cleaned,
           pages: [
