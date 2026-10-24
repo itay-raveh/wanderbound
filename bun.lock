@@ -27,8 +27,8 @@
         "@turf/helpers": "^7.3.4",
         "@turf/length": "^7.3.4",
         "@turf/nearest-point-on-line": "^7.3.4",
-        "@uppy/aws-s3": "6.2.2",
-        "@uppy/core": "6.2.0",
+        "@uppy/aws-s3": "6.3.0",
+        "@uppy/core": "6.3.0",
         "@vueuse/core": "^15.0.0",
         "canvas-confetti": "^1.9.4",
         "d3-scale": "^4.0.2",
@@ -544,9 +544,9 @@
 
     "@typescript-eslint/visitor-keys": ["@typescript-eslint/visitor-keys@8.57.0", "", { "dependencies": { "@typescript-eslint/types": "8.57.0", "eslint-visitor-keys": "^5.0.0" } }, "sha512-zm6xx8UT/Xy2oSr2ZXD0pZo7Jx2XsCoID2IUh9YSTFRu7z+WdwYTRk6LhUftm1crwqbuoF6I8zAFeCMw0YjwDg=="],
 
-    "@uppy/aws-s3": ["@uppy/aws-s3@6.2.2", "", { "peerDependencies": { "@uppy/core": "^6.2.0" } }, "sha512-HnrlXAc6EImAusdbT2h9o4MVs0TSQossRNqh124rx7aBnoP8f/6d/NHkV4R1YoyY3BqsTMpbex83W3QesTV0+g=="],
+    "@uppy/aws-s3": ["@uppy/aws-s3@6.3.0", "", { "peerDependencies": { "@uppy/core": "^6.3.0" } }, "sha512-/BcT7uMG0s0pFespOc3so16KJZP0X8kVr8PTN3W7b6WqtocXfMeQ8Fbg6SM9bQF7KuvXGfEFby88P09ooSfWXw=="],
 
-    "@uppy/core": ["@uppy/core@6.2.0", "", { "dependencies": { "@transloadit/prettier-bytes": "^2.0.0", "classnames": "^2.5.1", "lodash": "^4.18.1", "mime-match": "^1.0.2", "namespace-emitter": "^2.0.1", "nanoid": "^6.0.1", "p-queue": "^9.3.3", "p-retry": "^8.0.0", "preact": "^10.29.2" } }, "sha512-GujQtHazyHM2jjoNZyZlB+R3mUf1bynx0D+sPRt4IfLEfV09LbqA1kzwabL+WEKFdfqls15T+a/4u3XGV4n/oQ=="],
+    "@uppy/core": ["@uppy/core@6.3.0", "", { "dependencies": { "@transloadit/prettier-bytes": "^2.0.0", "classnames": "^2.5.1", "lodash": "^4.18.1", "mime-match": "^1.0.2", "namespace-emitter": "^2.0.1", "nanoid": "^6.0.1", "p-queue": "^9.3.3", "p-retry": "^8.0.0", "preact": "^10.29.2" } }, "sha512-D6+iERQrI194UZO9dOIJWrT5GtOtyR9k4Wh6VU7cXThEaRNvMQDqXj1GzHDs2TffnZ5pRxufwB84Os8uH3+bVA=="],
 
     "@vitejs/plugin-vue": ["@vitejs/plugin-vue@6.0.5", "", { "dependencies": { "@rolldown/pluginutils": "1.0.0-rc.2" }, "peerDependencies": { "vite": "^5.0.0 || ^6.0.0 || ^7.0.0 || ^8.0.0", "vue": "^3.2.25" } }, "sha512-bL3AxKuQySfk1iGcBsQnoRVexTPJq0Z/ixFVM8OhVJAP6ZXXXLtM7NFKWhLl30Kg7uTBqIaPXbh+nuQCuBDedg=="],
 
