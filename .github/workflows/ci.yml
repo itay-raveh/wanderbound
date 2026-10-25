@@ -65,6 +65,8 @@ jobs:
               - 'TERMS.md'
             helm:
               - 'charts/wanderbound/**'
+              - 'scripts/check-release-*.sh'
+              - 'scripts/test-release.sh'
               - 'mise.toml'
               - 'mise.lock'
               - '.github/workflows/**'
@@ -100,8 +102,9 @@ jobs:
       - uses: jdx/mise-action@v5
         with:
           version: 2026.10.7
-          install_args: helm
+          install_args: helm yq kubeconform
       - run: mise run lint:helm
+      - run: mise run test:release
 
   lint:
     runs-on: ubuntu-latest
@@ -311,7 +314,7 @@ jobs:
       - run: docker compose up -d --no-build
       - name: Wait for application health
         run: |
-          for i in $(seq 1 30); do
+          for _ in $(seq 1 30); do
             if curl -sf http://localhost:8000/api/v1/health; then
               echo "Application healthy"
               exit 0
