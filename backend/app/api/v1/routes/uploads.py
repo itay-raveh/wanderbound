@@ -245,7 +245,10 @@ async def complete_upload(  # noqa: PLR0913
     async with upload_capacity_slot(session, row.size_bytes) as admitted:
         if not admitted:
             raise _error("upload_capacity_busy", status.HTTP_503_SERVICE_UNAVAILABLE)
-        parts = [CompletionPart(**part.model_dump()) for part in payload.parts]
+        parts = [
+            CompletionPart(ETag=part.ETag, PartNumber=part.PartNumber)
+            for part in payload.parts
+        ]
         try:
             await asyncio.to_thread(
                 store.complete, row.object_key, row.provider_upload_id, parts
