@@ -111,6 +111,7 @@ async function mockPanoramaAlbum(page: Page) {
   return {
     appliedFrame: () => appliedFrame,
     step: () => step,
+    showPageNumbers: () => album.show_page_numbers,
   };
 }
 
@@ -122,7 +123,19 @@ test("frames a panorama globally and prints a two-page spread", async ({
   await openEditor(page);
   await expect(page.locator(".album-page-number:visible")).toHaveCount(0);
   await page.getByRole("button", { name: 'Expand "Properties"' }).click();
-  await page.getByRole("switch", { name: "Show page numbers" }).click();
+  const pageNumbers = page.getByRole("switch", { name: "Show page numbers" });
+  await expect
+    .poll(() =>
+      pageNumbers.evaluate(
+        (element) =>
+          element.closest(".panel-section")!.getAnimations({ subtree: true })
+            .length,
+      ),
+    )
+    .toBe(0);
+  await pageNumbers.click();
+  await expect(pageNumbers).toBeChecked();
+  await expect.poll(() => state.showPageNumbers()).toBe(true);
   await scrollToStep(page, "Amsterdam");
 
   const treat = page
