@@ -15,6 +15,7 @@ const PUBLIC = path.resolve(__dirname, "../frontend/public");
 const LOGO_SVG = readFileSync(path.join(PUBLIC, "logo.svg"), "utf-8");
 const TOPO_SVG = readFileSync(path.join(PUBLIC, "topo-contours.svg"), "utf-8");
 const FONT_DIR = path.join(PUBLIC, "fonts");
+const FONT = readFileSync(path.join(FONT_DIR, "assistant-latin.woff2")).toString("base64");
 const OUTPUT = path.join(PUBLIC, "og-image.png");
 
 const WIDTH = 1200;
@@ -28,7 +29,7 @@ const HTML = `<!DOCTYPE html>
 @font-face {
   font-family: 'Assistant';
   font-weight: 200 800;
-  src: url('file://${FONT_DIR}/assistant-latin.woff2') format('woff2');
+  src: url('data:font/woff2;base64,${FONT}') format('woff2');
 }
 
 * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -111,6 +112,7 @@ body {
 const browser = await chromium.launch();
 const page = await browser.newPage({ viewport: { width: WIDTH, height: HEIGHT } });
 await page.setContent(HTML, { waitUntil: "networkidle" });
+await page.evaluate(() => document.fonts.ready);
 await page.screenshot({ path: OUTPUT, type: "png" });
 await browser.close();
 
