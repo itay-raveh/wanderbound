@@ -70,7 +70,7 @@ services:
       - object-storage-data:/var/lib/garage/data
 
   object-storage-init:
-    image: amazon/aws-cli:2.38.0@sha256:ed3233c28ad56d6a66e9e7623a495ab2d7eb08d425f8eea0fdbdfacb12de2ba8
+    image: amazon/aws-cli:2.40.0@sha256:0da258e32b17cc468b2e8812c8d93f5732561b901357c43a207baae0567b195a
     restart: "no"
     <<: *security
     networks: [backend]
