@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1
 
-FROM getsentry/sentry-cli:3.8.1 AS sentry-cli
+FROM getsentry/sentry-cli:3.8.2 AS sentry-cli
 
 
 FROM oven/bun:1-debian AS frontend-build
@@ -33,7 +33,7 @@ FROM frontend-build AS frontend-app
 RUN find dist -type f -name '*.map' -delete
 
 
-FROM python:3.14-slim AS backend-base
+FROM python:3.15-slim AS backend-base
 
 LABEL org.opencontainers.image.source="https://github.com/itay-raveh/wanderbound"
 LABEL org.opencontainers.image.description="Wanderbound"
