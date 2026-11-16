@@ -170,7 +170,7 @@ jobs:
         working-directory: frontend
 
   test-e2e:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     needs: changes
     if: >-
       needs.changes.outputs.backend == 'true' ||
@@ -252,7 +252,7 @@ jobs:
         working-directory: backend
 
   docker:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     needs: changes
     if: >-
       needs.changes.outputs.backend == 'true' ||
