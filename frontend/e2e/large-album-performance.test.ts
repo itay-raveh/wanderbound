@@ -1,3 +1,5 @@
+import en from "../src/i18n/locales/en.json" with { type: "json" };
+import he from "../src/i18n/locales/he.json" with { type: "json" };
 import type { Page } from "@playwright/test";
 
 import { expect, test } from "./fixtures";
@@ -30,7 +32,10 @@ function makeLargeMedia(photosPerStep = PHOTOS_PER_STEP) {
   return media;
 }
 
-function makeLargeSteps(photosPerStep = PHOTOS_PER_STEP) {
+function makeLargeSteps(
+  photosPerStep = PHOTOS_PER_STEP,
+  longDescriptions = false,
+) {
   return Array.from({ length: STEP_COUNT }, (_, index) => {
     const stepNumber = index + 1;
     const photos = Array.from({ length: photosPerStep }, (_, photoIndex) =>
@@ -39,8 +44,15 @@ function makeLargeSteps(photosPerStep = PHOTOS_PER_STEP) {
     const timestamp = 1_704_067_200 + index * 86_400;
     return {
       id: stepNumber,
+      aid: "large-album",
+      uid: 1,
       name: `Large Step ${stepNumber}`,
-      description: `Large album stop ${stepNumber}.`,
+      description: longDescriptions
+        ? `Stop ${stepNumber}: ` +
+          "We followed the winding river through the valley and stopped in the old town for lunch. סיפור מסע בעברית עם פרטים שמורים. ".repeat(
+            45,
+          )
+        : `Large album stop ${stepNumber}.`,
       timestamp,
       timezone_id: "Europe/Amsterdam",
       location: {
@@ -88,9 +100,10 @@ async function mockLargeAlbum(
   page: Page,
   chaptered: boolean | number = false,
   locale = "en-US",
+  longDescriptions = false,
 ) {
   const photosPerStep = chaptered === true ? 16 : PHOTOS_PER_STEP;
-  const steps = makeLargeSteps(photosPerStep);
+  const steps = makeLargeSteps(photosPerStep, longDescriptions);
   const media = makeLargeMedia(photosPerStep);
   const segmentOutlines = chaptered ? makeLargeSegmentOutlines(steps) : [];
   const segmentPointRequests: string[] = [];
@@ -620,3 +633,179 @@ test.describe("Large album editor performance", () => {
       .toBeLessThan(120);
   });
 });
+
+for (const [locale, labels] of [
+  ["en-US", en],
+  ["he-IL", he],
+] as const) {
+  test(`reuses long narrative pagination when toggling numbering and inserting text in ${locale}`, async ({
+    page,
+  }, testInfo) => {
+    test.setTimeout(120_000);
+    await mockLargeAlbum(page, false, locale, true);
+    let saveFinished = false;
+    let savedSlots = 0;
+    let clickStarted = 0;
+    const saveMs: number[] = [];
+    await page.route(`${API}/albums/large-album`, async (route) => {
+      if (route.request().method() !== "PATCH") return route.fallback();
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+      saveFinished = true;
+      saveMs.push(Date.now() - clickStarted);
+      await route.fulfill({ json: {} });
+    });
+    await page.route(
+      `${API}/albums/large-album/steps/1/media-layout`,
+      async (route) => {
+        savedSlots = route
+          .request()
+          .postDataJSON()
+          .pages.flatMap((item: { slots: unknown[] }) => item.slots).length;
+        await new Promise((resolve) => setTimeout(resolve, 1000));
+        saveFinished = true;
+        saveMs.push(Date.now() - clickStarted);
+        await route.fulfill({ json: {} });
+      },
+    );
+    await page.goto("/editor");
+    await expect(page.locator('[data-nav-step="1"]')).toBeVisible({
+      timeout: 60_000,
+    });
+    await page.evaluate(() => document.fonts.ready);
+    await page.waitForTimeout(500);
+    await page
+      .locator(".q-expansion-item")
+      .filter({
+        has: page.locator(".q-item__label", {
+          hasText: labels.editor.properties,
+        }),
+      })
+      .first()
+      .locator(".q-item")
+      .first()
+      .click();
+    const toggle = page.getByRole("switch", {
+      name: labels.editor.showPageNumbers,
+    });
+    const measureClick = async (selector: string) =>
+      page.locator(selector).evaluate(async (element) => {
+        let measurements = 0;
+        const observer = new MutationObserver((records) => {
+          for (const record of records)
+            for (const node of record.addedNodes) {
+              if (
+                node instanceof HTMLElement &&
+                node.style.visibility === "hidden" &&
+                node.style.whiteSpace === "pre-wrap"
+              )
+                measurements++;
+            }
+        });
+        observer.observe(document.body, { childList: true });
+        const start = performance.now();
+        (element as HTMLElement).click();
+        await new Promise<void>((resolve) =>
+          requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
+        );
+        observer.disconnect();
+        return { paintMs: performance.now() - start, measurements };
+      });
+    await toggle.evaluate((element) =>
+      element.setAttribute("data-benchmark", "numbering"),
+    );
+    clickStarted = Date.now();
+    const numbering = await measureClick('[data-benchmark="numbering"]');
+    const numberingSavedBeforePaint = saveFinished;
+    await expect(toggle).toHaveAttribute("aria-checked", "true");
+    await expect.poll(() => saveFinished).toBe(true);
+    await page.locator('[data-nav-step="1"]').click();
+    await page
+      .getByRole("button", {
+        name: labels.nav.photoPage.replace("{number}", "1"),
+        exact: true,
+      })
+      .click();
+    const addText = page.getByRole("button", {
+      name: labels.nav.addText,
+      exact: true,
+    });
+    await addText.evaluate((element) =>
+      element.setAttribute("data-benchmark", "insert"),
+    );
+    saveFinished = false;
+    clickStarted = Date.now();
+    const insertion = await measureClick('[data-benchmark="insert"]');
+    const insertionSavedBeforePaint = saveFinished;
+    await expect(page.locator(".page-content .text-item")).toHaveCount(1);
+    await expect.poll(() => savedSlots).toBe(5);
+    await expect.poll(() => saveFinished).toBe(true);
+    await testInfo.attach("layout-timings", {
+      body: JSON.stringify({
+        locale,
+        numbering,
+        insertion,
+        saveMs,
+        numberingSavedBeforePaint,
+        insertionSavedBeforePaint,
+      }),
+      contentType: "application/json",
+    });
+    console.log(
+      "LAYOUT_TIMINGS",
+      JSON.stringify({
+        locale,
+        numbering,
+        insertion,
+        saveMs,
+        numberingSavedBeforePaint,
+        insertionSavedBeforePaint,
+      }),
+    );
+    await expect(addText).toBeEnabled();
+    clickStarted = Date.now();
+    await addText.click();
+    await expect(page.locator(".page-content .text-item")).toHaveCount(2);
+    await expect.poll(() => savedSlots).toBe(6);
+    await expect(addText).toBeEnabled();
+    await page.keyboard.press("Escape");
+    await page
+      .getByRole("button", { name: labels.shortcuts.undo, exact: true })
+      .click();
+    await expect(page.locator(".page-content .text-item")).toHaveCount(1);
+    await expect.poll(() => savedSlots).toBe(5);
+    await page
+      .getByRole("button", { name: labels.shortcuts.redo, exact: true })
+      .click();
+    await expect(page.locator(".page-content .text-item")).toHaveCount(2);
+    await expect.poll(() => savedSlots).toBe(6);
+    expect(numberingSavedBeforePaint).toBe(false);
+    expect(insertionSavedBeforePaint).toBe(false);
+    expect(numbering.measurements).toBe(0);
+    expect(insertion.measurements).toBeLessThanOrEqual(1);
+
+    const reflow = await page.evaluate(async () => {
+      const modulePath = "/src/composables/useTextLayout.ts";
+      const { layoutDescription } = await import(modulePath);
+      const owner = {};
+      const text = "A preserved journey through the mountains. ".repeat(250);
+      const root = document.documentElement;
+      const originalSize = root.style.fontSize;
+      try {
+        const before = layoutDescription(text, {}, owner);
+        root.style.fontSize = "24px";
+        await Promise.resolve();
+        const after = layoutDescription(text, {}, owner);
+        return {
+          before: before.pages.length,
+          after: after.pages.length,
+          text: after.pages.map((item: { text: string }) => item.text).join(""),
+          original: text,
+        };
+      } finally {
+        root.style.fontSize = originalSize;
+      }
+    });
+    expect(reflow.after).toBeGreaterThan(reflow.before);
+    expect(reflow.text).toBe(reflow.original);
+  });
+}

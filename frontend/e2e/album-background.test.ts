@@ -190,10 +190,14 @@ for (const { rtl, width } of [
     await background.focus();
     await page.keyboard.press("Enter");
     const hex = page.locator(".q-color-picker__header input");
+    const closeBackgroundPicker = async () => {
+      await page.keyboard.press("Escape");
+      await expect(hex).toBeHidden();
+    };
     await hex.fill("#ffeeaa");
     await hex.press("Tab");
     await expect.poll(() => updates).toEqual([{ background_color: "#ffeeaa" }]);
-    await page.keyboard.press("Escape");
+    await closeBackgroundPicker();
     await expect(background).toBeFocused();
     await expect(paper).toHaveCSS("background-color", "rgb(255, 238, 170)");
     await expect(paper.locator(".step-main")).toHaveCSS(
@@ -229,7 +233,7 @@ for (const { rtl, width } of [
     await background.click();
     await hex.fill("#ff0000");
     await hex.press("Tab");
-    await page.keyboard.press("Escape");
+    await closeBackgroundPicker();
     await expect(paper.locator(".step-main")).toHaveCSS(
       "color",
       "rgb(0, 0, 0)",
@@ -237,7 +241,7 @@ for (const { rtl, width } of [
     await background.click();
     await hex.fill("#202040");
     await hex.press("Tab");
-    await page.keyboard.press("Escape");
+    await closeBackgroundPicker();
     await expect(paper.locator(".step-main")).toHaveCSS(
       "color",
       "rgb(255, 255, 255)",
@@ -251,12 +255,12 @@ for (const { rtl, width } of [
     await background.click();
     await hex.fill("#172033");
     await hex.press("Tab");
-    await page.keyboard.press("Escape");
+    await closeBackgroundPicker();
     await expectActions();
     await background.click();
     await hex.fill("#202040");
     await hex.press("Tab");
-    await page.keyboard.press("Escape");
+    await closeBackgroundPicker();
     const darkMuted = await paper
       .locator(".coords")
       .evaluate((element) => getComputedStyle(element).color);

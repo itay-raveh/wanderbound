@@ -1,6 +1,6 @@
 import copy
 from functools import cache
-from typing import Any
+from typing import Any, cast
 
 from pydantic import TypeAdapter
 from sqlalchemy import String, TypeDecorator
@@ -51,7 +51,7 @@ def all_optional[T: SQLModel](cls: type[T]) -> type[T]:
         patched = copy.copy(cls.model_fields[name])
         if patched.is_required():
             patched.default = None
-        patched.annotation = patched.annotation | None
+        patched.annotation = cast("Any", patched.annotation) | None
         cls.model_fields[name] = patched
     cls.model_rebuild(force=True)
     return cls

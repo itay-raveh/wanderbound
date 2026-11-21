@@ -37,7 +37,7 @@ services:
       POSTGRES_DB: ${POSTGRES_DB:?Variable not set}
 
   object-storage:
-    image: dxflrs/garage:v2.4.1@sha256:9c96caa2612d3411acc5b0e6701fb238dbfba33e533a6d7d3d811a4b12d0d020
+    image: dxflrs/garage:v2.5.0@sha256:677e5b758e4425a325b811c425c026bf35a4bf42f7ddbaa773de3f4fd779a5a5
     restart: always
     <<: *security
     init: true
@@ -70,7 +70,7 @@ services:
       - object-storage-data:/var/lib/garage/data
 
   object-storage-init:
-    image: amazon/aws-cli:2.37.4@sha256:fdd8d1fcbea9c371678dee5a40df8b178c7a781b4586605756ee28114c97ead6
+    image: amazon/aws-cli:2.41.0@sha256:c5d442efed03350a3c3d7a42b23f42a8e7b76acf5dbb4b021f2641bcd36680ea
     restart: "no"
     <<: *security
     networks: [backend]

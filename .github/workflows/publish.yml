@@ -65,7 +65,7 @@ jobs:
 
       - uses: jdx/mise-action@v5
         with:
-          version: 2026.10.7
+          version: 2026.11.8
           install_args: helm yq kubeconform bun
 
       - name: Validate production chart before publishing artifacts
@@ -153,7 +153,17 @@ jobs:
           VERSION: ${{ steps.version.outputs.value }}
           IMAGE_DIGEST: ${{ steps.image.outputs.digest }}
         run: |
-          helm push "/tmp/wanderbound-$VERSION.tgz" oci://ghcr.io/itay-raveh/charts 2>&1 | tee /tmp/chart-push.log
+          for attempt in 1 2 3 4; do
+            if helm push "/tmp/wanderbound-$VERSION.tgz" oci://ghcr.io/itay-raveh/charts > /tmp/chart-push.log 2>&1; then
+              cat /tmp/chart-push.log
+              break
+            fi
+            cat /tmp/chart-push.log >&2
+            if [[ "$attempt" == 4 ]] || ! grep -Eq 'failed to perform "Tag" on destination: sha256:[a-f0-9]{64}: not found' /tmp/chart-push.log; then
+              exit 1
+            fi
+            sleep "$((2 ** attempt))"
+          done
           chart_digest=$(sed -n 's/^Digest: //p' /tmp/chart-push.log)
           [[ "$chart_digest" =~ ^sha256:[a-f0-9]{64}$ ]]
           {
@@ -167,7 +177,10 @@ jobs:
           DOCKER_CONFIG="$anonymous_dir" helm pull "oci://ghcr.io/itay-raveh/charts/wanderbound@$chart_digest" \
             --registry-config "$anonymous_dir/registry.json" --content-cache "$anonymous_dir/cache" \
             --destination "$anonymous_dir"
-          cmp "/tmp/wanderbound-$VERSION.tgz" "$anonymous_dir/wanderbound-$VERSION.tgz"
+          shopt -s nullglob
+          pulled=("$anonymous_dir/"*.tgz)
+          [[ "${#pulled[@]}" -eq 1 ]]
+          cmp "/tmp/wanderbound-$VERSION.tgz" "${pulled[0]}"
 
       - uses: taiki-e/install-action@v2
         if: steps.version.outputs.patch == '0'
