@@ -56,7 +56,11 @@ WORKDIR /app
 RUN --mount=type=cache,target=/root/.cache/uv \
     --mount=type=bind,source=uv.lock,target=uv.lock \
     --mount=type=bind,source=pyproject.toml,target=pyproject.toml \
-    uv sync --frozen --no-install-workspace --package app
+    apt-get update \
+    && apt-get install -y --no-install-recommends g++ \
+    && uv sync --frozen --no-install-workspace --package app \
+    && apt-get purge -y --auto-remove g++ \
+    && rm -rf /var/lib/apt/lists/*
 
 RUN playwright install chromium --with-deps
 
