@@ -7,10 +7,12 @@ task.source_freshness_hash_contents = true
 [tools]
 python = "3.15.2"
 bun = "1.4.4"
-uv = "0.13.6"
+uv = "0.13.7"
 helm = "4.3.1"
+yq = "4.54.3"
+kubeconform = "0.8.0"
 "github:orhun/git-cliff" = "v2.14.2"
-prek = "0.5.9"
+prek = "0.5.10"
 
 # -- Setup --------------------------------------------------------
 
@@ -96,6 +98,10 @@ run = "bun run lint"
 [tasks."lint:helm"]
 description = "Lint the Helm chart"
 run = "helm lint --strict charts/wanderbound"
+
+[tasks."test:release"]
+description = "Verify exact-revision and immutable-chart release contracts"
+run = "bash scripts/test-release.sh"
 
 [tasks.lint]
 description = "Run all linters"

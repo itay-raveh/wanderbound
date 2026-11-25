@@ -83,11 +83,14 @@ def delete_thumbnails(path: Path) -> None:
         thumb.unlink(missing_ok=True)
 
 
-# {uuid4}_{uuid4}.(jpg|mp4)
-_UUID4 = r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
+# {uuid}_{uuid}.(jpg|mp4) or {uuid}_video.(jpg|mp4); some exports use uppercase.
+_UUID4 = (
+    r"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-"
+    r"[0-9a-fA-F]{4}-[0-9a-fA-F]{12}"
+)
 
 MediaName = Annotated[
-    str, StringConstraints(pattern=rf"^{_UUID4}_{_UUID4}\.(jpg|mp4)$")
+    str, StringConstraints(pattern=rf"^{_UUID4}_({_UUID4}|video)\.(jpg|mp4)$")
 ]
 
 
